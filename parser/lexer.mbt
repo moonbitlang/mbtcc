@@ -79,9 +79,11 @@ pub enum Token {
   MinusAssign // -=
   LeftShiftAssign // <<=
   RightShiftAssign // >>=
-  AndAssign // &=
-  XorAssign // ^=
-  OrAssign // |=
+  AndAssign // &&=
+  OrAssign // ||=
+  BitAndAssign // &=
+  BitXorAssign // ^=
+  BitOrAssign // |=
 
   And // &
   Or // |
@@ -102,6 +104,7 @@ pub enum Token {
   Colon // :
   Semi // ;
   Ellipsis // ...
+  Question // ?
 
   Identifier(String)
   Constant(Constant)
@@ -141,6 +144,8 @@ pub fn lex(code: String) -> Array[Token] raise {
         }
     [.. "<<=", ..rest] => { tokens.push(LeftShiftAssign); continue rest }
     [.. ">>=", ..rest] => { tokens.push(RightShiftAssign); continue rest }
+    [.. "&&=", ..rest] => { tokens.push(AndAssign); continue rest }
+    [.. "||=", ..rest] => { tokens.push(OrAssign); continue rest }
     [.. "<<", ..rest] => { tokens.push(Shl); continue rest }
     [.. ">>", ..rest] => { tokens.push(Shr); continue rest }
     [.. "++", ..rest] => { tokens.push(PlusPlus); continue rest }
@@ -160,9 +165,9 @@ pub fn lex(code: String) -> Array[Token] raise {
     [.. "%=", ..rest] => { tokens.push(ModAssign); continue rest }
     [.. "+=", ..rest] => { tokens.push(PlusAssign); continue rest }
     [.. "-=", ..rest] => { tokens.push(MinusAssign); continue rest }
-    [.. "&=", ..rest] => { tokens.push(AndAssign); continue rest }
-    [.. "^=", ..rest] => { tokens.push(XorAssign); continue rest }
-    [.. "|=", ..rest] => { tokens.push(OrAssign); continue rest }
+    [.. "&=", ..rest] => { tokens.push(BitAndAssign); continue rest }
+    [.. "^=", ..rest] => { tokens.push(BitXorAssign); continue rest }
+    [.. "|=", ..rest] => { tokens.push(BitOrAssign); continue rest }
     ['(', ..rest] => { tokens.push(LParen); continue rest }
     [')', ..rest] => { tokens.push(RParen); continue rest }
     ['[', ..rest] => { tokens.push(LBracket); continue rest }
@@ -182,6 +187,7 @@ pub fn lex(code: String) -> Array[Token] raise {
     ['|', ..rest] => { tokens.push(Or); continue rest }
     ['^', ..rest] => { tokens.push(Xor); continue rest }
     ['!', ..rest] => { tokens.push(Not); continue rest }
+    ['?', ..rest] => { tokens.push(Question); continue rest }
     ['~', ..rest] => { tokens.push(Tilde); continue rest }
     ['=', ..rest] => { tokens.push(Assign); continue rest }
     ['\'', c, '\'', ..rest] => { tokens.push(Constant(Char(c))); continue rest }
@@ -278,6 +284,7 @@ let keywords : Map[String, Token] = {
   "restrict" : Restrict,
   "atomic" : Atomic,
   "inline" : Inline,
+  "__inline__" : Inline, // GNU extension
   "_Noreturn" : Noreturn,
   "struct" : Struct,
   "union" : Union,
@@ -331,7 +338,7 @@ test "lexing test" {
     #|}
 
   let toks = lex(code)
-  let expect = [
+  let expect : Array[Token] = [
     Typedef, Struct, LBrace,
     Int,Identifier("x"), Semi,
     Int, Identifier("y"), Semi, 
