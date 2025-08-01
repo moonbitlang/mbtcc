@@ -1024,11 +1024,28 @@ type DeclSpecList Array[DeclSpec] derive(Show, Eq)
 fn DeclSpecList::parse(toks: ArrayView[Token]) -> (DeclSpecList, ArrayView[Token]) {
   let decl_specs: Array[DeclSpec] = Array::new()
   let mut rest_toks = toks
-  while (try? DeclSpec::parse(toks)) is Ok((decl_spec, rest)) {
+  while (try? DeclSpec::parse(rest_toks)) is Ok((decl_spec, rest)) {
     decl_specs.push(decl_spec)
     rest_toks = rest
+    // If we encounter a TypeSpec, we can stop parsing further decl specs
+    if decl_spec is TypeSpec(_) {
+      break
+    }
   }
   (DeclSpecList(decl_specs), rest_toks)
+}
+
+test "DeclSpecList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int a;" : [Identifier("a"), Semi, EOF],
+    "const char *p;" : [Star, Identifier("p"), Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let toks = lex(code)
+    let (decl_specs, rest_toks) = DeclSpecList::parse(toks);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 enum StorageClassSpec {
