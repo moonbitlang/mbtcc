@@ -1,6 +1,6 @@
 # Kaida-Amethyst/mbtcc
 
-mbtcc是一个使用moonbit编写的c编译器，支持c11标准。目的是为了验证llvm.mbt的功能，以及为MoonLLVM项目提供前端实现。
+mbtcc是一个使用moonbit编写的c编译器，支持c11标准，错误恢复，warning等。目的是为了验证llvm.mbt的功能，以及为MoonLLVM项目提供前端实现。
 
 ## RoadMap
 
