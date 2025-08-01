@@ -1019,6 +1019,18 @@ fn DeclSpec::parse(toks: ArrayView[Token]) -> (DeclSpec, ArrayView[Token]) raise
   }
 }
 
+type DeclSpecList Array[DeclSpec] derive(Show, Eq)
+
+fn DeclSpecList::parse(toks: ArrayView[Token]) -> (DeclSpecList, ArrayView[Token]) {
+  let decl_specs: Array[DeclSpec] = Array::new()
+  let mut rest_toks = toks
+  while (try? DeclSpec::parse(toks)) is Ok((decl_spec, rest)) {
+    decl_specs.push(decl_spec)
+    rest_toks = rest
+  }
+  (DeclSpecList(decl_specs), rest_toks)
+}
+
 enum StorageClassSpec {
   Auto // auto
   Register // register
@@ -1133,6 +1145,36 @@ fn TypeQualifier::parse(toks: ArrayView[Token]) -> (TypeQualifier, ArrayView[Tok
     [Atomic, .. rest_toks] => (TypeQualifier::Atomic, rest_toks)
     _ => raise ParseError("Unimplemented type qualifier")
   }
+}
+
+type TypeQualifierList Array[TypeQualifier] derive(Show, Eq)
+
+fn TypeQualifierList::parse(toks: ArrayView[Token]) -> (TypeQualifierList, ArrayView[Token]) {
+  let qualifiers: Array[TypeQualifier] = Array::new()
+  let rest_toks = loop toks {
+    [Const, .. rest_toks] => {
+      qualifiers.push(TypeQualifier::Const)
+      continue rest_toks
+    }
+    [Volatile, .. rest_toks] => {
+      qualifiers.push(TypeQualifier::Volatile)
+      continue rest_toks
+    }
+    [Restrict, .. rest_toks] => {
+      qualifiers.push(TypeQualifier::Restrict)
+      continue rest_toks
+    }
+    [Atomic, .. rest_toks] => {
+      qualifiers.push(TypeQualifier::Atomic)
+      continue rest_toks
+    }
+    toks => break toks // no more type qualifiers
+  }
+  (TypeQualifierList(qualifiers), rest_toks)
+}
+
+fn TypeQualifierList::is_empty(self: Self) -> Bool {
+  self.inner().is_empty()
 }
 
 enum TypeSpecOrQualifier {
@@ -1271,38 +1313,112 @@ test "Pointer Parsing Test" {
 enum DirectDeclarator {
   Identifier(String)
   Parenthesized(Declarator)
-  Array(DirectDeclarator, Array[TypeQualifier?], AssignExpr?)
-  StaticArray(DirectDeclarator, Array[TypeQualifier?], AssignExpr)
-  QulifiedStaticArray(DirectDeclarator, Array[TypeQualifier?], AssignExpr)
-  VallengthArray(DirectDeclarator, Array[TypeQualifier?])
-  FunctionDecl(DirectDeclarator, Array[ParameterDecl])
-  FunctionDecl2(DirectDeclarator, Array[String]?)
-  BitField(String, ConstantExpr)
+  Array(DirectDeclarator, TypeQualifierList, AssignExpr?)
+  StaticArray(DirectDeclarator, Array[TypeQualifier], AssignExpr)
+  VallengthArray(DirectDeclarator, Array[TypeQualifier])
+  FunctionDecl(DirectDeclarator, ParameterTypeList)
+  FunctionPtr(DirectDeclarator, Array[String])
+  BitField(String, Int)
 } derive(Show, Eq)
 
 fn DirectDeclarator::parse(toks: ArrayView[Token]) -> (DirectDeclarator, ArrayView[Token]) raise {
-  ...
-  //let (head_decl, rest_toks) = match toks {
-  //  [Identifier(name), .. rest_toks] => (DirectDeclarator::Identifier(name), rest_toks)
-  //  [LParen, .. rest_toks] => {
-  //    let (declarator, rest) = Declarator::parse(rest_toks);
-  //    guard rest is [RParen, .. rest] else {
-  //      raise ParseError("Expected closing parenthesis after declarator")
-  //    }
-  //    (DirectDeclarator::Parenthesized(declarator), rest)
-  //  }
-  //}
-  //loop (head_decl, rest_toks) {
-  //  [LBracket, Static, .. rest_toks] => {
-  //    let (type_qualifiers, rest) = TypeQualifierList::parse(rest_toks);
-  //    guard rest is [RBracket, .. rest] else {
-  //      raise ParseError("Expected closing bracket after type qualifiers in static array")
-  //    }
-  //    let (assign_expr, rest) = AssignExpr::parse(rest);
-  //    let next_decl = DirectDeclarator::StaticArray(head_decl, type_qualifiers, assign_expr);
-  //    (next_decl, rest)
-  //  }
-  //}
+  let (head_decl, rest_toks) = match toks {
+    [Identifier(name), .. rest_toks] => (DirectDeclarator::Identifier(name), rest_toks)
+    [LParen, .. rest_toks] => {
+      let (declarator, rest) = Declarator::parse(rest_toks);
+      guard rest is [RParen, .. rest] else {
+        raise ParseError("Expected closing parenthesis after declarator")
+      }
+      (DirectDeclarator::Parenthesized(declarator), rest)
+    }
+    _ => raise ParseError("Unimplemented direct declarator parsing")
+  }
+  let mut current_decl = head_decl
+  loop rest_toks {
+    [LBracket, Static, ..rest_toks] => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks);
+      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks);
+      current_decl = DirectDeclarator::StaticArray(current_decl, type_qualifiers.inner(), assign_expr)
+      continue rest_toks
+    }
+    [LBracket, ..rest_toks] => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks);
+      let rest_toks = match rest_toks {
+        [Static, .. rest_toks] => {
+          let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks);
+          current_decl = DirectDeclarator::StaticArray(current_decl, type_qualifiers.inner(), assign_expr)
+          guard rest_toks is [RBracket, ..rest_toks] else {
+            raise ParseError("Expected closing bracket after static array declaration")
+          }
+          rest_toks
+        }
+        [Star, .. rest_toks] => {
+          current_decl = DirectDeclarator::VallengthArray(current_decl, type_qualifiers.inner())
+          guard rest_toks is [RBracket, ..rest_toks] else {
+            raise ParseError("Expected closing bracket after variable length array declaration")
+          }
+          rest_toks
+        }
+        [RBracket, ..rest_toks] => {
+          current_decl = DirectDeclarator::Array(current_decl, type_qualifiers.inner(), None)
+          rest_toks
+        }
+        _ => {
+          let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks);
+          current_decl = DirectDeclarator::Array(current_decl, type_qualifiers.inner(), Some(assign_expr))
+          guard rest_toks is [RBracket, ..rest_toks] else {
+            raise ParseError("Expected closing bracket after array declaration")
+          }
+          rest_toks
+        }
+      }
+      continue rest_toks
+    }
+    // IdentifierList
+    [LParen, Identifier(name), Comma, ..rest_toks] => {
+      let identifiers: Array[String] = [name]
+      let rest_toks = loop rest_toks {
+        [Identifier(next_name), ..rest_toks] => {
+          identifiers.push(next_name)
+          continue rest_toks
+        }
+        [Comma, ..rest_toks] => continue rest_toks
+        [RParen, ..rest_toks] => {
+          break rest_toks
+        }
+        _ => raise ParseError("Expected identifier or closing parenthesis in identifier list")
+      }
+      current_decl = DirectDeclarator::FunctionPtr(current_decl, identifiers)
+      continue rest_toks
+    }
+    // IdentifierList
+    [LParen, Identifier(name), RParen, ..rest_toks] => {
+      let identifiers: Array[String] = [name]
+      current_decl = DirectDeclarator::FunctionPtr(current_decl, identifiers)
+      continue rest_toks
+    }
+    [LParen, RParen, ..rest_toks] => {
+      current_decl = DirectDeclarator::FunctionPtr(current_decl, [])
+      continue rest_toks
+    }
+    // parameterTypeList
+    [LParen, ..rest_toks] => {
+      let (params, rest_toks) = ParameterTypeList::parse(rest_toks);
+      current_decl = DirectDeclarator::FunctionDecl(current_decl, params);
+      guard rest_toks is [RParen, ..rest_toks] else {
+        raise ParseError("Expected closing parenthesis after parameter type list")
+      }
+      continue rest_toks
+    }
+    // BitField
+    [Identifier(name), Colon, Constant(Int(i)), ..rest_toks] => {
+      current_decl = DirectDeclarator::BitField(name, i);
+      continue rest_toks
+    }
+    _ => {
+      raise ParseError("Unimplemented direct declarator parsing")
+    }
+  }
 }
 
 struct InitDeclarator {
@@ -1611,6 +1727,54 @@ struct FunctionDefinition {
   body: Array[BlockItem]
 } derive(Show, Eq)
 
+
+//parameterTypeList
+//    : parameterList (',' '...')?
+//    ;
+
+struct ParameterTypeList {
+  params: Array[ParameterDecl]
+  variadic: Bool
+} derive(Show, Eq)
+
+fn ParameterTypeList::parse(toks: ArrayView[Token]) -> (ParameterTypeList, ArrayView[Token]) raise {
+  let (params, rest_toks) = ParameterList::parse(toks);
+  let params = params.inner()
+  match rest_toks {
+    [Comma, Ellipsis, .. rest_toks] => {
+      let param_type_list = ParameterTypeList::{ params, variadic: true }
+      (param_type_list, rest_toks)
+    }
+    _ => {
+      let param_type_list = ParameterTypeList::{ params, variadic: false }
+      (param_type_list, rest_toks)
+    }
+  }
+}
+
+//parameterList
+//    : parameterDeclaration (',' parameterDeclaration)*
+//    ;
+
+type ParameterList Array[ParameterDecl] derive(Show, Eq)
+
+fn ParameterList::parse(toks: ArrayView[Token]) -> (ParameterList, ArrayView[Token]) raise {
+  let decls: Array[ParameterDecl] = Array::new()
+  let (first_decl, rest_toks) = ParameterDecl::parse(toks);
+  decls.push(first_decl)
+  let rest_toks = loop rest_toks {
+    [Comma, .. rest_toks] => {
+      let (next_decl, rest) = ParameterDecl::parse(rest_toks);
+      decls.push(next_decl)
+      continue rest
+    }
+    toks => break toks
+  }
+  let param_list = ParameterList(decls)
+  (param_list, rest_toks)
+}
+
+
 //parameterDeclaration
 //    : declarationSpecifiers (declarator | abstractDeclarator)
 //    ;
@@ -1619,7 +1783,31 @@ struct ParameterDecl {
   declarator: ParamDeclarator
 } derive(Show, Eq)
 
+fn ParameterDecl::parse(toks: ArrayView[Token]) -> (ParameterDecl, ArrayView[Token]) raise {
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks);
+  let decl_specs = decl_specs.inner()
+  guard decl_specs.length() > 0 else {
+    raise ParseError("Parameter declaration must have at least one declaration specifier")
+  }
+  let (declarator, rest_toks) = ParamDeclarator::parse(rest_toks);
+  let param_decl = ParameterDecl::{
+    declspecs: decl_specs,
+    declarator
+  }
+  (param_decl, rest_toks)
+}
+
 enum ParamDeclarator {
   Declarator(Declarator)
   AbstractDeclarator(AbstractDeclarator)
 } derive(Show, Eq)
+
+fn ParamDeclarator::parse(toks: ArrayView[Token]) -> (ParamDeclarator, ArrayView[Token]) raise {
+  if (try? Declarator::parse(toks)) is Ok((declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
+    (ParamDeclarator::Declarator(declarator), rest_toks)
+  } else if (try? AbstractDeclarator::parse(toks)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
+    (ParamDeclarator::AbstractDeclarator(abstract_declarator), rest_toks)
+  } else {
+    raise ParseError("Expected declarator or abstract declarator in parameter declaration")
+  }
+}
