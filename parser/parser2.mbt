@@ -443,451 +443,449 @@ test "MultExpr Parsing Test" {
 //additiveExpression
 //    : multiplicativeExpression (('+' | '-') multiplicativeExpression)*
 //    ;
-//struct AddSubExpr {
-//  exprs: Array[MultExpr]
-//  ops: Array[AddSubOp]
-//} derive(Show, Eq)
+struct AddSubExpr {
+  exprs: Array[MultExpr]
+  ops: Array[AddSubOp]
+} derive(Show, Eq)
 
-//enum AddSubOp {
-//  Add // +
-//  Sub // -
-//} derive(Show, Eq)
-//
-//fn AddSubExpr::parse(toks: ArrayView[Token]) -> (AddSubExpr, ArrayView[Token]) raise {
-//  let exprs: Array[MultExpr] = Array::new()
-//  let ops: Array[AddSubOp] = Array::new()
-//  let (first_expr, rest_toks) = MultExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [Plus, .. rest_toks] => {
-//      ops.push(AddSubOp::Add)
-//      let (next_expr, rest) = MultExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [Minus, .. rest_toks] => {
-//      ops.push(AddSubOp::Sub)
-//      let (next_expr, rest) = MultExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let add_sub_expr = AddSubExpr::{ exprs, ops }
-//  (add_sub_expr, rest_toks)
-//}
-//
-//test "AddSubExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "abc + b - c > 78" : [GT, Constant(Constant::Int(78)), EOF],
-//    "abc - b + d <= 96" : [LE, Constant(Constant::Int(96)), EOF],
-//    "123 + 456 - 789 == 12345" : [EQ, Constant(Constant::Int(12345)), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = AddSubExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////shiftExpression
-////    : additiveExpression (('<<' | '>>') additiveExpression)*
-////    ;
-//struct ShiftExpr {
-//  exprs: Array[AddSubExpr]
-//  ops: Array[ShiftOp]
-//} derive(Show, Eq)
-//
-//enum ShiftOp {
-//  Shl // <<
-//  Shr // >>
-//} derive(Show, Eq)
-//
-//fn ShiftExpr::parse(toks: ArrayView[Token]) -> (ShiftExpr, ArrayView[Token]) raise {
-//  let exprs: Array[AddSubExpr] = Array::new()
-//  let ops: Array[ShiftOp] = Array::new()
-//  let (first_expr, rest_toks) = AddSubExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [Shl, .. rest_toks] => {
-//      ops.push(ShiftOp::Shl)
-//      let (next_expr, rest) = AddSubExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [Shr, .. rest_toks] => {
-//      ops.push(ShiftOp::Shr)
-//      let (next_expr, rest) = AddSubExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let shift_expr = ShiftExpr::{ exprs, ops }
-//  (shift_expr, rest_toks)
-//}
-//
-//test "ShiftExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a << 1 > 345 " : [GT, Constant(Constant::Int(345)), EOF],
-//    "b >> 2 < 456" : [LT, Constant(Constant::Int(456)), EOF],
-//    "c << 3 == 789" : [EQ, Constant(Constant::Int(789)), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = ShiftExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////relationalExpression
-////    : shiftExpression (('<' | '>' | '<=' | '>=') shiftExpression)*
-////    ;
-//struct RelationalExpr {
-//  exprs: Array[ShiftExpr]
-//  ops: Array[RelationalOp]
-//} derive(Show, Eq)
-//
-//enum RelationalOp {
-//  LT // <
-//  GT // >
-//  LE // <=
-//  GE // >=
-//} derive(Show, Eq)
-//
-//fn RelationalExpr::parse(toks: ArrayView[Token]) -> (RelationalExpr, ArrayView[Token]) raise {
-//  let exprs: Array[ShiftExpr] = Array::new()
-//  let ops: Array[RelationalOp] = Array::new()
-//  let (first_expr, rest_toks) = ShiftExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [LT, .. rest_toks] => {
-//      ops.push(RelationalOp::LT)
-//      let (next_expr, rest) = ShiftExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [GT, .. rest_toks] => {
-//      ops.push(RelationalOp::GT)
-//      let (next_expr, rest) = ShiftExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [LE, .. rest_toks] => {
-//      ops.push(RelationalOp::LE)
-//      let (next_expr, rest) = ShiftExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [GE, .. rest_toks] => {
-//      ops.push(RelationalOp::GE)
-//      let (next_expr, rest) = ShiftExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let relational_expr = RelationalExpr::{ exprs, ops }
-//  (relational_expr, rest_toks)
-//}
-//
-//test "RelationalExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a < b + c && True" : [DoubleAnd, Identifier("True"), EOF],
-//    "d > e - f || False" : [DoubleOr, Identifier("False"), EOF],
-//    "g <= h * i && cond" : [DoubleAnd, Identifier("cond"), EOF],
-//    "j >= k / l || cond" : [DoubleOr, Identifier("cond"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = RelationalExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////equalityExpression
-////    : relationalExpression (('==' | '!=') relationalExpression)*
-////    ;
-//struct EqualityExpr {
-//  exprs: Array[RelationalExpr]
-//  ops: Array[EqualityOp]
-//} derive(Show, Eq)
-//
-//enum EqualityOp {
-//  EQ // ==
-//  NE // !=
-//} derive(Show, Eq)
-//
-//fn EqualityExpr::parse(toks: ArrayView[Token]) -> (EqualityExpr, ArrayView[Token]) raise {
-//  let exprs: Array[RelationalExpr] = Array::new()
-//  let ops: Array[EqualityOp] = Array::new()
-//  let (first_expr, rest_toks) = RelationalExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [EQ, .. rest_toks] => {
-//      ops.push(EqualityOp::EQ)
-//      let (next_expr, rest) = RelationalExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    [NE, .. rest_toks] => {
-//      ops.push(EqualityOp::NE)
-//      let (next_expr, rest) = RelationalExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let equality_expr = EqualityExpr::{ exprs, ops }
-//  (equality_expr, rest_toks)
-//}
-//
-//test "EqualityExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a == b + c || True" : [DoubleOr, Identifier("True"), EOF],
-//    "d != e - f && False" : [DoubleAnd, Identifier("False"), EOF],
-//    "g == h * i || cond" : [DoubleOr, Identifier("cond"), EOF],
-//    "j != k / l && cond" : [DoubleAnd, Identifier("cond"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = EqualityExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////andExpression
-////    : equalityExpression ('&' equalityExpression)*
-////    ;
-//struct AndExpr {
-//  exprs: Array[EqualityExpr]
-//} derive(Show, Eq)
-//
-//fn AndExpr::parse(toks: ArrayView[Token]) -> (AndExpr, ArrayView[Token]) raise {
-//  let exprs: Array[EqualityExpr] = Array::new()
-//  let (first_expr, rest_toks) = EqualityExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [And, .. rest_toks] => {
-//      let (next_expr, rest) = EqualityExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let and_expr = AndExpr::{ exprs }
-//  (and_expr, rest_toks)
-//}
-//
-//test "AndExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a & b | c " : [Or, Identifier("c"), EOF],
-//    "a & c ^ d" : [Xor, Identifier("d"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = AndExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////exclusiveOrExpression
-////    : andExpression ('^' andExpression)*
-////    ;
-//struct ExclusiveOrExpr {
-//  exprs: Array[AndExpr]
-//} derive(Show, Eq)
-//
-//fn ExclusiveOrExpr::parse(toks: ArrayView[Token]) -> (ExclusiveOrExpr, ArrayView[Token]) raise {
-//  let exprs: Array[AndExpr] = Array::new()
-//  let (first_expr, rest_toks) = AndExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [Xor, .. rest_toks] => {
-//      let (next_expr, rest) = AndExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let exclusive_or_expr = ExclusiveOrExpr::{ exprs }
-//  (exclusive_or_expr, rest_toks)
-//}
-//
-//test "ExclusiveOrExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "1 & a ^ b ? c" : [Question, Identifier("c"), EOF],
-//    "d ^ e & 1 ? f" : [Question, Identifier("f"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = ExclusiveOrExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////inclusiveOrExpression
-////    : exclusiveOrExpression ('|' exclusiveOrExpression)*
-////    ;
-//struct InclusiveOrExpr {
-//  exprs: Array[ExclusiveOrExpr]
-//} derive(Show, Eq)
-//
-//fn InclusiveOrExpr::parse(toks: ArrayView[Token]) -> (InclusiveOrExpr, ArrayView[Token]) raise {
-//  let exprs: Array[ExclusiveOrExpr] = Array::new()
-//  let (first_expr, rest_toks) = ExclusiveOrExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [Or, .. rest_toks] => {
-//      let (next_expr, rest) = ExclusiveOrExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let inclusive_or_expr = InclusiveOrExpr::{ exprs }
-//  (inclusive_or_expr, rest_toks)
-//}
-//
-//test "InclusiveOrExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a | b ? c" : [Question, Identifier("c"), EOF],
-//    "d | e ? f" : [Question, Identifier("f"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = InclusiveOrExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////logicalAndExpression
-////    : inclusiveOrExpression ('&&' inclusiveOrExpression)*
-////    ;
-//struct LogicalAndExpr {
-//  exprs: Array[InclusiveOrExpr]
-//} derive(Show, Eq)
-//
-//fn LogicalAndExpr::parse(toks: ArrayView[Token]) -> (LogicalAndExpr, ArrayView[Token]) raise {
-//  let exprs: Array[InclusiveOrExpr] = Array::new()
-//  let (first_expr, rest_toks) = InclusiveOrExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [DoubleAnd, .. rest_toks] => {
-//      let (next_expr, rest) = InclusiveOrExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let logical_and_expr = LogicalAndExpr::{ exprs }
-//  (logical_and_expr, rest_toks)
-//}
-//
-//test "LogicalAndExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a && b || c" : [DoubleOr, Identifier("c"), EOF],
-//    "d && e || f" : [DoubleOr, Identifier("f"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = LogicalAndExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////logicalOrExpression
-////    : logicalAndExpression ('||' logicalAndExpression)*
-////    ;
-//struct LogicalOrExpr {
-//  exprs: Array[LogicalAndExpr]
-//} derive(Show, Eq)
-//
-//fn LogicalOrExpr::parse(toks: ArrayView[Token]) -> (LogicalOrExpr, ArrayView[Token]) raise {
-//  let exprs: Array[LogicalAndExpr] = Array::new()
-//  let (first_expr, rest_toks) = LogicalAndExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [DoubleOr, .. rest_toks] => {
-//      let (next_expr, rest) = LogicalAndExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let logical_or_expr = LogicalOrExpr::{ exprs }
-//  (logical_or_expr, rest_toks)
-//}
-//
-//test "LogicalOrExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a || b ? c" : [Question, Identifier("c"), EOF],
-//    "d || e ? f" : [Question, Identifier("f"), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = LogicalOrExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-////conditionalExpression
-////    : logicalOrExpression ('?' expression ':' conditionalExpression)?
-////    ;
-//struct ConditionalExpr {
-//  expr: LogicalOrExpr
-//  select: (Expr, ConditionalExpr)?
-//} derive(Show, Eq)
-//
-//fn ConditionalExpr::parse(toks: ArrayView[Token]) -> (ConditionalExpr, ArrayView[Token]) raise {
-//  let (logical_or_expr, rest_toks) = LogicalOrExpr::parse(toks);
-//  match  rest_toks {
-//    [Question, .. rest_toks] => {
-//      let (expr, rest) = Expr::parse(rest_toks);
-//      guard rest is [Colon, .. rest_toks] else {
-//        raise ParseError("Expected ':' after expression in conditional expression")
-//      }
-//      let (conditional_expr, rest_toks) = ConditionalExpr::parse(rest_toks);
-//      let conditional_expr = ConditionalExpr::{
-//        expr: logical_or_expr,
-//        select: Some((expr, conditional_expr))
-//      }
-//      (conditional_expr, rest_toks)
-//    }
-//    _ => {
-//      let conditional_expr = ConditionalExpr::{
-//        expr: logical_or_expr,
-//        select: None
-//      }
-//      (conditional_expr, rest_toks)
-//    }
-//  }
-//}
-//
-//test "ConditionalExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "cond1 ? 123 : 456 ; int" : [Semi, Int, EOF],
-//    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
-//    "init || Next ? 7 : 8; " : [Semi, EOF],
-//    "a123 += 5" : [PlusAssign, Constant(Constant::Int(5)), EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = ConditionalExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
+enum AddSubOp {
+  Add // +
+  Sub // -
+} derive(Show, Eq)
 
+fn Context::parse_addsub_expr(self: Self) -> AddSubExpr raise {
+  let exprs: Array[MultExpr] = Array::new()
+  let ops: Array[AddSubOp] = Array::new()
+  let first_expr = self.parse_mult_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [Plus, .. rest_toks] => {
+      ops.push(AddSubOp::Add)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_mult_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [Minus, .. rest_toks] => {
+      ops.push(AddSubOp::Sub)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_mult_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  AddSubExpr::{ exprs, ops }
+}
+
+
+test "AddSubExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "abc + b - c > 78" : [GT, Constant(Constant::Int(78)), EOF],
+    "abc - b + d <= 96" : [LE, Constant(Constant::Int(96)), EOF],
+    "123 + 456 - 789 == 12345" : [EQ, Constant(Constant::Int(12345)), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_addsub_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//shiftExpression
+//    : additiveExpression (('<<' | '>>') additiveExpression)*
+//    ;
+struct ShiftExpr {
+  exprs: Array[AddSubExpr]
+  ops: Array[ShiftOp]
+} derive(Show, Eq)
+
+enum ShiftOp {
+  Shl // <<
+  Shr // >>
+} derive(Show, Eq)
+
+fn Context::parse_shift_expr(self: Self) -> ShiftExpr raise {
+  let exprs: Array[AddSubExpr] = Array::new()
+  let ops: Array[ShiftOp] = Array::new()
+  let first_expr = self.parse_addsub_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [Shl, .. rest_toks] => {
+      ops.push(ShiftOp::Shl)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_addsub_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [Shr, .. rest_toks] => {
+      ops.push(ShiftOp::Shr)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_addsub_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  ShiftExpr::{ exprs, ops }
+}
+
+test "ShiftExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a << 1 > 345 " : [GT, Constant(Constant::Int(345)), EOF],
+    "b >> 2 < 456" : [LT, Constant(Constant::Int(456)), EOF],
+    "c << 3 == 789" : [EQ, Constant(Constant::Int(789)), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_shift_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//relationalExpression
+//    : shiftExpression (('<' | '>' | '<=' | '>=') shiftExpression)*
+//    ;
+struct RelationalExpr {
+  exprs: Array[ShiftExpr]
+  ops: Array[RelationalOp]
+} derive(Show, Eq)
+
+enum RelationalOp {
+  LT // <
+  GT // >
+  LE // <=
+  GE // >=
+} derive(Show, Eq)
+
+fn Context::parse_relational_expr(self: Self) -> RelationalExpr raise {
+  let exprs: Array[ShiftExpr] = Array::new()
+  let ops: Array[RelationalOp] = Array::new()
+  let first_expr = self.parse_shift_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [LT, .. rest_toks] => {
+      ops.push(RelationalOp::LT)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_shift_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [GT, .. rest_toks] => {
+      ops.push(RelationalOp::GT)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_shift_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [LE, .. rest_toks] => {
+      ops.push(RelationalOp::LE)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_shift_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [GE, .. rest_toks] => {
+      ops.push(RelationalOp::GE)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_shift_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  RelationalExpr::{ exprs, ops }
+}
+
+test "RelationalExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a < b + c && True" : [DoubleAnd, Identifier("True"), EOF],
+    "d > e - f || False" : [DoubleOr, Identifier("False"), EOF],
+    "g <= h * i && cond" : [DoubleAnd, Identifier("cond"), EOF],
+    "j >= k / l || cond" : [DoubleOr, Identifier("cond"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_relational_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//equalityExpression
+//    : relationalExpression (('==' | '!=') relationalExpression)*
+//    ;
+struct EqualityExpr {
+  exprs: Array[RelationalExpr]
+  ops: Array[EqualityOp]
+} derive(Show, Eq)
+
+enum EqualityOp {
+  EQ // ==
+  NE // !=
+} derive(Show, Eq)
+
+fn Context::parse_equality_expr(self: Self) -> EqualityExpr raise {
+  let exprs: Array[RelationalExpr] = Array::new()
+  let ops: Array[EqualityOp] = Array::new()
+  let first_expr = self.parse_relational_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [EQ, .. rest_toks] => {
+      ops.push(EqualityOp::EQ)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_relational_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    [NE, .. rest_toks] => {
+      ops.push(EqualityOp::NE)
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_relational_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  EqualityExpr::{ exprs, ops }
+}
+
+test "EqualityExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a == b + c || True" : [DoubleOr, Identifier("True"), EOF],
+    "d != e - f && False" : [DoubleAnd, Identifier("False"), EOF],
+    "g == h * i || cond" : [DoubleOr, Identifier("cond"), EOF],
+    "j != k / l && cond" : [DoubleAnd, Identifier("cond"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_equality_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//andExpression
+//    : equalityExpression ('&' equalityExpression)*
+//    ;
+struct AndExpr {
+  exprs: Array[EqualityExpr]
+} derive(Show, Eq)
+
+fn Context::parse_and_expr(self: Self) -> AndExpr raise {
+  let exprs: Array[EqualityExpr] = Array::new()
+  let first_expr = self.parse_equality_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [And, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_equality_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  AndExpr::{ exprs }
+}
+
+test "AndExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a & b | c " : [Or, Identifier("c"), EOF],
+    "a & c ^ d" : [Xor, Identifier("d"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_and_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//exclusiveOrExpression
+//    : andExpression ('^' andExpression)*
+//    ;
+struct ExclusiveOrExpr {
+  exprs: Array[AndExpr]
+} derive(Show, Eq)
+
+fn Context::parse_exclusive_or_expr(self: Self) -> ExclusiveOrExpr raise {
+  let exprs: Array[AndExpr] = Array::new()
+  let first_expr = self.parse_and_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [Xor, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_and_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  ExclusiveOrExpr::{ exprs }
+}
+
+test "ExclusiveOrExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "1 & a ^ b ? c" : [Question, Identifier("c"), EOF],
+    "d ^ e & 1 ? f" : [Question, Identifier("f"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_exclusive_or_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//inclusiveOrExpression
+//    : exclusiveOrExpression ('|' exclusiveOrExpression)*
+//    ;
+struct InclusiveOrExpr {
+  exprs: Array[ExclusiveOrExpr]
+} derive(Show, Eq)
+
+fn Context::parse_inclusive_or_expr(self: Self) -> InclusiveOrExpr raise {
+  let exprs: Array[ExclusiveOrExpr] = Array::new()
+  let first_expr = self.parse_exclusive_or_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [Or, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_exclusive_or_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  InclusiveOrExpr::{ exprs }
+}
+
+test "InclusiveOrExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a | b ? c" : [Question, Identifier("c"), EOF],
+    "d | e ? f" : [Question, Identifier("f"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_inclusive_or_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//logicalAndExpression
+//    : inclusiveOrExpression ('&&' inclusiveOrExpression)*
+//    ;
+struct LogicalAndExpr {
+  exprs: Array[InclusiveOrExpr]
+} derive(Show, Eq)
+
+fn Context::parse_logical_and_expr(self: Self) -> LogicalAndExpr raise {
+  let exprs: Array[InclusiveOrExpr] = Array::new()
+  let first_expr = self.parse_inclusive_or_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [DoubleAnd, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_inclusive_or_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  LogicalAndExpr::{ exprs }
+}
+
+test "LogicalAndExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a && b || c" : [DoubleOr, Identifier("c"), EOF],
+    "d && e || f" : [DoubleOr, Identifier("f"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_logical_and_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//logicalOrExpression
+//    : logicalAndExpression ('||' logicalAndExpression)*
+//    ;
+struct LogicalOrExpr {
+  exprs: Array[LogicalAndExpr]
+} derive(Show, Eq)
+
+fn Context::parse_logical_or_expr(self: Self) -> LogicalOrExpr raise {
+  let exprs: Array[LogicalAndExpr] = Array::new()
+  let first_expr = self.parse_logical_and_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [DoubleOr, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_logical_and_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  LogicalOrExpr::{ exprs }
+}
+
+test "LogicalOrExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a || b ? c" : [Question, Identifier("c"), EOF],
+    "d || e ? f" : [Question, Identifier("f"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_logical_or_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+//conditionalExpression
+//    : logicalOrExpression ('?' expression ':' conditionalExpression)?
+//    ;
+struct ConditionalExpr {
+  expr: LogicalOrExpr
+  select: (Expr, ConditionalExpr)?
+} derive(Show, Eq)
+
+fn Context::parse_conditional_expr(self: Self) -> ConditionalExpr raise {
+  let logical_or_expr = self.parse_logical_or_expr();
+  match self.rest_toks {
+    [Question, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let expr = self.parse_expr();
+      guard self.rest_toks is [Colon, .. rest_toks] else {
+        raise ParseError("Expected ':' after expression in conditional expression")
+      }
+      self.rest_toks = rest_toks // Skip the colon
+      let conditional_expr = self.parse_conditional_expr();
+      ConditionalExpr::{ expr: logical_or_expr, select: Some((expr, conditional_expr)) }
+    }
+    _ => ConditionalExpr::{ expr: logical_or_expr, select: None }
+  }
+}
+
+test "ConditionalExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "cond1 ? 123 : 456 ; int" : [Semi, Int, EOF],
+    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
+    "init || Next ? 7 : 8; " : [Semi, EOF],
+    "a123 += 5" : [PlusAssign, Constant(Constant::Int(5)), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_conditional_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
 
 //assignmentExpression
 //    : conditionalExpression
@@ -895,56 +893,57 @@ test "MultExpr Parsing Test" {
 //    | DigitSequence // for
 //    ;
 enum AssignExpr {
-  //Conditional(ConditionalExpr)
+  Conditional(ConditionalExpr)
   Assign(UnaryExpr, AssignOp, AssignExpr)
 } derive(Show, Eq)
 
-fn Context::parse_assign_expr(self: Self) -> AssignExpr raise { ... }
+fn Context::parse_assign_expr(self: Self) -> AssignExpr raise { 
+  let toks = self.rest_toks; // record current toks
+  let unary_expr = self.parse_unary_expr();
+  match self.rest_toks {
+    [Assign | PlusAssign | MinusAssign | StarAssign | DivAssign | ModAssign |
+     LeftShiftAssign | RightShiftAssign | AndAssign | BitXorAssign |
+     BitOrAssign as op, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let assign_expr = self.parse_assign_expr();
+      let assign_op = match op {
+        Assign => AssignOp::Assign
+        PlusAssign => AssignOp::AddAssign
+        MinusAssign => AssignOp::SubAssign
+        StarAssign => AssignOp::MultAssign
+        DivAssign => AssignOp::DivAssign
+        ModAssign => AssignOp::ModAssign
+        AndAssign => AssignOp::AndAssign
+        OrAssign => AssignOp::OrAssign
+        LeftShiftAssign => AssignOp::LeftShiftAssign
+        RightShiftAssign => AssignOp::RightShiftAssign
+        BitAndAssign => AssignOp::BitwiseAndAssign
+        BitXorAssign => AssignOp::BitwiseXorAssign
+        _ => AssignOp::BitwiseOrAssign // BitOrAssign
+      }
+      AssignExpr::Assign(unary_expr, assign_op, assign_expr)
+    }
+    _ => {
+      self.rest_toks = toks // Restore the original token stream
+      let cond_expr = self.parse_conditional_expr();
+      AssignExpr::Conditional(cond_expr)
+    }
+  }
+}
 
-//fn AssignExpr::parse(toks: ArrayView[Token]) -> (AssignExpr, ArrayView[Token]) raise {
-//  let (unary_expr, rest_toks) = UnaryExpr::parse(toks);
-//  match rest_toks {
-//    [Assign | PlusAssign | MinusAssign | StarAssign | DivAssign | ModAssign |
-//     LeftShiftAssign | RightShiftAssign | AndAssign | BitXorAssign |
-//     BitOrAssign as op, .. rest_toks] => {
-//      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks);
-//      let assign_op = match op {
-//        Assign => AssignOp::Assign
-//        PlusAssign => AssignOp::AddAssign
-//        MinusAssign => AssignOp::SubAssign
-//        StarAssign => AssignOp::MultAssign
-//        DivAssign => AssignOp::DivAssign
-//        ModAssign => AssignOp::ModAssign
-//        AndAssign => AssignOp::AndAssign
-//        OrAssign => AssignOp::OrAssign
-//        LeftShiftAssign => AssignOp::LeftShiftAssign
-//        RightShiftAssign => AssignOp::RightShiftAssign
-//        BitAndAssign => AssignOp::BitwiseAndAssign
-//        BitXorAssign => AssignOp::BitwiseXorAssign
-//        _ => AssignOp::BitwiseOrAssign // BitOrAssign
-//      }
-//      (AssignExpr::Assign(unary_expr, assign_op, assign_expr), rest_toks)
-//    }
-//    _ => {
-//      let (cond_expr, rest_toks) = ConditionalExpr::parse(toks);
-//      (AssignExpr::Conditional(cond_expr), rest_toks)
-//    }
-//  }
-//}
-//
-//test "AssignExpr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a = b + c; int" : [Semi, Int, EOF],
-//    "x += 5; union" : [Semi, Union, EOF],
-//    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = AssignExpr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
+test "AssignExpr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a = b + c; int" : [Semi, Int, EOF],
+    "x += 5; union" : [Semi, Union, EOF],
+    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_assign_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
 
 enum AssignOp {
   Assign // =
@@ -970,40 +969,40 @@ struct Expr {
 } derive(Show, Eq)
 
 fn Context::parse_expr(self: Self) -> Expr raise {
-  ...
+  let exprs: Array[AssignExpr] = Array::new()
+  let first_expr = self.parse_assign_expr();
+  exprs.push(first_expr)
+  loop self.rest_toks {
+    [Comma, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let next_expr = self.parse_assign_expr();
+      exprs.push(next_expr)
+      continue self.rest_toks
+    }
+    _ => break
+  }
+  Expr::{ exprs }
 }
 
-//fn Expr::parse(toks: ArrayView[Token]) -> (Expr, ArrayView[Token]) raise {
-//  let exprs: Array[AssignExpr] = Array::new()
-//  let (first_expr, rest_toks) = AssignExpr::parse(toks);
-//  exprs.push(first_expr)
-//  let rest_toks = loop rest_toks {
-//    [Comma, .. rest_toks] => {
-//      let (next_expr, rest) = AssignExpr::parse(rest_toks);
-//      exprs.push(next_expr)
-//      continue rest
-//    }
-//    toks => break toks
-//  }
-//  let expr = Expr::{ exprs }
-//  (expr, rest_toks)
-//}
-//
-//test "Expr Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "a = b + c, d = e - f; int" : [Semi, Int, EOF],
-//    "x += 5, y -= 10; union" : [Semi, Union, EOF],
-//    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let toks = lex(code)
-//    let (_, rest_toks) = Expr::parse(toks);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//}
-//
-//typealias ConditionalExpr as ConstantExpr
+test "Expr Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a = b + c, d = e - f; int" : [Semi, Int, EOF],
+    "x += 5, y -= 10; union" : [Semi, Union, EOF],
+    "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    let _ = ctx..tokenize().parse_expr()
+    assert_eq(ctx.rest_toks, expect_rest)
+  }
+}
+
+typealias ConditionalExpr as ConstantExpr
+
+fn Context::parse_constant_expr(self: Self) -> ConstantExpr raise {
+  self.parse_conditional_expr()
+}
 
 //declaration
 //    : declarationSpecifiers initDeclaratorList? ';'
@@ -1581,30 +1580,32 @@ fn Context::parse_function_spec(self: Self) -> FunctionSpec raise {
 }
 
 enum AlignmentSpec {
-  //AlignasExpr(ConstantExpr) // _Alignas(expr)
+  AlignasExpr(ConstantExpr) // _Alignas(expr)
   AlignasType(TypeName) // _Alignof(type)
 } derive(Show, Eq)
 
-//fn AlignmentSpec::parse(toks: ArrayView[Token]) -> (AlignmentSpec, ArrayView[Token]) raise {
 fn Context::parse_alignment_spec(self: Self) -> AlignmentSpec raise {
-  ...
-  //match toks {
-  //  [Alignas, LParen, .. rest_toks] => {
-  //    let (expr, rest) = ConstantExpr::parse(rest_toks);
-  //    guard rest is [RParen, .. rest] else {
-  //      raise ParseError("Expected closing parenthesis after expression in _Alignas")
-  //    }
-  //    (AlignmentSpec::AlignasExpr(expr), rest)
-  //  }
-  //  [Alignof, LParen, .. rest_toks] => {
-  //    let (type_name, rest) = TypeName::parse(rest_toks);
-  //    guard rest is [RParen, .. rest] else {
-  //      raise ParseError("Expected closing parenthesis after type name in _Alignof")
-  //    }
-  //    (AlignmentSpec::AlignasType(type_name), rest)
-  //  }
-  //  _ => raise ParseError("Unimplemented alignment specifier")
-  //}
+  match self.rest_toks {
+    [Alignas, LParen, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let expr = self.parse_constant_expr();
+      guard self.rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after expression in _Alignas")
+      }
+      self.rest_toks = rest_toks
+      AlignmentSpec::AlignasExpr(expr)
+    }
+    [Alignof, LParen, .. rest_toks] => {
+      self.rest_toks = rest_toks
+      let type_name = self.parse_typename();
+      guard self.rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after type name in _Alignof")
+      }
+      self.rest_toks = rest_toks
+      AlignmentSpec::AlignasType(type_name)
+    }
+    _ => raise ParseError("Unimplemented alignment specifier")
+  }
 }
 
 
@@ -1613,7 +1614,7 @@ fn Context::parse_alignment_spec(self: Self) -> AlignmentSpec raise {
 //    ;
 struct TypeName {
   specifiers: Array[TypeSpecOrQualifier]
-  //abstract_declarator: AbstractDeclarator?
+  abstract_declarator: AbstractDeclarator?
 } derive(Show, Eq)
 
 //fn TypeName::parse(toks: ArrayView[Token]) -> (TypeName, ArrayView[Token]) raise {
@@ -1623,15 +1624,15 @@ fn Context::parse_typename(self: Self) -> TypeName raise {
   while (try? self.parse_typespec_or_qualifier()) is Ok(spec) {
     specifiers.push(spec)
   }
-  //let abstract_declarator = if self.rest_toks is [Star | LParen | LBracket, ..] {
-  //  let a = self.parse_abstract_declarator();
-  //  Some(a)
-  //} else {
-  //  None
-  //}
+  let abstract_declarator = if self.rest_toks is [Star | LParen | LBracket, ..] {
+    let a = self.parse_abstract_declarator();
+    Some(a)
+  } else {
+    None
+  }
   TypeName::{ 
     specifiers, 
-    //abstract_declarator 
+    abstract_declarator 
   }
   
   //let (abstract_declarator, rest_toks) = if rest_toks is [Star | LParen | LBracket, ..] { 
@@ -1646,3 +1647,250 @@ fn Context::parse_typename(self: Self) -> TypeName raise {
   //}
   //(type_name, rest_toks)
 }
+
+
+//abstractDeclarator
+//    : pointer
+//    | pointer? directAbstractDeclarator gccDeclaratorExtension*
+//    ;
+struct AbstractDeclarator {
+  pointer: Pointer?
+  directAbstractDeclarator: DirectAbstractDeclarator?
+} derive(Show, Eq)
+
+//fn AbstractDeclarator::parse(toks: ArrayView[Token]) -> (AbstractDeclarator, ArrayView[Token]) raise {
+//  match toks {
+//    [Star, ..] => {
+//      let (pointer, rest_toks) = Pointer::parse(toks);
+//      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(rest_toks);
+//      let abstract_declarator = AbstractDeclarator::{
+//        pointer: Some(pointer),
+//        directAbstractDeclarator: direct_abstract_declarator
+//      }
+//      (abstract_declarator, rest_toks)
+//    }
+//    [LParen | LBracket, ..] as toks => {
+//      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(toks);
+//      let abstract_declarator = AbstractDeclarator::{
+//        pointer: None,
+//        directAbstractDeclarator: direct_abstract_declarator
+//      }
+//      (abstract_declarator, rest_toks)
+//    }
+//    _ => raise ParseError("Expected pointer or direct abstract declarator")
+//  }
+//}
+
+//
+//directAbstractDeclarator
+//    : '(' abstractDeclarator ')' gccDeclaratorExtension*
+//    | '[' typeQualifierList? assignmentExpression? ']'
+//    | '[' 'static' typeQualifierList? assignmentExpression ']'
+//    | '[' typeQualifierList 'static' assignmentExpression ']'
+//    | '[' '*' ']'
+//    | '(' parameterTypeList? ')' gccDeclaratorExtension*
+//    | directAbstractDeclarator '[' typeQualifierList? assignmentExpression? ']'
+//    | directAbstractDeclarator '[' 'static' typeQualifierList? assignmentExpression ']'
+//    | directAbstractDeclarator '[' typeQualifierList 'static' assignmentExpression ']'
+//    | directAbstractDeclarator '[' '*' ']'
+//    | directAbstractDeclarator '(' parameterTypeList? ')' gccDeclaratorExtension*
+//    ;
+enum DirectAbstractDeclarator {
+  Array(Array[TypeQualifier], AssignExpr?)
+  StaticArray(Array[TypeQualifier], AssignExpr)
+  ArrayStatic(Array[TypeQualifier], AssignExpr)
+  StarArray
+  //FuncPtr(Array[ParameterDecl])
+} derive(Show, Eq)
+
+// TODO: Not Correct Implementation
+fn DirectAbstractDeclarator::parse(toks: ArrayView[Token]) -> (DirectAbstractDeclarator?, ArrayView[Token]) {
+  (None, toks)
+}
+
+//test "TypeName Parsing Test" {
+//  let code_expect_rest: Map[String, ArrayView[Token]] = {
+//    "int *ptr" : [Identifier("ptr"), EOF],
+//    "char **str" : [Identifier("str"), EOF],
+//    "const char ** msg" : [Identifier("msg"), EOF],
+//    "int const * arr" : [Identifier("arr"), EOF],
+//    "int * const arr" : [Identifier("arr"), EOF],
+//  }
+//
+//  for code, expect_rest in code_expect_rest {
+//    let toks = lex(code)
+//    let (_, rest_toks) = TypeName::parse(toks);
+//    assert_eq(rest_toks, expect_rest)
+//  }
+//}
+//
+////statement
+////    : labeledStatement
+////    | compoundStatement
+////    | expressionStatement
+////    | selectionStatement
+////    | iterationStatement
+////    | jumpStatement
+////    | ('__asm' | '__asm__') ('volatile' | '__volatile__') '(' (
+////        logicalOrExpression (',' logicalOrExpression)*
+////    )? (':' (logicalOrExpression (',' logicalOrExpression)*)?)* ')' ';'
+////    ;
+//enum Statement {
+//  LabeledStatement(LabeledStatement)
+//  CompoundStatement(Array[BlockItem])
+//  ExpressionStatement(Expr?)
+//  SelectionStatement(SelectionStatement)
+//  IterationStatement(IterationStatement)
+//  JumpStatement(JumpStatement)
+//  // Asm
+//  // volatile
+//} derive(Show, Eq)
+//
+////labeledStatement
+////    : Identifier ':' statement?
+////    | 'case' constantExpression ':' statement
+////    | 'default' ':' statement
+////    ;
+//enum LabeledStatement {
+//  Label(String, Statement)
+//  Case(ConstantExpr, Statement)
+//  Default(Statement)
+//} derive(Show, Eq)
+//
+//enum BlockItem {
+//  Statement(Statement)
+//  Declaration(Declaration)
+//} derive(Show, Eq)
+//
+//enum SelectionStatement {
+//  If(Expr, Statement, Statement?)
+//  Switch(Expr, Statement)
+//} derive(Show, Eq)
+//
+//enum IterationStatement {
+//  While(Expr, Statement)
+//  DoWhile(Statement, Expr)
+//  For(ForCondition, Statement)
+//} derive(Show, Eq)
+//
+////forCondition
+////    : (forDeclaration | expression?) ';' forExpression? ';' forExpression?
+////    ;
+//struct ForCondition {
+//  init: ForInit?
+//  cond: Array[AssignExpr]
+//  inc: Array[AssignExpr]
+//} derive(Show, Eq)
+//
+//struct ForInit {
+//  decl: Array[Declaration]
+//  initDecl: Array[InitDeclarator]
+//} derive(Show, Eq)
+//
+//enum JumpStatement {
+//  Goto(String)
+//  Continue
+//  Break
+//  Return(Expr?)
+//} derive(Show, Eq)
+//
+//struct CompilationUnit {
+//  externalDeclatyons: Array[ExternalDeclaration]
+//} derive(Show, Eq)
+//
+//enum ExternalDeclaration {
+//  FunctionDefinition(FunctionDefinition)
+//  Declaration(Declaration)
+//} derive(Show, Eq)
+//
+//struct FunctionDefinition {
+//  declSpecs: Array[DeclSpec]
+//  declarator: Declarator
+//  declarations: Array[Declaration]
+//  body: Array[BlockItem]
+//} derive(Show, Eq)
+//
+//
+////parameterTypeList
+////    : parameterList (',' '...')?
+////    ;
+//
+//struct ParameterTypeList {
+//  params: Array[ParameterDecl]
+//  variadic: Bool
+//} derive(Show, Eq)
+//
+//fn ParameterTypeList::parse(toks: ArrayView[Token]) -> (ParameterTypeList, ArrayView[Token]) raise {
+//  let (params, rest_toks) = ParameterList::parse(toks);
+//  let params = params.inner()
+//  match rest_toks {
+//    [Comma, Ellipsis, .. rest_toks] => {
+//      let param_type_list = ParameterTypeList::{ params, variadic: true }
+//      (param_type_list, rest_toks)
+//    }
+//    _ => {
+//      let param_type_list = ParameterTypeList::{ params, variadic: false }
+//      (param_type_list, rest_toks)
+//    }
+//  }
+//}
+//
+////parameterList
+////    : parameterDeclaration (',' parameterDeclaration)*
+////    ;
+//
+//type ParameterList Array[ParameterDecl] derive(Show, Eq)
+//
+//fn ParameterList::parse(toks: ArrayView[Token]) -> (ParameterList, ArrayView[Token]) raise {
+//  let decls: Array[ParameterDecl] = Array::new()
+//  let (first_decl, rest_toks) = ParameterDecl::parse(toks);
+//  decls.push(first_decl)
+//  let rest_toks = loop rest_toks {
+//    [Comma, .. rest_toks] => {
+//      let (next_decl, rest) = ParameterDecl::parse(rest_toks);
+//      decls.push(next_decl)
+//      continue rest
+//    }
+//    toks => break toks
+//  }
+//  let param_list = ParameterList(decls)
+//  (param_list, rest_toks)
+//}
+//
+//
+////parameterDeclaration
+////    : declarationSpecifiers (declarator | abstractDeclarator)
+////    ;
+//struct ParameterDecl {
+//  declspecs: Array[DeclSpec]
+//  declarator: ParamDeclarator
+//} derive(Show, Eq)
+//
+//fn ParameterDecl::parse(toks: ArrayView[Token]) -> (ParameterDecl, ArrayView[Token]) raise {
+//  let (decl_specs, rest_toks) = DeclSpecList::parse(toks);
+//  let decl_specs = decl_specs.inner()
+//  guard decl_specs.length() > 0 else {
+//    raise ParseError("Parameter declaration must have at least one declaration specifier")
+//  }
+//  let (declarator, rest_toks) = ParamDeclarator::parse(rest_toks);
+//  let param_decl = ParameterDecl::{
+//    declspecs: decl_specs,
+//    declarator
+//  }
+//  (param_decl, rest_toks)
+//}
+//
+//enum ParamDeclarator {
+//  Declarator(Declarator)
+//  AbstractDeclarator(AbstractDeclarator)
+//} derive(Show, Eq)
+//
+//fn ParamDeclarator::parse(toks: ArrayView[Token]) -> (ParamDeclarator, ArrayView[Token]) raise {
+//  if (try? Declarator::parse(toks)) is Ok((declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
+//    (ParamDeclarator::Declarator(declarator), rest_toks)
+//  } else if (try? AbstractDeclarator::parse(toks)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
+//    (ParamDeclarator::AbstractDeclarator(abstract_declarator), rest_toks)
+//  } else {
+//    raise ParseError("Expected declarator or abstract declarator in parameter declaration")
+//  }
+//}
