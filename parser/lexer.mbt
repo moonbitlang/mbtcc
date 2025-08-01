@@ -124,11 +124,11 @@ pub enum Constant {
 
 pub suberror LexerError String derive(Show)
 
-pub fn lex(code: String) -> Array[Token] raise {
-  let tokens : Array[Token] = Array::new()
+pub fn Context::tokenize(self: Self) -> Unit raise {
+  let tokens = self.alltoks
 
-  loop code[:] {
-    [] => { tokens.push (EOF); break tokens }
+  loop self.code[:] {
+    [] => { tokens.push (EOF); break }
     [' ' | '\n' | '\r' | '\t', .. rest] => continue rest
     [.. "//", ..rest ] => 
       continue loop rest {
@@ -190,8 +190,12 @@ pub fn lex(code: String) -> Array[Token] raise {
     ['?', ..rest] => { tokens.push(Question); continue rest }
     ['~', ..rest] => { tokens.push(Tilde); continue rest }
     ['=', ..rest] => { tokens.push(Assign); continue rest }
-    ['\'', c, '\'', ..rest] => { tokens.push(Constant(Char(c))); continue rest }
-    ['\'', ..] as code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
+    ['\'', ..] as code => {
+      let (tok, rest) = lex_char_literal(code)
+      tokens.push(tok)
+      continue rest
+    }
+    //['\'', ..] as code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
     ['"', ..] as code => {
       let (tok, rest) = lex_string_literal(code)
       tokens.push(tok)
@@ -207,8 +211,9 @@ pub fn lex(code: String) -> Array[Token] raise {
       tokens.push(tok)
       continue rest
     }
-    _ => raise LexerError("Parse Error: Unexpected char: \{code[0]}")
+    code => raise LexerError("Parse Error: Unexpected char: \{code[0]}")
   }
+  self.rest_toks = self.alltoks[:]
 }
 
 fn lex_string_literal(code: @string.View) -> (Token, @string.View) raise {
@@ -220,6 +225,8 @@ fn lex_string_literal(code: @string.View) -> (Token, @string.View) raise {
     [.."\\r", .. rest_str] => { str.push('\r'); continue rest_str }
     [.."\\t", .. rest_str] => { str.push('\t'); continue rest_str }
     [.."\\\"", .. rest_str] => { str.push('"'); continue rest_str }
+    [.."\\\\", .. rest_str] => { str.push('\\'); continue rest_str }
+    ['\n', ..] => raise LexerError("Parse Error: Unclosed string literal, found newline")
     [c, .. rest_str] => {
       str.push(c)
       continue rest_str
@@ -228,6 +235,19 @@ fn lex_string_literal(code: @string.View) -> (Token, @string.View) raise {
   }
   let str = String::from_array(str)
   (StringLiteral(str), rest)
+}
+
+fn lex_char_literal(code: @string.View) -> (Token, @string.View) raise {
+  guard code is ['\'', .. code]
+  match code {
+    [.."\\n", '\'', .. rest_str] => (Constant(Char('\n')), rest_str)
+    [.."\\r", '\'', .. rest_str] => (Constant(Char('\r')), rest_str)
+    [.."\\t", '\'', .. rest_str] => (Constant(Char('\t')), rest_str)
+    [.."\\\'", '\'', .. rest_str] => (Constant(Char('\'')), rest_str)
+    [c, '\'', .. rest_str] => (Constant(Char(c)), rest_str)
+    ['\'', ..] => raise LexerError("Empty char literal")
+    code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
+  }
 }
 
 // @strconv.parse_int: (String, Int) -> Int, input is string and base, return an int
@@ -313,82 +333,104 @@ fn lex_ident(code: @string.View) -> (Token, @string.View) {
   (tok, rest_str)
 }
 
-test "lexing test" {
-
+test "tokenize test" {
   let code = 
-    #|typedef struct {
-    #|  int x;
-    #|  int y;
-    #|} Point;
-    #| 
-    #|void init_point(Point *p) {
-    #|  if (p != NULL) {
-    #|    p->x = 0;
-    #|    p->y = 0;
-    #|  }
-    #|}
+    #|int void char short long float double signed unsigned _Bool _Complex
+    #|_Imaginary auto register static extern typedef _Thread_local if else
+    #|switch case default for while do goto break continue return const
+    #|volatile restrict atomic inline _Noreturn struct union enum sizeof
+    #|_Alignas _Alignof _Static_assert _Generic
     #|
-    #|int main() {
-    #|  Point p;
-    #|  init_point(&p);
-    #|  p.x = 3;
-    #|  p.y = 4;
-    #|  printf("Point: (%d, %d)\n", p.x, p.y);
-    #|  return 0;
-    #|}
+    #| () [] {}
+    #| + - * / % >> <<
+    #| ++ -- ->
+    #| < > >= <= == !=
+    #| = *= /= %= += -= <<= >>= &&= ||= &= ^= |=
+    #| & | ! ^ ~
+    #| && ||
+    #| , . : ; ? ...
+    #| "hello, world" "hello\n" "hello\r" "hello\t" "\"hello\"" "hello\\"
+    #| 'c' '\n' '\r' '\t' '\'' '"'
+    #| 123 xyz a123
 
-  let toks = lex(code)
+  // TODO:
+  // #| 0x123, 1L, 2L, 3U, 4UL, 
+  // #| 5.0 6.125, 7.0f, 8.0F, 9.0e2, 10.0E-2, 11.0e+2, 12.0E+2,
+  // #| 0x1.2p+2, 0x1.2P+2, 0x1.2p-2, 0x1.2P-2
+
   let expect : Array[Token] = [
-    Typedef, Struct, LBrace,
-    Int,Identifier("x"), Semi,
-    Int, Identifier("y"), Semi, 
-    RBrace, Identifier("Point"), Semi,
-    Void, Identifier("init_point"), LParen, Identifier("Point"), Star,
-    Identifier("p"), RParen, LBrace, If, LParen, Identifier("p"), NE,
-    Identifier("NULL"), RParen, LBrace,
-    Identifier("p"), Arrow, Identifier("x"), Assign,
-    Constant(Int(0)), Semi, Identifier("p"),
-    Arrow, Identifier("y"), Assign, Constant(Int(0)),
-    Semi, RBrace, RBrace,
-    Int, Identifier("main"), LParen, RParen, LBrace,
-    Identifier("Point"), Identifier("p"), Semi,
-    Identifier("init_point"), LParen, And,
-    Identifier("p"), RParen, Semi, Identifier("p"), Dot,
-    Identifier("x"), Assign, Constant(Int(3)),
-    Semi, Identifier("p"), Dot, Identifier("y"),
-    Assign, Constant(Int(4)), Semi, Identifier("printf"),
-    LParen, StringLiteral("Point: (%d, %d)\n"), Comma, Identifier("p"),
-    Dot, Identifier("x"), Comma, Identifier("p"),
-    Dot, Identifier("y"), RParen, Semi, Return,
-    Constant(Int(0)), Semi, RBrace, EOF
+    Int, Void, Char, Short, Long, Float, Double, Signed, Unsigned, Bool, Complex,
+    Imaginary, Auto, Register, Static, Extern, Typedef, ThreadLocal, If, Else,
+    Switch, Case, Default, For, While, Do, Goto, Break, Continue, Return, Const,
+    Volatile, Restrict, Atomic, Inline, Noreturn, Struct, Union, Enum, Sizeof,
+    Alignas, Alignof, StaticAssert, Generic,
+    LParen, RParen, LBracket, RBracket, LBrace, RBrace,
+    Plus, Minus, Star, Slash, Mod, Shr, Shl,
+    PlusPlus, MinusMinus, Arrow,
+    LT, GT, GE, LE, EQ, NE,
+    Assign, StarAssign, DivAssign, ModAssign, PlusAssign, MinusAssign,
+    LeftShiftAssign, RightShiftAssign, AndAssign, OrAssign,
+    BitAndAssign, BitXorAssign, BitOrAssign,
+    And, Or, Not, Xor, Tilde, DoubleAnd, DoubleOr,
+    Comma, Dot, Colon, Semi, Question, Ellipsis,
+    StringLiteral("hello, world"), StringLiteral("hello\n"), StringLiteral("hello\r"), 
+    StringLiteral("hello\t"), StringLiteral("\"hello\""), StringLiteral("hello\\"),
+    Constant(Char('c')), Constant(Char('\n')), Constant(Char('\r')), Constant(Char('\t')), Constant(Char('\'')), Constant(Char('"')),
+    Constant(Int(123)),
+    Identifier("xyz"), Identifier("a123"), EOF
   ]
-  assert_eq(toks, expect, msg="Lexing Test Failed")
+
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  for i in 0..<expect.length() {
+    assert_eq(ctx.alltoks.get(i), Some(expect[i]), msg="Tokenization Test Failed at index \{i}, expect \{expect[i]} got \{ctx.alltoks[i]}")
+  }
 }
 
-test "lex number test" {
-  let code_expect : Map[String, Array[Token]] = {
-    "1" : [Constant(Int(1))],
-    //"1L" : [Constant(Long(1L))],
-    //"1l" : [Constant(Long(1L))],
-    //"1U" : [Constant(UInt(1))],
-    //"1UL" : [Constant(ULong(1UL))],
-    //"1.0": [Constant(Double(1.0))],
-    //"1.0f": [Constant(Float(1.0))],
-    //"0x1" : [Constant(Int(1))],
-    //"0x10" : [Constant(Int(16))],
-    //"0xf" : [Constant(Int(15))],
-    //"0xff" : [Constant(Int(255))],
-    //"0b10" : [Constant(Int(2))],
-    //"0o10" : [Constant(Int(8))],
-    //"1e1"  : [Constant(Double(10.0))],
-    //"1.2e1"  : [Constant(Double(12.0))],
-    //"1.25e+2"  : [Constant(Double(125.0))],
-    //"1.25e-2"  : [Constant(Double(0.0125))],
-    //"0x1.2p+2" : [Constant(Double(4.8))],  // need to check this value if it is correct
-  }
+test "tokenize comment test" {
+  let code = 
+    #|int void // check if comment works
+    #|char short
+    #|123 /* check if inline comment works */
+    #|
+    #|unsigned /* check
+    #| if multiline
+    #| comment works
+    #| */
+    #|
+    #|, 
+    #|
 
-  for code, expect in code_expect {
-    let (tok, _) = lex_number(code)
-    assert_eq([tok], expect, msg="Lexing number \{code} failed")
+  let expect : Array[Token] = [
+    Int, Void, Char, Short, Constant(Int(123)), Unsigned, Comma, EOF
+  ]
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  for i in 0..<expect.length() {
+    assert_eq(ctx.alltoks.get(i), Some(expect[i]), msg="Tokenization Test Failed at index \{i}, expect \{expect[i]} got \{ctx.alltoks[i]}")
   }
+}
+
+test "tokenize error test" {
+  let code = "\"hello"
+  let ctx = Context::create(code)
+  assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for unclosed string literal")
+
+  let code = "'c"
+  let ctx = Context::create(code)
+  assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for unclosed char literal")
+
+  let code = "''"
+  let ctx = Context::create(code)
+  assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for empty char literal")
+
+  let code = 
+    #|"hello
+    #|
+  let ctx = Context::create(code)
+  assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for unclosed string literal")
+
+  let code = "中"
+  let ctx = Context::create(code)
+  assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for non-ASCII character")
 }
