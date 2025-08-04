@@ -1024,9 +1024,19 @@ enum Declaration {
 } derive(Show, Eq)
 
 fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
-  println("Declaration::parse unimplemented")
-  panic()
-  ...
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
+  match rest_toks {
+    [Semi, .. rest_toks] => {
+      let declaration = Declaration::Decl(decl_specs.inner(), Array::new())
+      (declaration, rest_toks)
+    }
+    [Identifier(_), ..] => {
+      let (init_decls, rest_toks) = InitDeclaratorList::parse(rest_toks, ctx);
+      let declaration = Declaration::Decl(decl_specs.inner(), init_decls.inner())
+      (declaration, rest_toks)
+    }
+    _ => raise ParseError("Expected ';' or identifier after declaration specifiers")
+  }
 }
 
 enum DeclSpec {
@@ -2114,7 +2124,7 @@ enum Statement {
 
 fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayView[Token]) raise {
   match toks {
-    [LBracket, ..] as toks => {
+    [LBrace, ..] as toks => {
       let (compound_statement, rest_toks) = CompoundStatement::parse(toks, ctx);
       (Statement::CompoundStatement(compound_statement.inner()), rest_toks)
     }
@@ -2126,7 +2136,7 @@ fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayVi
       let (iteration_statement, rest_toks) = IterationStatement::parse(toks, ctx);
       (Statement::IterationStatement(iteration_statement), rest_toks)
     }
-    [Identifier(_), Colon, .. rest_toks] => {
+    [Identifier(_), Colon, ..] as toks => {
       let (labeled_statement, rest_toks) = LabeledStatement::parse(toks, ctx);
       (Statement::LabeledStatement(labeled_statement), rest_toks)
     }
@@ -2189,12 +2199,12 @@ fn LabeledStatement::parse(toks: ArrayView[Token], ctx: Context) -> (LabeledStat
 type CompoundStatement Array[BlockItem] derive(Show, Eq)
 
 fn CompoundStatement::parse(toks: ArrayView[Token], ctx: Context) -> (CompoundStatement, ArrayView[Token]) raise {
-  guard toks is [LBracket, .. toks] else {
+  guard toks is [LBrace, .. toks] else {
     raise ParseError("Expected '{' for compound statement")
   }
   let items: Array[BlockItem] = Array::new()
   loop toks {
-    [RBracket, .. rest_toks] => {
+    [RBrace, .. rest_toks] => {
       break (CompoundStatement(items), rest_toks) // End of compound statement
     }
     [Semi, .. rest_toks] => {
@@ -2206,6 +2216,25 @@ fn CompoundStatement::parse(toks: ArrayView[Token], ctx: Context) -> (CompoundSt
       items.push(item);
       continue rest_toks
     }
+  }
+}
+
+test "CompoundStatement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "{ int a; }" : [EOF],
+    "{ int a; int b; }" : [EOF],
+    "{ int a = 1, b = 2; c = a + b;}": [EOF],
+    "{ if (x) { y++; } else { y--; } }" : [EOF],
+    "{ while (x < 10) { x++; } }" : [EOF],
+    "{ for (int i = 0; i < 10; i++) { sum += i; } }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = CompoundStatement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -2257,6 +2286,23 @@ fn SelectionStatement::parse(toks: ArrayView[Token], ctx: Context) -> (Selection
   }
 }
 
+test "SelectionStatement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "if (x < 10) { x++; } else { x--; }" : [EOF],
+    "if (x < 10) { x++; }" : [EOF],
+    "switch (x) { case 1: y++; break; default: y--; }" : [EOF],
+    "switch (x) { case 1: y++; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = SelectionStatement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 enum IterationStatement {
   While(Expr, Statement)
   DoWhile(Statement, Expr)
@@ -2293,6 +2339,25 @@ fn IterationStatement::parse(toks: ArrayView[Token], ctx: Context) -> (Iteration
   }
 }
 
+test "IterationStatement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "while (x < 10) { x++; }" : [EOF],
+    "do { x++; } while (x < 10);" : [EOF],
+    "for (int i = 0; i < 10; i++) { sum += i; }" : [EOF],
+    "for (int i = 0;;) { sum += i; }" : [EOF],
+    "for (;;) { break; }" : [EOF],
+    "while (i < 10) i++;" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = IterationStatement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 //forCondition
 //    : (forDeclaration | expression?) ';' forExpression? ';' forExpression?
 //    ;
@@ -2317,17 +2382,14 @@ fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, A
     (expr.exprs, rest_toks)
   }
 
-  let (inc, rest_toks) = if rest_toks is [Semi, .. rest_toks] {
+  let (inc, rest_toks) = if rest_toks is [RParen, .. rest_toks] {
     (Array::new(), rest_toks) // No increment
   } else {
     let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-    guard rest_toks is [RParen, Semi, .. rest_toks] else {
+    guard rest_toks is [RParen, .. rest_toks] else {
       raise ParseError("Expected closing parenthesis and ';' after for increment expression")
     }
     (expr.exprs, rest_toks)
-  }
-  guard rest_toks is [RParen, .. rest_toks] else {
-    raise ParseError("Expected closing parenthesis after for condition")
   }
   let for_condition = ForCondition::{ for_init, cond, inc }
   (for_condition, rest_toks)
