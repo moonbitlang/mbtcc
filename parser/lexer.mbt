@@ -17,6 +17,7 @@ pub enum Token {
   Static
   Extern
   Typedef
+  Thread
   ThreadLocal  // _Thread_local
   If
   Else
@@ -40,6 +41,7 @@ pub enum Token {
   Union
   Enum
   Sizeof
+  Typeof
   Alignas  // _Alignas
   Alignof  // _Alignof
   StaticAssert  // _Static_assert
@@ -286,6 +288,8 @@ let keywords : Map[String, Token] = {
   "static" : Static,
   "extern" : Extern,
   "typedef" : Typedef,
+  "typeof" : Typeof,
+  "__thread" : Thread,
   "_Thread_local" : ThreadLocal,
   "if" : If,
   "else" : Else,
@@ -302,6 +306,9 @@ let keywords : Map[String, Token] = {
   "const" : Const,
   "volatile" : Volatile,
   "restrict" : Restrict,
+  "__restrict__" : Restrict,
+  "__restrict" : Restrict,
+  "_Atomic" : Atomic,
   "atomic" : Atomic,
   "inline" : Inline,
   "__inline__" : Inline, // GNU extension

@@ -1023,6 +1023,12 @@ enum Declaration {
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
 
+fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
+  println("Declaration::parse unimplemented")
+  panic()
+  ...
+}
+
 enum DeclSpec {
   StorageClassSpec(StorageClassSpec)
   TypeSpec(TypeSpec)
@@ -1170,11 +1176,11 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
       (TypeSpec::Atomic(type_name), rest)
     }
     [Struct, .. ] as toks => {
-      let (struct_spec, rest_toks) = StructSpec::parse(toks);
+      let (struct_spec, rest_toks) = StructSpec::parse(toks, ctx);
       (TypeSpec::StructSpec(struct_spec), rest_toks)
     }
     [Union, .. ] as toks => {
-      let (union_spec, rest_toks) = UnionSpec::parse(toks);
+      let (union_spec, rest_toks) = UnionSpec::parse(toks, ctx);
       (TypeSpec::UnionSpec(union_spec), rest_toks)
     }
     [Enum, ..] as toks => {
@@ -1251,13 +1257,73 @@ fn TypeSpecOrQualifier::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec
   }
 }
 
+type TypeSpecOrQualifierList Array[TypeSpecOrQualifier] derive(Show, Eq)
+
+fn TypeSpecOrQualifierList::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpecOrQualifierList, ArrayView[Token]) {
+  let specs: Array[TypeSpecOrQualifier] = Array::new()
+  let mut toks = toks
+  while (try? TypeSpecOrQualifier::parse(toks, ctx)) is Ok((spec, rest)) {
+    specs.push(spec)
+    toks = rest
+    // If we encounter a TypeSpec, we can stop parsing further type specifiers
+    if spec is TypeSpec(_) {
+      break
+    }
+  }
+  (TypeSpecOrQualifierList(specs), toks)
+}
+
 struct StructSpec {
   name: String?
   decls: Array[StructDeclaration]
 } derive(Show, Eq)
 
-fn StructSpec::parse(toks: ArrayView[Token]) -> (StructSpec, ArrayView[Token]) raise {
-  ...
+fn StructSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StructSpec, ArrayView[Token]) raise {
+  guard toks is [Struct, .. toks] else {
+    raise ParseError("Expected 'struct' keyword for struct specification")
+  }
+
+  let (name, rest_toks) = match toks {
+    [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
+    [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
+    _ => raise ParseError("Expected identifier or '{' after 'struct'")
+  }
+
+  let decls : Array[StructDeclaration] = Array::new()
+
+  let rest_toks = loop rest_toks {
+    [RBrace, ..rest_toks] => {
+      break rest_toks
+    }
+    [Semi, .. rest_toks] => {
+      // Empty declaration, just skip it
+      continue rest_toks
+    }
+    rest_toks => {
+      let (struct_decl, rest_toks) = StructDeclaration::parse(rest_toks, ctx);
+      decls.push(struct_decl);
+      continue rest_toks
+    }
+  }
+  let struct_spec = StructSpec::{ name, decls };
+  (struct_spec, rest_toks)
+}
+
+test "StructSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "struct MyStruct { int a; double b; }" : [EOF],
+    "struct { char c; }" : [EOF],
+    "struct EmptyStruct {}" : [EOF],
+    "struct AnotherStruct { int x; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = StructSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 struct UnionSpec {
@@ -1265,8 +1331,52 @@ struct UnionSpec {
   decls: Array[StructDeclaration]
 } derive(Show, Eq)
 
-fn UnionSpec::parse(toks: ArrayView[Token]) -> (UnionSpec, ArrayView[Token]) raise {
-  ...
+fn UnionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (UnionSpec, ArrayView[Token]) raise {
+  guard toks is [Union, .. toks] else {
+    raise ParseError("Expected 'struct' keyword for struct specification")
+  }
+
+  let (name, rest_toks) = match toks {
+    [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
+    [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
+    _ => raise ParseError("Expected identifier or '{' after 'struct'")
+  }
+
+  let decls : Array[StructDeclaration] = Array::new()
+
+  let rest_toks = loop rest_toks {
+    [RBrace, ..rest_toks] => {
+      break rest_toks
+    }
+    [Semi, .. rest_toks] => {
+      // Empty declaration, just skip it
+      continue rest_toks
+    }
+    rest_toks => {
+      let (struct_decl, rest_toks) = StructDeclaration::parse(rest_toks, ctx);
+      decls.push(struct_decl);
+      continue rest_toks
+    }
+  }
+  let union_spec = UnionSpec::{ name, decls };
+  (union_spec, rest_toks)
+}
+
+test "UnionSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "union MyUnion { int a; double b; }" : [EOF],
+    "union { char c; }" : [EOF],
+    "union EmptyUnion {}" : [EOF],
+    "union AnotherUnion { int x; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = UnionSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 //structDeclaration // The first two rules have priority order and cannot be simplified to one expression.
@@ -1279,6 +1389,35 @@ enum StructDeclaration {
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
 
+fn StructDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (StructDeclaration, ArrayView[Token]) raise {
+  let (type_spec_or_qualifiers, rest_toks) = TypeSpecOrQualifierList::parse(toks, ctx);
+  let type_spec_or_qualifiers = type_spec_or_qualifiers.inner()
+
+  if rest_toks is [Semi, .. rest_toks] {
+    // Case: specifierQualifierList ';'
+    return (StructDeclaration::Normal(type_spec_or_qualifiers, Array::new()), rest_toks)
+  }
+
+  let (struct_declarators, rest_toks) = StructDeclaratorList::parse(rest_toks, ctx);
+  (StructDeclaration::Normal(type_spec_or_qualifiers, struct_declarators.inner()), rest_toks)
+}
+
+test "StructDeclaration Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int a, b;" : [Semi, EOF],
+    "double x;" : [Semi, EOF],
+    "int a : 1, b : 2;" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = StructDeclaration::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 enum StructOrUnionKind {
   Struct // struct
   Union // union
@@ -1288,6 +1427,59 @@ enum StructDeclarator {
   Declarator(Declarator)
   Field(Declarator?, ConstantExpr)
 } derive(Show, Eq)
+
+//structDeclarator
+//    : declarator
+//    | declarator? ':' constantExpression
+//    ;
+fn StructDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (StructDeclarator, ArrayView[Token]) raise {
+  if toks is [Colon, ..rest_toks] {
+    let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx);
+    return (StructDeclarator::Field(None, const_expr), rest_toks)
+  }
+
+  let (declarator, rest_toks) = Declarator::parse(toks, ctx);
+  match rest_toks {
+    [Colon, .. rest_toks] => {
+      let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx);
+      (StructDeclarator::Field(Some(declarator), const_expr), rest_toks)
+    }
+    _ => (StructDeclarator::Declarator(declarator), rest_toks)
+  }
+}
+
+type StructDeclaratorList Array[StructDeclarator] derive(Show, Eq)
+
+fn StructDeclaratorList::parse(toks: ArrayView[Token], ctx: Context) -> (StructDeclaratorList, ArrayView[Token]) raise {
+  let decls: Array[StructDeclarator] = Array::new()
+  let (first_decl, rest_toks) = StructDeclarator::parse(toks, ctx);
+  decls.push(first_decl)
+  let rest_toks = loop rest_toks {
+    [Comma, .. rest_toks] => {
+      let (next_decl, rest) = StructDeclarator::parse(rest_toks, ctx);
+      decls.push(next_decl)
+      continue rest
+    }
+    toks => break toks // no more struct declarators
+  }
+  (StructDeclaratorList(decls), rest_toks)
+}
+
+test "StructDeclaratorList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a ;" : [Semi, EOF],
+    "a, b ;" : [Semi, EOF],
+    "a : 1, b : 2 ;" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = StructDeclaratorList::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
 
 struct Declarator {
   pointer: Pointer?
@@ -1303,6 +1495,23 @@ fn Declarator::parse(toks: ArrayView[Token], ctx: Context) -> (Declarator, Array
   }
   let (direct_declarator, rest_toks) = DirectDeclarator::parse(rest_toks, ctx);
   (Declarator::{ pointer, directDeclarator: direct_declarator }, rest_toks)
+}
+
+test "Declarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a" : [EOF],
+    "*b" : [EOF],
+    "**c" : [EOF],
+    "* const Point" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = Declarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 //pointer
@@ -1389,7 +1598,7 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
       }
       (DirectDeclarator::Parenthesized(declarator), rest)
     }
-    _ => raise ParseError("Unimplemented direct declarator parsing")
+    toks => raise ParseError("Unimplemented direct declarator parsing, current token: \{toks[0]}")
   }
   let mut current_decl = head_decl
   loop rest_toks {
@@ -1473,16 +1682,82 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
       current_decl = DirectDeclarator::BitField(name, i);
       continue rest_toks
     }
-    _ => {
-      raise ParseError("Unimplemented direct declarator parsing")
+    rest_toks => {
+      break (current_decl, rest_toks) // No more direct declarators
     }
   }
 }
 
+test "DirectDeclarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "arr ;" : [Semi, EOF],
+    "fact() ;" : [Semi, EOF],
+    "fact(int a) ;" : [Semi, EOF],
+    "fib(int a, int b) ;" : [Semi, EOF],
+    "arr[] ;" : [Semi, EOF],
+    "arr[10] ;" : [Semi, EOF],
+    //"(*fptr)(int, int) ;" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = DirectDeclarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
+//initDeclarator
+//    : declarator ('=' initializer)?
+//    ;
 struct InitDeclarator {
   declarator: Declarator
   initializer: Initializer?
 } derive(Show, Eq)
+
+fn InitDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (InitDeclarator, ArrayView[Token]) raise {
+  let (declarator, rest_toks) = Declarator::parse(toks, ctx);
+  if rest_toks is [Assign, .. rest_toks] {
+    let (initializer, rest_toks) = Initializer::parse(rest_toks, ctx);
+    (InitDeclarator::{ declarator, initializer: Some(initializer) }, rest_toks)
+  } else {
+    (InitDeclarator::{ declarator, initializer: None }, rest_toks)
+  }
+}
+
+test "InitDeclarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a;" : [Semi, EOF],
+    "b = 10;" : [Semi, EOF],
+    "arr[] = {1, 2, 3, 4, 5};" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = InitDeclarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
+type InitDeclaratorList Array[InitDeclarator] derive(Show, Eq)
+
+fn InitDeclaratorList::parse(toks: ArrayView[Token], ctx: Context) -> (InitDeclaratorList, ArrayView[Token]) raise {
+  let decls: Array[InitDeclarator] = Array::new()
+  let (first_decl, rest_toks) = InitDeclarator::parse(toks, ctx);
+  decls.push(first_decl)
+  let rest_toks = loop rest_toks {
+    [Comma, .. rest_toks] => {
+      let (next_decl, rest) = InitDeclarator::parse(rest_toks, ctx);
+      decls.push(next_decl)
+      continue rest
+    }
+    toks => break toks // no more init declarators
+  }
+  (InitDeclaratorList(decls), rest_toks)
+}
 
 
 //initializer
@@ -1511,6 +1786,72 @@ enum Initializer {
   InitList(Array[(Array[Designator], Initializer)])
 } derive(Show, Eq)
 
+
+fn Initializer::parse(toks: ArrayView[Token], ctx: Context) -> (Initializer, ArrayView[Token]) raise {
+  match toks {
+    [LBrace, ..] as toks => {
+      let (init_list, rest) = InitializerList::parse(toks, ctx);
+      (Initializer::InitList(init_list.inner()), rest)
+    }
+    _ => {
+      let (assign_expr, rest) = AssignExpr::parse(toks, ctx);
+      (Initializer::AssignExpr(assign_expr), rest)
+    }
+  }
+}
+
+type InitializerList Array[(Array[Designator], Initializer)] derive(Show, Eq)
+
+fn InitializerList::parse(toks: ArrayView[Token], ctx: Context) -> (InitializerList, ArrayView[Token]) raise {
+  guard toks is [LBrace, .. toks] else {
+    raise ParseError("Expected '{' to start initializer list")
+  }
+  let init_list: Array[(Array[Designator], Initializer)] = Array::new()
+  loop toks {
+    [Dot | LBracket, ..] as toks => {
+      let (designators, rest) = DesignatorList::parse(toks, ctx);
+      guard rest is [Assign, .. rest] else {
+        raise ParseError("Expected '=' after designator list in initializer")
+      }
+      let (initializer, rest) = Initializer::parse(rest, ctx);
+      init_list.push((designators.inner(), initializer))
+      continue rest
+    }
+    [Comma, .. rest_toks] => {
+      // Skip commas
+      continue rest_toks
+    }
+    [RBrace, .. rest_toks] => {
+      // End of initializer list
+      break (InitializerList(init_list), rest_toks)
+    }
+    toks => { 
+      // If we reach here, it means we have an initializer without designators
+      let (initializer, rest) = Initializer::parse(toks, ctx);
+      init_list.push((Array::new(), initializer))
+      continue rest
+    }
+  }
+}
+
+test "InitializerList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "{1, 2, 3}" : [EOF],
+    "{.field = 1, .other = 2}" : [EOF],
+    "{[0] = 1, [1] = 2}" : [EOF],
+    "{.field = {1, 2}, .other = {3}}" : [EOF],
+    "{{1, 2}, {3, 4}}" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = InitializerList::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 //designator
 //    : '[' constantExpression ']'
 //    | '.' Identifier
@@ -1519,6 +1860,53 @@ enum Designator {
   ConstExpr(ConstantExpr)
   DotAccess(String)
 } derive(Show, Eq)
+
+fn Designator::parse(toks: ArrayView[Token], ctx: Context) -> (Designator, ArrayView[Token]) raise {
+  match toks {
+    [LBracket, .. rest_toks] => {
+      let (const_expr, rest) = ConstantExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, .. rest] else {
+        raise ParseError("Expected closing bracket after constant expression in designator")
+      }
+      (Designator::ConstExpr(const_expr), rest)
+    }
+    [Dot, Identifier(name), .. rest_toks] => (Designator::DotAccess(name), rest_toks)
+    toks => raise ParseError("Unimplemented designator parsing, current token: \{toks[0]}")
+  }
+}
+
+type DesignatorList Array[Designator] derive(Show, Eq)
+
+fn DesignatorList::parse(toks: ArrayView[Token], ctx: Context) -> (DesignatorList, ArrayView[Token]) raise {
+  let designators: Array[Designator] = Array::new()
+  let rest_toks = loop toks {
+    [LBracket | Dot, ..] as toks => {
+      let (designator, rest) = Designator::parse(toks, ctx);
+      designators.push(designator)
+      continue rest
+    }
+    toks => break toks // no more designators
+  }
+  (DesignatorList(designators), rest_toks)
+}
+
+test "DesignatorList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "[0]" : [EOF],
+    ".field" : [EOF],
+    "[1].field" : [EOF],
+    "[2][3].field" : [EOF],
+    "[1].field[2]" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = DesignatorList::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
 
 
 //enumSpecifier
@@ -1716,7 +2104,7 @@ test "TypeName Parsing Test" {
 enum Statement {
   LabeledStatement(LabeledStatement)
   CompoundStatement(Array[BlockItem])
-  ExpressionStatement(Expr?)
+  ExpressionStatement(Expr)
   SelectionStatement(SelectionStatement)
   IterationStatement(IterationStatement)
   JumpStatement(JumpStatement)
@@ -1724,8 +2112,47 @@ enum Statement {
   // volatile
 } derive(Show, Eq)
 
+fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayView[Token]) raise {
+  match toks {
+    [LBracket, ..] as toks => {
+      let (compound_statement, rest_toks) = CompoundStatement::parse(toks, ctx);
+      (Statement::CompoundStatement(compound_statement.inner()), rest_toks)
+    }
+    [If | Switch, ..] as toks => {
+      let (selection_statement, rest_toks) = SelectionStatement::parse(toks, ctx);
+      (Statement::SelectionStatement(selection_statement), rest_toks)
+    }
+    [For | While | Do, ..] as toks => {
+      let (iteration_statement, rest_toks) = IterationStatement::parse(toks, ctx);
+      (Statement::IterationStatement(iteration_statement), rest_toks)
+    }
+    [Identifier(_), Colon, .. rest_toks] => {
+      let (labeled_statement, rest_toks) = LabeledStatement::parse(toks, ctx);
+      (Statement::LabeledStatement(labeled_statement), rest_toks)
+    }
+    [Case | Default, ..] as toks => {
+      let (labeled_statement, rest_toks) = LabeledStatement::parse(toks, ctx);
+      (Statement::LabeledStatement(labeled_statement), rest_toks)
+    }
+    [Goto | Continue | Break | Return, ..] as toks => {
+      let (jump_statement, rest_toks) = JumpStatement::parse(toks, ctx);
+      (Statement::JumpStatement(jump_statement), rest_toks)
+    }
+    [Semi, .. ] => {
+      raise ParseError("Empty statement, should skip it")
+    }
+    _ => {
+      let (expr, rest_toks) = Expr::parse(toks, ctx);
+      guard rest_toks is [Semi, .. rest_toks] else {
+        raise ParseError("Expected ';' after expression statement")
+      }
+      (Statement::ExpressionStatement(expr), rest_toks)
+    }
+  }
+}
+
 //labeledStatement
-//    : Identifier ':' statement?
+//    : Identifier ':' statement
 //    | 'case' constantExpression ':' statement
 //    | 'default' ':' statement
 //    ;
@@ -1735,15 +2162,100 @@ enum LabeledStatement {
   Default(Statement)
 } derive(Show, Eq)
 
+fn LabeledStatement::parse(toks: ArrayView[Token], ctx: Context) -> (LabeledStatement, ArrayView[Token]) raise {
+  match toks {
+    [Identifier(name), Colon, .. rest_toks] => {
+      let (statement, rest_toks) = Statement::parse(rest_toks, ctx);
+      (LabeledStatement::Label(name, statement), rest_toks)
+    }
+    [Case, ..rest_toks] => {
+      let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx);
+      guard rest_toks is [Colon, .. rest_toks] else {
+        raise ParseError("Expected ':' after case constant expression")
+      }
+      let (statement, rest_toks) = Statement::parse(rest_toks, ctx);
+      (LabeledStatement::Case(const_expr, statement), rest_toks)
+    }
+    [Default, Colon, .. rest_toks] => {
+      let (statement, rest_toks) = Statement::parse(rest_toks, ctx);
+      (LabeledStatement::Default(statement), rest_toks)
+    }
+    rest_toks => {
+      raise ParseError("Expected labeled statement, current token is \{rest_toks[0]}")
+    }
+  }
+}
+
+type CompoundStatement Array[BlockItem] derive(Show, Eq)
+
+fn CompoundStatement::parse(toks: ArrayView[Token], ctx: Context) -> (CompoundStatement, ArrayView[Token]) raise {
+  guard toks is [LBracket, .. toks] else {
+    raise ParseError("Expected '{' for compound statement")
+  }
+  let items: Array[BlockItem] = Array::new()
+  loop toks {
+    [RBracket, .. rest_toks] => {
+      break (CompoundStatement(items), rest_toks) // End of compound statement
+    }
+    [Semi, .. rest_toks] => {
+      // Empty statement, just skip it
+      continue rest_toks
+    }
+    toks => {
+      let (item, rest_toks) = BlockItem::parse(toks, ctx);
+      items.push(item);
+      continue rest_toks
+    }
+  }
+}
+
 enum BlockItem {
   Statement(Statement)
   Declaration(Declaration)
 } derive(Show, Eq)
 
+fn BlockItem::parse(toks: ArrayView[Token], ctx: Context) -> (BlockItem, ArrayView[Token]) raise {
+  if ctx.is_declspec_tok(toks[0]) {
+    let (decl, rest_toks) = Declaration::parse(toks, ctx);
+    (BlockItem::Declaration(decl), rest_toks)
+  } else {
+    let (stmt, rest_toks) = Statement::parse(toks, ctx);
+    (BlockItem::Statement(stmt), rest_toks)
+  }
+}
+
 enum SelectionStatement {
   If(Expr, Statement, Statement?)
   Switch(Expr, Statement)
 } derive(Show, Eq)
+
+fn SelectionStatement::parse(toks: ArrayView[Token], ctx: Context) -> (SelectionStatement, ArrayView[Token]) raise {
+  match toks {
+    [If, LParen, .. rest_toks] => {
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after if condition")
+      }
+      let (then_stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+      let (else_stmt, rest_toks) = if rest_toks is [Else, .. rest_toks] {
+        let (else_stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+        (Some(else_stmt), rest_toks)
+      } else {
+        (None, rest_toks)
+      }
+      (SelectionStatement::If(expr, then_stmt, else_stmt), rest_toks)
+    }
+    [Switch, LParen, .. rest_toks] => {
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after switch condition")
+      }
+      let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+      (SelectionStatement::Switch(expr, stmt), rest_toks)
+    }
+    _ => raise ParseError("Unimplemented selection statement parsing")
+  }
+}
 
 enum IterationStatement {
   While(Expr, Statement)
@@ -1751,19 +2263,105 @@ enum IterationStatement {
   For(ForCondition, Statement)
 } derive(Show, Eq)
 
+fn IterationStatement::parse(toks: ArrayView[Token], ctx: Context) -> (IterationStatement, ArrayView[Token]) raise {
+  match toks {
+    [While, LParen, .. rest_toks] => {
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after while condition")
+      }
+      let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+      (IterationStatement::While(expr, stmt), rest_toks)
+    }
+    [Do, .. rest_toks] => {
+      let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+      guard rest_toks is [While, LParen, .. rest_toks] else {
+        raise ParseError("Expected 'while' after do-while statement")
+      }
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, Semi, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis and ';' after do-while condition")
+      }
+      (IterationStatement::DoWhile(stmt, expr), rest_toks)
+    }
+    [For, ..] => {
+      let (for_cond, rest_toks) = ForCondition::parse(toks, ctx);
+      let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
+      (IterationStatement::For(for_cond, stmt), rest_toks)
+    }
+    _ => raise ParseError("Unimplemented iteration statement parsing")
+  }
+}
+
 //forCondition
 //    : (forDeclaration | expression?) ';' forExpression? ';' forExpression?
 //    ;
 struct ForCondition {
-  init: ForInit?
+  for_init: ForInit
   cond: Array[AssignExpr]
   inc: Array[AssignExpr]
 } derive(Show, Eq)
+
+fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, ArrayView[Token]) raise {
+  guard toks is [For, LParen, .. toks] else {
+    raise ParseError("Expected 'for' condition to start with 'for('")
+  }
+  let (for_init, rest_toks) = ForInit::parse(toks, ctx);
+  let (cond, rest_toks) = if rest_toks is [Semi, .. rest_toks] {
+    (Array::new(), rest_toks) // No condition
+  } else {
+    let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+    guard rest_toks is [Semi, .. rest_toks] else {
+      raise ParseError("Expected ';' after for condition expression")
+    }
+    (expr.exprs, rest_toks)
+  }
+
+  let (inc, rest_toks) = if rest_toks is [Semi, .. rest_toks] {
+    (Array::new(), rest_toks) // No increment
+  } else {
+    let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+    guard rest_toks is [RParen, Semi, .. rest_toks] else {
+      raise ParseError("Expected closing parenthesis and ';' after for increment expression")
+    }
+    (expr.exprs, rest_toks)
+  }
+  guard rest_toks is [RParen, .. rest_toks] else {
+    raise ParseError("Expected closing parenthesis after for condition")
+  }
+  let for_condition = ForCondition::{ for_init, cond, inc }
+  (for_condition, rest_toks)
+}
 
 struct ForInit {
   decl: Array[Declaration]
   initDecl: Array[InitDeclarator]
 } derive(Show, Eq)
+
+fn ForInit::parse(toks: ArrayView[Token], ctx: Context) -> (ForInit, ArrayView[Token]) raise {
+  let decls: Array[Declaration] = Array::new()
+  let init_decls: Array[InitDeclarator] = Array::new()
+  loop toks {
+    [Semi, .. rest_toks] => {
+      // Empty initialization, just skip it
+      break (ForInit::{ decl: decls, initDecl: init_decls }, rest_toks)
+    }
+    [Comma, .. rest_toks] => {
+      // Skip commas
+      continue rest_toks
+    }
+    [tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+      let (decl, rest_toks) = Declaration::parse(toks, ctx);
+      decls.push(decl);
+      continue rest_toks
+    }
+    toks => {
+      let (init_decl, rest_toks) = InitDeclarator::parse(toks, ctx);
+      init_decls.push(init_decl);
+      continue rest_toks
+    }
+  }
+}
 
 enum JumpStatement {
   Goto(String)
@@ -1771,6 +2369,41 @@ enum JumpStatement {
   Break
   Return(Expr?)
 } derive(Show, Eq)
+
+fn JumpStatement::parse(toks: ArrayView[Token], ctx: Context) -> (JumpStatement, ArrayView[Token]) raise {
+  match toks {
+    [Goto, Identifier(name), Semi, .. rest_toks] => (JumpStatement::Goto(name), rest_toks)
+    [Continue, Semi, .. rest_toks] => (JumpStatement::Continue, rest_toks)
+    [Break, Semi, .. rest_toks] => (JumpStatement::Break, rest_toks)
+    [Return, Semi, .. rest_toks] => (JumpStatement::Return(None), rest_toks)
+    [Return, .. rest_toks] => {
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [Semi, .. rest_toks] else {
+        raise ParseError("Expected ';' after return expression")
+      }
+      (JumpStatement::Return(Some(expr)), rest_toks)
+    }
+    _ => raise ParseError("Unimplemented jump statement parsing")
+  }
+}
+
+test "Jump Statement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "goto label;" : [EOF],
+    "continue;" : [EOF],
+    "break;" : [EOF],
+    "return;" : [EOF],
+    "return 42;" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = JumpStatement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
 
 struct CompilationUnit {
   externalDeclatyons: Array[ExternalDeclaration]
@@ -1829,10 +2462,30 @@ fn ParameterList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterList,
       decls.push(next_decl)
       continue rest
     }
-    toks => break toks
+    [RParen, ..] as rest_toks => {
+      break rest_toks // End of parameter list
+    }
+    rest_toks => raise ParseError("Expected ',' or ')' in parameter list, current token is \{rest_toks[0]}")
   }
   let param_list = ParameterList(decls)
   (param_list, rest_toks)
+}
+
+test "ParameterList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int a, char *b, const int c, float d)" : [RParen, EOF],
+    "int a, char *b)" : [RParen, EOF],
+    "const int c)" : [RParen, EOF],
+    "float d)" : [RParen, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = ParameterList::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 
@@ -1858,6 +2511,23 @@ fn ParameterDecl::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterDecl,
   (param_decl, rest_toks)
 }
 
+test "ParameterDecl Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int a, " : [Comma, EOF],
+    "char *b ," : [Comma, EOF],
+    "const int c," : [Comma, EOF],
+    "float d)" : [RParen, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = ParameterDecl::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 enum ParamDeclarator {
   Declarator(Declarator)
   AbstractDeclarator(AbstractDeclarator)
@@ -1869,6 +2539,6 @@ fn ParamDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (ParamDeclara
   } else if (try? AbstractDeclarator::parse(toks)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
     (ParamDeclarator::AbstractDeclarator(abstract_declarator), rest_toks)
   } else {
-    raise ParseError("Expected declarator or abstract declarator in parameter declaration")
+    raise ParseError("Expected declarator or abstract declarator in parameter declaration, current tok is \{toks[0]}")
   }
 }
