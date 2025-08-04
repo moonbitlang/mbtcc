@@ -2161,6 +2161,26 @@ fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayVi
   }
 }
 
+test "Statement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "x = 10;" : [EOF],
+    "if (x) { y++; }" : [EOF],
+    "while (x < 10) { x++; }" : [EOF],
+    "for (int i = 0; i < 10; i++) { sum += i; }" : [EOF],
+    "goto label;" : [EOF],
+    "label: x = 10;" : [EOF],
+    "{ int a; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = Statement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 //labeledStatement
 //    : Identifier ':' statement
 //    | 'case' constantExpression ':' statement
@@ -2193,6 +2213,23 @@ fn LabeledStatement::parse(toks: ArrayView[Token], ctx: Context) -> (LabeledStat
     rest_toks => {
       raise ParseError("Expected labeled statement, current token is \{rest_toks[0]}")
     }
+  }
+}
+
+test "LabeledStatement Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "label: x = 10;" : [EOF],
+    "case 1: y++;" : [EOF],
+    "default: z--;" : [EOF],
+    "myLabel: if (x) { y++; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = LabeledStatement::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -2468,7 +2505,7 @@ test "Jump Statement Parsing Test" {
 }
 
 struct CompilationUnit {
-  externalDeclatyons: Array[ExternalDeclaration]
+  externalDecls: Array[ExternalDeclaration]
 } derive(Show, Eq)
 
 enum ExternalDeclaration {
@@ -2487,7 +2524,6 @@ struct FunctionDefinition {
 //parameterTypeList
 //    : parameterList (',' '...')?
 //    ;
-
 struct ParameterTypeList {
   params: Array[ParameterDecl]
   variadic: Bool
