@@ -2703,10 +2703,24 @@ fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionD
     body
   }
   (function_def, rest_toks)
-
-
 }
 
+test "FunctionDefinition Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int func(int a, char *b) { return a + b; }" : [EOF],
+    "void myFunc() { int x = 1, y = 0; return x * y; }" : [EOF],
+    "float compute(float x, float y) { return x * y; }" : [EOF],
+    "int main() { return 0; }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = FunctionDefinition::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
 
 //parameterTypeList
 //    : parameterList (',' '...')?
