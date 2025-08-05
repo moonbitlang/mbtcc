@@ -1,1 +1,3 @@
-{}
+{
+  "import" : ["Kaida-Amethyst/mbtcc/color"]
+}
