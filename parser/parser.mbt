@@ -1726,7 +1726,7 @@ test "DirectDeclarator Parsing Test" {
     "fib(int a, int b) ;" : [Semi, EOF],
     "arr[] ;" : [Semi, EOF],
     "arr[10] ;" : [Semi, EOF],
-    //"(*fptr)(int, int) ;" : [Semi, EOF],
+    "(*fptr)(int, int) ;" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -2044,6 +2044,25 @@ fn TypeName::parse(toks: ArrayView[Token], ctx: Context) -> (TypeName, ArrayView
   (type_name, rest_toks)
 }
 
+test "TypeName Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int *ptr" : [Identifier("ptr"), EOF],
+    "char **str" : [Identifier("str"), EOF],
+    "const char ** msg" : [Identifier("msg"), EOF],
+    "int const * arr" : [Identifier("arr"), EOF],
+    "int * const arr" : [Identifier("arr"), EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    //let toks = lex(code)
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = TypeName::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 //abstractDeclarator
 //    : pointer
 //    | pointer? directAbstractDeclarator gccDeclaratorExtension*
@@ -2225,25 +2244,6 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       continue rest_toks
     }
     rest_toks => break (Some(curr_decl), rest_toks) // No more direct abstract declarators
-  }
-}
-
-test "TypeName Parsing Test" {
-  let code_expect_rest: Map[String, ArrayView[Token]] = {
-    "int *ptr" : [Identifier("ptr"), EOF],
-    "char **str" : [Identifier("str"), EOF],
-    "const char ** msg" : [Identifier("msg"), EOF],
-    "int const * arr" : [Identifier("arr"), EOF],
-    "int * const arr" : [Identifier("arr"), EOF],
-  }
-
-  for code, expect_rest in code_expect_rest {
-    //let toks = lex(code)
-    let ctx = Context::create(code)
-    ctx.tokenize()
-    let toks = ctx.alltoks
-    let (_, rest_toks) = TypeName::parse(toks, ctx);
-    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -2660,12 +2660,52 @@ enum ExternalDeclaration {
   Declaration(Declaration)
 } derive(Show, Eq)
 
+//functionDefinition
+//    : declarationSpecifiers declarator declarationList? compoundStatement
+//    ;
 struct FunctionDefinition {
   declSpecs: Array[DeclSpec]
   declarator: Declarator
-  declarations: Array[Declaration]
+  kr_declarations: Array[Declaration]
   body: Array[BlockItem]
 } derive(Show, Eq)
+
+fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionDefinition, ArrayView[Token]) raise {
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
+  let decl_specs = decl_specs.inner()
+
+  let (declarator, rest_toks) = Declarator::parse(rest_toks, ctx);
+
+  let (kr_declarations, rest_toks) = if !(rest_toks is [LBrace, ..]) {
+    let decls: Array[Declaration] = Array::new()
+    loop rest_toks {
+      [LBrace, ..] as rest_toks => break (Array::new(), rest_toks) // No more kr_declarations
+      [Semi, .. rest_toks] => {
+        // Empty declaration, just skip it
+        continue rest_toks
+      }
+      rest_toks => {
+        let (decl, rest_toks) = Declaration::parse(rest_toks, ctx);
+        decls.push(decl);
+        continue rest_toks
+      }
+    }
+  } else {
+    (Array::new(), rest_toks) // No kr_declarations
+  }
+
+  let (body, rest_toks) = CompoundStatement::parse(rest_toks, ctx);
+  let body = body.inner()
+  let function_def = FunctionDefinition::{
+    declSpecs: decl_specs,
+    declarator,
+    kr_declarations,
+    body
+  }
+  (function_def, rest_toks)
+
+
+}
 
 
 //parameterTypeList
