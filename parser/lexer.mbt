@@ -128,124 +128,496 @@ pub suberror LexerError String derive(Show)
 
 pub fn Context::tokenize(self: Self) -> Unit raise {
   let tokens = self.alltoks
+  let tokinfos = self.tokinfos
+
+  let mut lineno = 1;
+  let mut column = 1;
+  let mut codeidx = 0;
 
   loop self.code[:] {
-    [] => { tokens.push (EOF); break }
-    [' ' | '\n' | '\r' | '\t', .. rest] => continue rest
-    [.. "//", ..rest ] => 
+    [] => { 
+      tokens.push (EOF);
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      break
+    }
+    ['\n', ..rest] => {
+      lineno += 1
+      column = 1
+      codeidx += 1
+      continue rest
+    }
+    [' ' | '\r' | '\t', .. rest] => {
+      column += 1
+      codeidx += 1
+      continue rest
+    }
+    [.. "//", ..rest ] => {
+      codeidx += 2 // "//" 占2个字符
+      column += 2
       continue loop rest {
           ['\n' | '\r', .. rest_str] => break rest_str
-          [_, .. rest_str] => continue rest_str
+          [_, .. rest_str] => {
+            codeidx += 1
+            column += 1
+            continue rest_str
+          }
           [] as rest_str => break rest_str
         }
-    [.."/*", .. rest] => 
+    }
+    [.."/*", .. rest] => {
+      codeidx += 2 // "/*" 占2个字符
+      column += 2
       continue loop rest {
-          [.."*/", .. rest_str] => break rest_str
-          [_, .. rest_str] => continue rest_str
+          [.."*/", .. rest_str] => {
+            codeidx += 2 // "*/" 占2个字符
+            column += 2
+            break rest_str
+          }
+          ['\n', .. rest_str] => {
+            lineno += 1
+            column = 1
+            codeidx += 1
+            continue rest_str
+          }
+          [_, .. rest_str] => {
+            codeidx += 1
+            column += 1
+            continue rest_str
+          }
           [] as rest_str => break rest_str
         }
-    [.. "<<=", ..rest] => { tokens.push(LeftShiftAssign); continue rest }
-    [.. ">>=", ..rest] => { tokens.push(RightShiftAssign); continue rest }
-    [.. "&&=", ..rest] => { tokens.push(AndAssign); continue rest }
-    [.. "||=", ..rest] => { tokens.push(OrAssign); continue rest }
-    [.. "<<", ..rest] => { tokens.push(Shl); continue rest }
-    [.. ">>", ..rest] => { tokens.push(Shr); continue rest }
-    [.. "++", ..rest] => { tokens.push(PlusPlus); continue rest }
-    [.. "--", ..rest] => { tokens.push(MinusMinus); continue rest }
-    [.. "->", ..rest] => { tokens.push(Arrow); continue rest }
-    [.. "...", ..rest] => { tokens.push(Ellipsis); continue rest }
-    [.. "==", ..rest] => { tokens.push(EQ); continue rest }
-    [.. "!=", ..rest] => { tokens.push(NE); continue rest }
-    [.. "<=", ..rest] => { tokens.push(LE); continue rest }
-    [.. "<", ..rest] => { tokens.push(LT); continue rest }
-    [.. ">=", ..rest] => { tokens.push(GE); continue rest }
-    [.. ">", ..rest] => { tokens.push(GT); continue rest }
-    [.. "&&", ..rest] => { tokens.push(DoubleAnd); continue rest }
-    [.. "||", ..rest] => { tokens.push(DoubleOr); continue rest }
-    [.. "*=", ..rest] => { tokens.push(StarAssign); continue rest }
-    [.. "/=", ..rest] => { tokens.push(DivAssign); continue rest }
-    [.. "%=", ..rest] => { tokens.push(ModAssign); continue rest }
-    [.. "+=", ..rest] => { tokens.push(PlusAssign); continue rest }
-    [.. "-=", ..rest] => { tokens.push(MinusAssign); continue rest }
-    [.. "&=", ..rest] => { tokens.push(BitAndAssign); continue rest }
-    [.. "^=", ..rest] => { tokens.push(BitXorAssign); continue rest }
-    [.. "|=", ..rest] => { tokens.push(BitOrAssign); continue rest }
-    ['(', ..rest] => { tokens.push(LParen); continue rest }
-    [')', ..rest] => { tokens.push(RParen); continue rest }
-    ['[', ..rest] => { tokens.push(LBracket); continue rest }
-    [']', ..rest] => { tokens.push(RBracket); continue rest }
-    ['{', ..rest] => { tokens.push(LBrace); continue rest }
-    ['}', ..rest] => { tokens.push(RBrace); continue rest }
-    [';', ..rest] => { tokens.push(Semi); continue rest }
-    [':', ..rest] => { tokens.push(Colon); continue rest }
-    ['.', ..rest] => { tokens.push(Dot); continue rest }
-    [',', ..rest] => { tokens.push(Comma); continue rest }
-    ['+', ..rest] => { tokens.push(Plus); continue rest }
-    ['-', ..rest] => { tokens.push(Minus); continue rest }
-    ['*', ..rest] => { tokens.push(Star); continue rest }
-    ['/', ..rest] => { tokens.push(Slash); continue rest }
-    ['%', ..rest] => { tokens.push(Mod); continue rest }
-    ['&', ..rest] => { tokens.push(And); continue rest }
-    ['|', ..rest] => { tokens.push(Or); continue rest }
-    ['^', ..rest] => { tokens.push(Xor); continue rest }
-    ['!', ..rest] => { tokens.push(Not); continue rest }
-    ['?', ..rest] => { tokens.push(Question); continue rest }
-    ['~', ..rest] => { tokens.push(Tilde); continue rest }
-    ['=', ..rest] => { tokens.push(Assign); continue rest }
+    }
+    [.. "<<=", ..rest] => {
+      tokens.push(LeftShiftAssign);
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 3
+      codeidx += 3
+      continue rest
+    }
+    [.. ">>=", ..rest] => { 
+      tokens.push(RightShiftAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 3
+      codeidx += 3
+      continue rest 
+    }
+    [.. "&&=", ..rest] => { 
+      tokens.push(AndAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 3
+      codeidx += 3
+      continue rest 
+    }
+    [.. "||=", ..rest] => { 
+      tokens.push(OrAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 3
+      codeidx += 3
+      continue rest 
+    }
+    [.. "<<", ..rest] => { 
+      tokens.push(Shl); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. ">>", ..rest] => { 
+      tokens.push(Shr); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "++", ..rest] => { 
+      tokens.push(PlusPlus); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "--", ..rest] => { 
+      tokens.push(MinusMinus); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "->", ..rest] => { 
+      tokens.push(Arrow); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "...", ..rest] => { 
+      tokens.push(Ellipsis); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 3
+      codeidx += 3
+      continue rest 
+    }
+    [.. "==", ..rest] => { 
+      tokens.push(EQ); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "!=", ..rest] => { 
+      tokens.push(NE); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "<=", ..rest] => { 
+      tokens.push(LE); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "<", ..rest] => { 
+      tokens.push(LT); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [.. ">=", ..rest] => { 
+      tokens.push(GE); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. ">", ..rest] => { 
+      tokens.push(GT); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [.. "&&", ..rest] => { 
+      tokens.push(DoubleAnd); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "||", ..rest] => { 
+      tokens.push(DoubleOr); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "*=", ..rest] => { 
+      tokens.push(StarAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "/=", ..rest] => { 
+      tokens.push(DivAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "%=", ..rest] => { 
+      tokens.push(ModAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "+=", ..rest] => { 
+      tokens.push(PlusAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "-=", ..rest] => { 
+      tokens.push(MinusAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "&=", ..rest] => { 
+      tokens.push(BitAndAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "^=", ..rest] => { 
+      tokens.push(BitXorAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    [.. "|=", ..rest] => { 
+      tokens.push(BitOrAssign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 2
+      codeidx += 2
+      continue rest 
+    }
+    ['(', ..rest] => { 
+      tokens.push(LParen); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [')', ..rest] => { 
+      tokens.push(RParen); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['[', ..rest] => { 
+      tokens.push(LBracket); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [']', ..rest] => { 
+      tokens.push(RBracket); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['{', ..rest] => { 
+      tokens.push(LBrace); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['}', ..rest] => { 
+      tokens.push(RBrace); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [';', ..rest] => { 
+      tokens.push(Semi); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [':', ..rest] => { 
+      tokens.push(Colon); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['.', ..rest] => { 
+      tokens.push(Dot); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    [',', ..rest] => { 
+      tokens.push(Comma); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['+', ..rest] => { 
+      tokens.push(Plus); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['-', ..rest] => { 
+      tokens.push(Minus); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['*', ..rest] => { 
+      tokens.push(Star); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['/', ..rest] => { 
+      tokens.push(Slash); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['%', ..rest] => { 
+      tokens.push(Mod); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['&', ..rest] => { 
+      tokens.push(And); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['|', ..rest] => { 
+      tokens.push(Or); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['^', ..rest] => { 
+      tokens.push(Xor); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['!', ..rest] => { 
+      tokens.push(Not); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['?', ..rest] => { 
+      tokens.push(Question); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['~', ..rest] => { 
+      tokens.push(Tilde); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
+    ['=', ..rest] => { 
+      tokens.push(Assign); 
+      tokinfos.push(TokenInfo::{lineno, column, codeidx})
+      column += 1
+      codeidx += 1
+      continue rest 
+    }
     ['\'', ..] as code => {
-      let (tok, rest) = lex_char_literal(code)
+      let tokinfo = TokenInfo::{lineno, column, codeidx}
+      let (tok, rest, char_count) = lex_char_literal(code)
       tokens.push(tok)
+      tokinfos.push(tokinfo)
+      column += char_count
+      codeidx += char_count
       continue rest
     }
     //['\'', ..] as code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
     ['"', ..] as code => {
-      let (tok, rest) = lex_string_literal(code)
+      let tokinfo = TokenInfo::{lineno, column, codeidx}
+      let (tok, rest, char_count) = lex_string_literal(code)
       tokens.push(tok)
+      tokinfos.push(tokinfo)
+      column += char_count
+      codeidx += char_count
       continue rest
     }
     ['0'..='9', ..] as code => {
-      let (tok, rest) = lex_number(code)
+      let tokinfo = TokenInfo::{lineno, column, codeidx}
+      let (tok, rest, char_count) = lex_number(code)
       tokens.push(tok)
+      tokinfos.push(tokinfo)
+      column += char_count
+      codeidx += char_count
       continue rest
     }
     ['a' ..='z' | 'A' ..='Z' | '_', ..] as code => {
-      let (tok, rest) = lex_ident(code)
+      let tokinfo = TokenInfo::{lineno, column, codeidx}
+      let (tok, rest, char_count) = lex_ident(code)
       tokens.push(tok)
+      tokinfos.push(tokinfo)
+      column += char_count
+      codeidx += char_count
       continue rest
     }
     code => raise LexerError("Parse Error: Unexpected char: \{code[0]}")
   }
 }
 
-fn lex_string_literal(code: @string.View) -> (Token, @string.View) raise {
+fn lex_string_literal(code: @string.View) -> (Token, @string.View, Int) raise {
   guard code is ['"', .. code] // skip first '"'
   let str = Array::new()
+  let mut char_count = 1 // 开始的引号
   let rest = loop code {
-    ['"', .. rest_str] => break rest_str
-    [.."\\n", .. rest_str] => { str.push('\n'); continue rest_str }
-    [.."\\r", .. rest_str] => { str.push('\r'); continue rest_str }
-    [.."\\t", .. rest_str] => { str.push('\t'); continue rest_str }
-    [.."\\\"", .. rest_str] => { str.push('"'); continue rest_str }
-    [.."\\\\", .. rest_str] => { str.push('\\'); continue rest_str }
+    ['"', .. rest_str] => {
+      char_count += 1 // 结束的引号
+      break rest_str
+    }
+    [.."\\n", .. rest_str] => { 
+      str.push('\n'); 
+      char_count += 2 // \n 是2个字符
+      continue rest_str 
+    }
+    [.."\\r", .. rest_str] => { 
+      str.push('\r'); 
+      char_count += 2 // \r 是2个字符
+      continue rest_str 
+    }
+    [.."\\t", .. rest_str] => { 
+      str.push('\t'); 
+      char_count += 2 // \t 是2个字符
+      continue rest_str 
+    }
+    [.."\\\"", .. rest_str] => { 
+      str.push('"'); 
+      char_count += 2 // \" 是2个字符
+      continue rest_str 
+    }
+    [.."\\\\", .. rest_str] => { 
+      str.push('\\'); 
+      char_count += 2 // \\ 是2个字符
+      continue rest_str 
+    }
     ['\n', ..] => raise LexerError("Parse Error: Unclosed string literal, found newline")
     [c, .. rest_str] => {
       str.push(c)
+      char_count += 1 // 普通字符是1个字符
       continue rest_str
     }
     [] => raise LexerError("Parse Error: Unclosed string literal")
   }
   let str = String::from_array(str)
-  (StringLiteral(str), rest)
+  (StringLiteral(str), rest, char_count)
 }
 
-fn lex_char_literal(code: @string.View) -> (Token, @string.View) raise {
+fn lex_char_literal(code: @string.View) -> (Token, @string.View, Int) raise {
   guard code is ['\'', .. code]
   match code {
-    [.."\\n", '\'', .. rest_str] => (Constant(Char('\n')), rest_str)
-    [.."\\r", '\'', .. rest_str] => (Constant(Char('\r')), rest_str)
-    [.."\\t", '\'', .. rest_str] => (Constant(Char('\t')), rest_str)
-    [.."\\\'", '\'', .. rest_str] => (Constant(Char('\'')), rest_str)
-    [c, '\'', .. rest_str] => (Constant(Char(c)), rest_str)
+    [.."\\n", '\'', .. rest_str] => (Constant(Char('\n')), rest_str, 4) // '\n' 的长度是4个字符
+    [.."\\r", '\'', .. rest_str] => (Constant(Char('\r')), rest_str, 4) // '\r' 的长度是4个字符
+    [.."\\t", '\'', .. rest_str] => (Constant(Char('\t')), rest_str, 4) // '\t' 的长度是4个字符
+    [.."\\\'", '\'', .. rest_str] => (Constant(Char('\'')), rest_str, 4) // '\'' 的长度是4个字符
+    [c, '\'', .. rest_str] => (Constant(Char(c)), rest_str, 3) // 'c' 的长度是3个字符
     ['\'', ..] => raise LexerError("Empty char literal")
     code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
   }
@@ -254,7 +626,7 @@ fn lex_char_literal(code: @string.View) -> (Token, @string.View) raise {
 // @strconv.parse_int: (String, Int) -> Int, input is string and base, return an int
 // @strconv.parse_int64: (String, Int) -> Int64, input is string and base, return an int
 // @strconv.parse_double: (String, Int) -> Double, input is string and base, return an int
-fn lex_number(code: @string.View) -> (Token, @string.View) raise {
+fn lex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let num = Array::new()
   let rest = loop code {
     ['0'..='9' as c, .. rest_str] => {
@@ -266,7 +638,7 @@ fn lex_number(code: @string.View) -> (Token, @string.View) raise {
   let numstr = String::from_array(num)
   let num = @strconv.parse_int(numstr, base=10)
   let num = Constant::Int(num)
-  (Constant(num), rest)
+  (Constant(num), rest, numstr.length())
 }
 
 let keywords : Map[String, Token] = {
@@ -322,7 +694,7 @@ let keywords : Map[String, Token] = {
   "_Generic" : Generic,
 }
 
-fn lex_ident(code: @string.View) -> (Token, @string.View) {
+fn lex_ident(code: @string.View) -> (Token, @string.View, Int) {
   let ident = Array::new()
   let rest_str = loop code {
     ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' as c, .. rest_str] => {
@@ -336,7 +708,7 @@ fn lex_ident(code: @string.View) -> (Token, @string.View) {
     Some(token) => token
     None => Identifier(ident)
   }
-  (tok, rest_str)
+  (tok, rest_str, ident.length())
 }
 
 test "tokenize test" {
@@ -388,6 +760,7 @@ test "tokenize test" {
 
   let ctx = Context::create(code)
   ctx.tokenize()
+  assert_eq(ctx.alltoks.length(), ctx.tokinfos.length(), msg="Tokenization length mismatch")
   for i in 0..<expect.length() {
     assert_eq(ctx.alltoks.get(i), Some(expect[i]), msg="Tokenization Test Failed at index \{i}, expect \{expect[i]} got \{ctx.alltoks[i]}")
   }
@@ -412,6 +785,7 @@ test "tokenize comment test" {
   ]
   let ctx = Context::create(code)
   ctx.tokenize()
+  assert_eq(ctx.alltoks.length(), ctx.tokinfos.length(), msg="Tokenization length mismatch")
   for i in 0..<expect.length() {
     assert_eq(ctx.alltoks.get(i), Some(expect[i]), msg="Tokenization Test Failed at index \{i}, expect \{expect[i]} got \{ctx.alltoks[i]}")
   }

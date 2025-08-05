@@ -1,9 +1,24 @@
+struct TokenInfo {
+  lineno: Int
+  column: Int
+  codeidx: Int
+}
 
 struct Context {
+  source_file: String
   code: String
   alltoks: Array[Token]
+  tokinfos: Array[TokenInfo]
   mut typedefs: Env[Int]
 }
+
+//fn Context::print_warning(self: Self, idx: Int, msg: String) -> Unit {
+//  let tokinfo = self.tokinfos[idx];
+//  let lineno = tokinfo.lineno;
+//  let column = tokinfo.column;
+//  let source_file = self.source_file;
+//  //print("Warning in file '%s' at line %d, column %d: %s\n", source_file, lineno, column, msg);
+//}
 
 fn Context::add_typedef(self: Context, name: String) -> Unit {
   self.typedefs.set(name, 1)
@@ -58,10 +73,12 @@ fn[V] Env::contains(self: Env[V], name: String) -> Bool {
   }
 }
 
-fn Context::create(code: String) -> Context {
+fn Context::create(code: String, source_file~: String = "demo") -> Context {
   Context::{
-    code: code,
+    source_file,
+    code,
     alltoks: Array::new(),
+    tokinfos: Array::new(),
     typedefs: Env::new()
   }
 }
