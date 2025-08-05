@@ -24,7 +24,9 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
       (PrimExpr::Identifier(name), rest_toks)
     }
     [Identifier(name), ..] => {
-      raise ParseError("Identifier \{name} is a typedef, cannot be used as a primary expression")
+      let idx = ctx.alltoks.length() - toks.length()
+      let msg = ctx.get_error_msg(idx, "Parse Error: Identifier \{name} is a type, cannot be used as a primary expression")
+      raise ParseError(msg)
     }
     [Constant(constant), .. rest_toks] => {
       (PrimExpr::Constant(constant), rest_toks)
@@ -43,12 +45,16 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
     [LParen, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after expression")
+        let idx = ctx.alltoks.length() - rest_toks.length()
+        let msg = ctx.get_error_msg(idx, "Parse Error: Expected closing parenthesis after expression")
+        raise ParseError(msg)
       }
       (PrimExpr::ParenExpr(expr), rest_toks)
     }
     curr_toks => {
-      raise ParseError("Parse PrimExpr failed, current token: \{curr_toks[0]}")
+      let idx = ctx.alltoks.length() - curr_toks.length()
+      let msg = ctx.get_error_msg(idx, "Parse Error: Expected Identifier, Constant, StringLiteral, or '(' expression ')', but found \{curr_toks[0]}")
+      raise ParseError(msg)
     }
   }
 }
@@ -144,16 +150,11 @@ fn PostFixSuffix::parse(toks: ArrayView[Token], ctx: Context) -> (Array[PostFixS
       continue rest_toks
     }
     [LParen, .. rest_toks] => {
-      let args: Array[AssignExpr] = Array::new()
-      let rest_toks = loop rest_toks {
-        [RParen, .. rest_toks] => break rest_toks
-        [Comma, .. rest_toks] => continue rest_toks
-        rest_toks => {
-          let (arg, rest) = AssignExpr::parse(rest_toks, ctx);
-          args.push(arg)
-          continue rest
-        }
+      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after argument expression list")
       }
+      let args = expr.exprs
       suffixes.push(PostFixSuffix::Call(args))
       continue rest_toks
     }

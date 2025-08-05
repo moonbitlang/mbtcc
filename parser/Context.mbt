@@ -1,4 +1,4 @@
-struct TokenInfo {
+priv struct TokenInfo {
   lineno: Int
   column: Int
   codeidx: Int
@@ -12,7 +12,17 @@ struct Context {
   mut typedefs: Env[Int]
 }
 
-fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
+priv enum WarningError {
+  Warning
+  Error
+}
+
+fn Context::get_error_or_warning_msg(self: Self, idx: Int, msg: String, we: WarningError) -> String {
+  let color = match we {
+    Warning => @color.Yellow
+    Error => @color.Red
+  }
+
   if idx < 0 || idx >= self.tokinfos.length() {return "" }
   let tokinfo = self.tokinfos[idx];
   let lineno = tokinfo.lineno;
@@ -23,15 +33,15 @@ fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
   let str_builder = StringBuilder::new();
   
   // 第一行：文件名、行号和列号
-  let head_line = @color.taint_magenta("[\{source_file}:\{lineno}:\{column}] Warning:")
+  let head_line = @color.taint("[\{source_file}:\{lineno}:\{column}] Warning:", @color.Magenta)
   str_builder.write_string("\{head_line}\n")
   
   // 第二行：空行
-  str_builder.write_string("#|\n")
+  str_builder.write_string("\{lineno-1}|\n")
   
   // 第三行：找到包含当前token的代码行
   let code_line = self.get_code_line(codeidx)
-  str_builder.write_string("#|  \{code_line}\n")
+  str_builder.write_string("\{lineno}|  \{code_line}\n")
 
   
   // 第四行：在column位置打印`^`，然后打印msg
@@ -39,41 +49,17 @@ fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
   for _ in 1..<column {
     indent += " "
   }
-  let msg = @color.taint_yellow("^ \{msg}")
-  str_builder.write_string("#|\{indent}\{msg}\n")
+  let msg = @color.taint("^ \{msg}", color)
+  str_builder.write_string("\{lineno+1}|\{indent}\{msg}\n")
   str_builder.to_string()
 }
 
+fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
+  self.get_error_or_warning_msg(idx, msg, Warning)
+}
+
 fn Context::get_error_msg(self: Self, idx: Int, msg: String) -> String {
-  if idx < 0 || idx >= self.tokinfos.length() {return "" }
-  let tokinfo = self.tokinfos[idx];
-  let lineno = tokinfo.lineno;
-  let column = tokinfo.column;
-  let codeidx = tokinfo.codeidx;
-  let source_file = self.source_file;
-
-  let str_builder = StringBuilder::new();
-  
-  // 第一行：文件名、行号和列号
-  let head_line = @color.taint_red("[\{source_file}:\{lineno}:\{column}] Warning:")
-  str_builder.write_string("\{head_line}\n")
-  
-  // 第二行：空行
-  str_builder.write_string("#|\n")
-  
-  // 第三行：找到包含当前token的代码行
-  let code_line = self.get_code_line(codeidx)
-  str_builder.write_string("#|  \{code_line}\n")
-
-  
-  // 第四行：在column位置打印`^`，然后打印msg
-  let mut indent = "  " // 与代码行的缩进保持一致
-  for _ in 1..<column {
-    indent += " "
-  }
-  let msg = @color.taint_red("^ \{msg}")
-  str_builder.write_string("#|\{indent}\{msg}\n\n")
-  str_builder.to_string()
+  self.get_error_or_warning_msg(idx, msg, Error)
 }
 
 // 辅助函数：根据codeidx获取对应的代码行
@@ -221,7 +207,7 @@ fn Context::is_declspec_tok(self: Context, tok: Token) -> Bool {
 //
 //
 //  // 第二行的变量
-//  println(ctx.get_warning_msg(6, "This is a test warning for variable 'x'"))
+//  println(ctx.get_error_msg(6, "This is a test warning for variable 'x'"))
 //
 //  println("=== End Demo ===")
 //}
