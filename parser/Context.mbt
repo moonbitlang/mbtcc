@@ -1,6 +1,6 @@
 enum Type {
   Void
-  Int8
+  Int8(is_static~:Bool, is_extern~:Bool)
   UInt8
   Int16
   UInt16
@@ -23,7 +23,8 @@ struct Context {
   code: String
   alltoks: Array[Token]
   mut rest_toks: @array.View[Token]
-  typedefs: Env[Type]
+  //typedefs: Env[Type]
+  typedefs: Set[String]
 }
 
 struct Env[V] {
@@ -63,9 +64,14 @@ fn Context::create(code: String) -> Context {
     code: code,
     alltoks: Array::new(),
     rest_toks: [],
-    typedefs: Env::new()
+    //typedefs: Env::new()
+    typedefs: Set::new()
   }
 }
+
+//fn Context::is_typedef(self: Context, name: String) -> Bool {
+//  self.typedefs.contains(name)
+//}
 
 fn Context::is_declspec_tok(self: Context, tok: Token) -> Bool {
   match tok {
@@ -76,6 +82,8 @@ fn Context::is_declspec_tok(self: Context, tok: Token) -> Bool {
     Typeof | Inline | ThreadLocal | Atomic => true
     Identifier(name) => {
       // Check if the identifier is a typedef
+      //self.typedefs.contains(name)
+      //self.get_typedef(name) is Some(_)
       self.typedefs.contains(name)
     }
     _ => false

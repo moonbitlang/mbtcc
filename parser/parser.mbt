@@ -20,8 +20,11 @@ enum PrimExpr {
 
 fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView[Token]) raise {
   match toks {
-    [Identifier(name), .. rest_toks] => {
+    [Identifier(name), .. rest_toks] if !ctx.typedefs.contains(name) => {
       (PrimExpr::Identifier(name), rest_toks)
+    }
+    [Identifier(name), ..] => {
+      raise ParseError("Identifier \{name} is a typedef, cannot be used as a primary expression")
     }
     [Constant(constant), .. rest_toks] => {
       (PrimExpr::Constant(constant), rest_toks)
@@ -1024,12 +1027,13 @@ enum Declaration {
 } derive(Show, Eq)
 
 fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
+  let is_typedef = toks is [Typedef, ..]
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
   let decl_specs = decl_specs.inner()
   guard !decl_specs.is_empty() else {
     raise ParseError("Declaration specifiers cannot be empty")
   }
-  match rest_toks {
+  let (declaration, rest_toks) = match rest_toks {
     [Semi, .. rest_toks] => {
       let declaration = Declaration::Decl(decl_specs, Array::new())
       (declaration, rest_toks)
@@ -1040,6 +1044,14 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
       (declaration, rest_toks)
     }
   }
+  if is_typedef {
+    let inits = match declaration {
+      Declaration::Decl(_, inits) => inits
+      //_ => raise ParseError("Expected declaration in typedef")
+    }
+    inits.each(i => ctx.typedefs.add(i.get_ident()))
+  }
+  (declaration, rest_toks)
 }
 
 test "Declaration Parsing Test" {
@@ -1048,6 +1060,10 @@ test "Declaration Parsing Test" {
     "const char *p;" : [Semi, EOF],
     "static int x = 10;" : [Semi, EOF],
     "extern void func(int, int);" : [Semi, EOF],
+    "typedef int MyInt;" : [Semi, EOF],
+    "struct Point { int x; int y; };" : [EOF],
+    "typedef struct { int a; int b; } MyStruct;" : [Semi, EOF],
+    "typedef double *p, *const q;" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1214,10 +1230,10 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
       (TypeSpec::UnionSpec(union_spec), rest_toks)
     }
     [Enum, ..] as toks => {
-      let (enum_spec, rest_toks) = EnumSpec::parse(toks);
+      let (enum_spec, rest_toks) = EnumSpec::parse(toks, ctx);
       (TypeSpec::EnumSpec(enum_spec), rest_toks)
     }
-    [Identifier(name), .. rest_toks] if ctx.typedefs.get(name) is Some(_) => (TypeSpec::TypedefName(name), rest_toks)
+    [Identifier(name), .. rest_toks] if ctx.typedefs.contains(name) => (TypeSpec::TypedefName(name), rest_toks)
     toks => raise ParseError("Parse TypeSpec Error, unexpect token \{toks[0]}")
   }
 }
@@ -1516,6 +1532,10 @@ struct Declarator {
   directDeclarator: DirectDeclarator
 } derive(Show, Eq)
 
+fn Declarator::get_ident(self: Self) -> String {
+  self.directDeclarator.get_ident()
+}
+
 fn Declarator::parse(toks: ArrayView[Token], ctx: Context) -> (Declarator, ArrayView[Token]) raise {
   let (pointer, rest_toks) = Pointer::parse(toks);
   let pointer = if pointer.inner().is_empty() {
@@ -1617,6 +1637,19 @@ enum DirectDeclarator {
   FunctionPtr(DirectDeclarator, Array[String])
   BitField(String, Int)
 } derive(Show, Eq)
+
+fn DirectDeclarator::get_ident(self: Self) -> String {
+  match self {
+    DirectDeclarator::Identifier(name) => name
+    Array(inner, _, _) => inner.get_ident()
+    StaticArray(inner, _, _) => inner.get_ident()
+    VallengthArray(inner, _) => inner.get_ident()
+    FunctionDecl(inner, _) => inner.get_ident()
+    FunctionPtr(inner, _) => inner.get_ident()
+    BitField(name, _) => name
+    Parenthesized(inner) => inner.get_ident()
+  }
+}
 
 fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDeclarator, ArrayView[Token]) raise {
   let (head_decl, rest_toks) = match toks {
@@ -1745,6 +1778,10 @@ struct InitDeclarator {
   declarator: Declarator
   initializer: Initializer?
 } derive(Show, Eq)
+
+fn InitDeclarator::get_ident(self: Self) -> String {
+  self.declarator.get_ident()
+}
 
 fn InitDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (InitDeclarator, ArrayView[Token]) raise {
   let (declarator, rest_toks) = Declarator::parse(toks, ctx);
@@ -1962,11 +1999,95 @@ struct EnumSpec {
   enumerators: Array[Enumerator]
 } derive(Show, Eq)
 
-fn EnumSpec::parse(toks: ArrayView[Token]) -> (EnumSpec, ArrayView[Token]) raise {
-  ...
+fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView[Token]) raise {
+  guard toks is [Enum, .. toks] else {
+    raise ParseError("Expected 'enum' keyword for enum specification")
+  }
+
+  match toks {
+    [Identifier(name), LBrace, RBrace, .. rest_toks] => {
+      // Anonymous enum with no enumerators
+      (EnumSpec::{ name: Some(name), enumerators: Array::new() }, rest_toks)
+    }
+    [Identifier(name), LBrace, .. rest_toks] => {
+      let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      guard rest_toks is [RBrace, .. rest_toks] else {
+        raise ParseError("Expected closing brace after enumerator list in enum specification")
+      }
+      (EnumSpec::{ name: Some(name), enumerators }, rest_toks)
+    }
+    [Identifier(name), .. rest_toks] => {
+      (EnumSpec::{ name: Some(name), enumerators: Array::new() }, rest_toks)
+    }
+    [LBrace, RBrace, .. rest_toks] => {
+      // Anonymous enum with no enumerators
+      (EnumSpec::{ name: None, enumerators: Array::new() }, rest_toks)
+    }
+    [LBrace, .. rest_toks] => {
+      // Anonymous enum
+      let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      guard rest_toks is [RBrace, .. rest_toks] else {
+        raise ParseError("Expected closing brace after enumerator list in anonymous enum")
+      }
+      (EnumSpec::{ name: None, enumerators }, rest_toks)
+    }
+    toks => raise ParseError("Parse error, current tok is \{toks[0]}")
+  }
+}
+
+test "EnumSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "enum MyEnum { A, B, C }" : [EOF],
+    "enum { Red, Yellow, Blue }" : [EOF],
+    "enum EmptyEnum {}" : [EOF],
+    "enum AnotherEnum { ONE = 1, TWO = 2 }" : [EOF],
+    "enum SingleEnum { ONLY }" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = EnumSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 type Enumerator (String, ConstantExpr?) derive(Show, Eq)
+
+fn Enumerator::parse(toks: ArrayView[Token], ctx: Context) -> (Enumerator, ArrayView[Token]) raise {
+  match toks {
+    [Identifier(name), Assign, .. rest_toks] => {
+      let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx);
+      (Enumerator((name, Some(const_expr))), rest_toks)
+    }
+    [Identifier(name), .. rest_toks] => (Enumerator((name, None)), rest_toks)
+    toks => raise ParseError("Expected identifier for enumeration constant, current token: \{toks[0]}")
+  }
+}
+
+
+typealias Array[Enumerator] as EnumeratorList
+
+fn EnumeratorList::parse(toks: ArrayView[Token], ctx: Context) -> (EnumeratorList, ArrayView[Token]) raise {
+  let enumerators: Array[Enumerator] = Array::new()
+  let (first_enum, rest_toks) = Enumerator::parse(toks, ctx);
+  enumerators.push(first_enum)
+  let rest_toks = loop rest_toks {
+    [Comma, .. rest_toks] => {
+      let (next_enum, rest) = Enumerator::parse(rest_toks, ctx);
+      enumerators.push(next_enum)
+      continue rest
+    }
+    [RBrace, ..] as toks => {
+      break toks // End of enumerator list
+    }
+    rest_toks => {
+      raise ParseError("Expected comma or closing brace in enumerator list, current token: \{rest_toks[0]}")
+    }
+  }
+  (enumerators, rest_toks)
+}
 
 
 //functionSpecifier
@@ -2655,10 +2776,69 @@ struct CompilationUnit {
   externalDecls: Array[ExternalDeclaration]
 } derive(Show, Eq)
 
+fn CompilationUnit::parse(toks: ArrayView[Token], ctx: Context) -> CompilationUnit raise {
+  let external_decls: Array[ExternalDeclaration] = Array::new()
+  loop toks {
+    [EOF] => break CompilationUnit::{ externalDecls: external_decls } // End of input
+    toks => {
+      let (external_decl, rest_toks) = ExternalDeclaration::parse(toks, ctx);
+      external_decls.push(external_decl);
+      continue rest_toks
+    }
+  }
+}
+
+test "CompilationUnit Parsing Test" {
+  let codes = [
+    "int main() { return 0; }",
+    "float compute(float x, float y) { return x * y; }",
+    "typedef struct { int x; int y; } Point; Point* new(int, int);"
+  ]
+
+  for code in codes {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    assert_true((try? CompilationUnit::parse(toks, ctx)) is Ok(_), msg="Failed to parse code: \{code}")
+  }
+}
+
 enum ExternalDeclaration {
   FunctionDefinition(FunctionDefinition)
   Declaration(Declaration)
 } derive(Show, Eq)
+
+fn ExternalDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (ExternalDeclaration, ArrayView[Token]) raise {
+  match (try? FunctionDefinition::parse(toks, ctx)) {
+    Ok((func_def, rest_toks)) => (ExternalDeclaration::FunctionDefinition(func_def), rest_toks)
+    Err(_) => {
+      let (decl, rest_toks) = Declaration::parse(toks, ctx);
+      guard rest_toks is [Semi, .. rest_toks] else {
+        raise ParseError("Expected ';' after declaration")
+      }
+      (ExternalDeclaration::Declaration(decl), rest_toks)
+    }
+  }
+}
+
+test "ExternalDeclaration Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int func(int a, char *b) { return a + b; }" : [EOF],
+    "void myFunc() { int x = 1, y = 0; return x * y; }" : [EOF],
+    "float compute(float x, float y) { return x * y; }" : [EOF],
+    "int a;" : [EOF],
+    "char *str;" : [EOF],
+    "typedef struct { int x; int y; } Point;" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = ExternalDeclaration::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
 
 //functionDefinition
 //    : declarationSpecifiers declarator declarationList? compoundStatement
@@ -2748,7 +2928,6 @@ fn ParameterTypeList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterT
 //parameterList
 //    : parameterDeclaration (',' parameterDeclaration)*
 //    ;
-
 type ParameterList Array[ParameterDecl] derive(Show, Eq)
 
 fn ParameterList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterList, ArrayView[Token]) raise {
