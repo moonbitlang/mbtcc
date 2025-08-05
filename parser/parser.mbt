@@ -1025,17 +1025,37 @@ enum Declaration {
 
 fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
+  let decl_specs = decl_specs.inner()
+  guard !decl_specs.is_empty() else {
+    raise ParseError("Declaration specifiers cannot be empty")
+  }
   match rest_toks {
     [Semi, .. rest_toks] => {
-      let declaration = Declaration::Decl(decl_specs.inner(), Array::new())
+      let declaration = Declaration::Decl(decl_specs, Array::new())
       (declaration, rest_toks)
     }
-    [Identifier(_), ..] => {
+    _ => {
       let (init_decls, rest_toks) = InitDeclaratorList::parse(rest_toks, ctx);
-      let declaration = Declaration::Decl(decl_specs.inner(), init_decls.inner())
+      let declaration = Declaration::Decl(decl_specs, init_decls.inner())
       (declaration, rest_toks)
     }
-    _ => raise ParseError("Expected ';' or identifier after declaration specifiers")
+  }
+}
+
+test "Declaration Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int a;" : [Semi, EOF],
+    "const char *p;" : [Semi, EOF],
+    "static int x = 10;" : [Semi, EOF],
+    "extern void func(int, int);" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = Declaration::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -1741,6 +1761,8 @@ test "InitDeclarator Parsing Test" {
     "a;" : [Semi, EOF],
     "b = 10;" : [Semi, EOF],
     "arr[] = {1, 2, 3, 4, 5};" : [Semi, EOF],
+    "*p = 4;" : [Semi, EOF],
+    "*p;" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -2010,7 +2032,7 @@ fn TypeName::parse(toks: ArrayView[Token], ctx: Context) -> (TypeName, ArrayView
     rest_toks = rest
   }
   let (abstract_declarator, rest_toks) = if rest_toks is [Star | LParen | LBracket, ..] { 
-    let (a, rest) = AbstractDeclarator::parse(rest_toks);
+    let (a, rest) = AbstractDeclarator::parse(rest_toks, ctx);
     (Some(a), rest)
   } else {
     (None, rest_toks)
@@ -2031,11 +2053,11 @@ struct AbstractDeclarator {
   directAbstractDeclarator: DirectAbstractDeclarator?
 } derive(Show, Eq)
 
-fn AbstractDeclarator::parse(toks: ArrayView[Token]) -> (AbstractDeclarator, ArrayView[Token]) raise {
+fn AbstractDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (AbstractDeclarator, ArrayView[Token]) raise {
   match toks {
     [Star, ..] => {
       let (pointer, rest_toks) = Pointer::parse(toks);
-      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(rest_toks);
+      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(rest_toks, ctx);
       let abstract_declarator = AbstractDeclarator::{
         pointer: Some(pointer),
         directAbstractDeclarator: direct_abstract_declarator
@@ -2043,7 +2065,7 @@ fn AbstractDeclarator::parse(toks: ArrayView[Token]) -> (AbstractDeclarator, Arr
       (abstract_declarator, rest_toks)
     }
     [LParen | LBracket, ..] as toks => {
-      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(toks);
+      let (direct_abstract_declarator, rest_toks) = DirectAbstractDeclarator::parse(toks, ctx);
       let abstract_declarator = AbstractDeclarator::{
         pointer: None,
         directAbstractDeclarator: direct_abstract_declarator
@@ -2051,6 +2073,23 @@ fn AbstractDeclarator::parse(toks: ArrayView[Token]) -> (AbstractDeclarator, Arr
       (abstract_declarator, rest_toks)
     }
     _ => raise ParseError("Expected pointer or direct abstract declarator")
+  }
+}
+
+test "AbstractDeclarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "*" : [EOF],
+    "[*]" : [EOF],
+    "[10]" : [EOF],
+    "[a][10]" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = AbstractDeclarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -2069,16 +2108,124 @@ fn AbstractDeclarator::parse(toks: ArrayView[Token]) -> (AbstractDeclarator, Arr
 //    | directAbstractDeclarator '(' parameterTypeList? ')' gccDeclaratorExtension*
 //    ;
 enum DirectAbstractDeclarator {
-  Array(Array[TypeQualifier], AssignExpr?)
-  StaticArray(Array[TypeQualifier], AssignExpr)
-  ArrayStatic(Array[TypeQualifier], AssignExpr)
-  StarArray
-  FuncPtr(Array[ParameterDecl])
+  FuncDecl(DirectAbstractDeclarator?, ParameterTypeList)
+  ArrayDecl(DirectAbstractDeclarator?, is_static~:Bool, Array[TypeQualifier], AssignExpr?) // Bool indicates if it's a static array
+  InCompleteArray(DirectAbstractDeclarator?) // '[' '*' ']'
+  FuncPtr(DirectAbstractDeclarator?, AbstractDeclarator)
 } derive(Show, Eq)
 
 // TODO: Not Correct Implementation
-fn DirectAbstractDeclarator::parse(toks: ArrayView[Token]) -> (DirectAbstractDeclarator?, ArrayView[Token]) {
-  (None, toks)
+fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (DirectAbstractDeclarator?, ArrayView[Token]) raise {
+  let (head_decl, rest_toks) = match toks {
+    [LParen, Star | LBracket | LParen, ..] as toks => {
+      let (abstract_declarator, rest_toks) = AbstractDeclarator::parse(toks[1:], ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after abstract declarator")
+      }
+      (DirectAbstractDeclarator::FuncPtr(None, abstract_declarator), rest_toks)
+    }
+    [LParen, .. rest_toks] => {
+      let (parameter_type_list, rest_toks) = ParameterTypeList::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after parameter type list")
+      }
+      (DirectAbstractDeclarator::FuncDecl(None, parameter_type_list), rest_toks)
+    }
+    [LBracket, Star, RBracket, .. rest_toks] => {
+      (DirectAbstractDeclarator::InCompleteArray(None), rest_toks)
+    }
+    [LBracket, Static, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[2:]);
+      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
+        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+        (Some(assign_expr), rest_toks)
+      } else {
+        (None, rest_toks)
+      }
+      (DirectAbstractDeclarator::ArrayDecl(None, is_static=true, type_qualifiers.inner(), assign_expr), rest_toks)
+    }
+    [LBracket, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[1:]);
+      let (is_static, rest_toks) = if rest_toks is [Static, ..] {
+        (true, rest_toks[1:])
+      } else {
+        (false, rest_toks)
+      }
+      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
+        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+        (Some(assign_expr), rest_toks)
+      } else {
+        (None, rest_toks)
+      }
+      (DirectAbstractDeclarator::ArrayDecl(None, is_static~, type_qualifiers.inner(), assign_expr), rest_toks)
+    }
+    [LBracket, RBracket, .. rest_toks] => {
+      (DirectAbstractDeclarator::ArrayDecl(None, is_static=false, Array::new(), None), rest_toks)
+    }
+    [LBracket, .. rest_toks] => {
+      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+      guard rest_toks is [RBracket, .. rest_toks] else {
+        raise ParseError("Expected closing bracket after array declaration")
+      }
+      (DirectAbstractDeclarator::ArrayDecl(None, is_static=false, Array::new(), Some(assign_expr)), rest_toks)
+    }
+    toks => return (None, toks) // No direct abstract declarator
+  }
+  let mut curr_decl = head_decl;
+  loop rest_toks {
+    [LParen, .. rest_toks] => {
+      let (parameter_type_list, rest_toks) = ParameterTypeList::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        raise ParseError("Expected closing parenthesis after parameter type list")
+      }
+      curr_decl = DirectAbstractDeclarator::FuncDecl(Some(curr_decl), parameter_type_list);
+      continue rest_toks
+    }
+    [LBracket, Star, RBracket, .. rest_toks] => {
+      curr_decl = DirectAbstractDeclarator::InCompleteArray(Some(curr_decl));
+      continue rest_toks
+    }
+    [LBracket, Static, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[2:]);
+      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
+        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+        (Some(assign_expr), rest_toks)
+      } else {
+        (None, rest_toks)
+      }
+      curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static=true, type_qualifiers.inner(), assign_expr);
+      continue rest_toks
+    }
+    [LBracket, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[1:]);
+      let (is_static, rest_toks) = if rest_toks is [Static, ..] {
+        (true, rest_toks[1:])
+      } else {
+        (false, rest_toks)
+      }
+      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
+        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+        (Some(assign_expr), rest_toks)
+      } else {
+        (None, rest_toks)
+      }
+      curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static~, type_qualifiers.inner(), assign_expr);
+      continue rest_toks
+    }
+    [LBracket, RBracket, .. rest_toks] => {
+      curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static=false, Array::new(), None);
+      continue rest_toks
+    }
+    [LBracket, .. rest_toks] => {
+      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+      guard rest_toks is [RBracket, .. rest_toks] else {
+        raise ParseError("Expected closing bracket after array declaration")
+      }
+      curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static=false, Array::new(), Some(assign_expr));
+      continue rest_toks
+    }
+    rest_toks => break (Some(curr_decl), rest_toks) // No more direct abstract declarators
+  }
 }
 
 test "TypeName Parsing Test" {
@@ -2588,11 +2735,11 @@ test "ParameterList Parsing Test" {
 
 
 //parameterDeclaration
-//    : declarationSpecifiers (declarator | abstractDeclarator)
+//    : declarationSpecifiers (declarator | abstractDeclarator)?
 //    ;
 struct ParameterDecl {
   declspecs: Array[DeclSpec]
-  declarator: ParamDeclarator
+  declarator: ParamDeclarator?
 } derive(Show, Eq)
 
 fn ParameterDecl::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterDecl, ArrayView[Token]) raise {
@@ -2601,7 +2748,11 @@ fn ParameterDecl::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterDecl,
   guard decl_specs.length() > 0 else {
     raise ParseError("Parameter declaration must have at least one declaration specifier")
   }
-  let (declarator, rest_toks) = ParamDeclarator::parse(rest_toks, ctx);
+  //let (declarator, rest_toks) = ParamDeclarator::parse(rest_toks, ctx);
+  let (declarator, rest_toks) = match (try? ParamDeclarator::parse(rest_toks, ctx)) {
+    Ok((declarator, rest_toks)) => (Some(declarator), rest_toks)
+    Err(_) => (None, rest_toks) // No declarator or abstract declarator
+  }
   let param_decl = ParameterDecl::{
     declspecs: decl_specs,
     declarator
@@ -2634,7 +2785,7 @@ enum ParamDeclarator {
 fn ParamDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (ParamDeclarator, ArrayView[Token]) raise {
   if (try? Declarator::parse(toks, ctx)) is Ok((declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
     (ParamDeclarator::Declarator(declarator), rest_toks)
-  } else if (try? AbstractDeclarator::parse(toks)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
+  } else if (try? AbstractDeclarator::parse(toks, ctx)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
     (ParamDeclarator::AbstractDeclarator(abstract_declarator), rest_toks)
   } else {
     raise ParseError("Expected declarator or abstract declarator in parameter declaration, current tok is \{toks[0]}")
