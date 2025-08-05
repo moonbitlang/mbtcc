@@ -1,35 +1,30 @@
-enum Type {
-  Void
-  Int8(is_static~:Bool, is_extern~:Bool)
-  UInt8
-  Int16
-  UInt16
-  Int32
-  Int64
-  UInt32
-  UInt64
-  Bool
-  Float
-  Double
-  LongDouble
-  Ptr(Type)
-  Struct(Array[Type], is_flexible~:Bool, is_packed~:Bool) // 
-  Union(Array[Type])
-  Function(Array[Type], Type, is_variadic~: Bool)
-  // VLA
-}
 
 struct Context {
   code: String
   alltoks: Array[Token]
-  mut rest_toks: @array.View[Token]
-  //typedefs: Env[Type]
-  typedefs: Set[String]
+  mut typedefs: Env[Int]
 }
 
-struct Env[V] {
+fn Context::add_typedef(self: Context, name: String) -> Unit {
+  self.typedefs.set(name, 1)
+}
+
+fn Context::enter_scope(self: Context) -> Unit {
+  let curr_scope = self.typedefs;
+  self.typedefs = Env::new();
+  self.typedefs.parent = Some(curr_scope);
+}
+
+fn Context::leave_scope(self: Context) -> Unit {
+  match self.typedefs.parent {
+    Some(parent) => self.typedefs = parent
+    None => ()
+  }
+}
+
+priv struct Env[V] {
   vars: Map[String, V]
-  parent: Env[V]?
+  mut parent: Env[V]?
 }
 
 fn[V] Env::new() -> Env[V] {
@@ -49,6 +44,10 @@ fn[V] Env::get(self: Env[V], name: String) -> V? {
   }
 }
 
+fn[V] Env::set(self: Env[V], name: String, value: V) -> Unit {
+  self.vars.set(name, value)
+}
+
 fn[V] Env::contains(self: Env[V], name: String) -> Bool {
   match self.vars.get(name) {
     Some(_) => true
@@ -63,9 +62,7 @@ fn Context::create(code: String) -> Context {
   Context::{
     code: code,
     alltoks: Array::new(),
-    rest_toks: [],
-    //typedefs: Env::new()
-    typedefs: Set::new()
+    typedefs: Env::new()
   }
 }
 

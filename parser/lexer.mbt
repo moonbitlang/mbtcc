@@ -215,7 +215,6 @@ pub fn Context::tokenize(self: Self) -> Unit raise {
     }
     code => raise LexerError("Parse Error: Unexpected char: \{code[0]}")
   }
-  self.rest_toks = self.alltoks[:]
 }
 
 fn lex_string_literal(code: @string.View) -> (Token, @string.View) raise {

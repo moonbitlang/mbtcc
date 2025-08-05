@@ -10,7 +10,7 @@ pub suberror ParseError(String) derive(Show)
 //    | '__builtin_va_arg' '(' unaryExpression ',' typeName ')'
 //    | '__builtin_offsetof' '(' typeName ',' unaryExpression ')'
 //    ;
-enum PrimExpr {
+pub enum PrimExpr {
   Identifier(String)
   Constant(Constant)
   StringLiteral(String)
@@ -92,7 +92,7 @@ test "PrimExpr Parsing Test" {
 //        | '--'
 //    )*
 //    ;
-struct PostFixExpr {
+pub struct PostFixExpr {
   prim: PrimExpr
   suffixes: Array[PostFixSuffix]
 } derive(Show, Eq)
@@ -107,7 +107,7 @@ fn PostFixExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PostFixExpr, Arr
   (post_fix_expr, rest_toks)
 }
 
-enum PostFixSuffix {
+pub enum PostFixSuffix {
   Indexing(Expr)
   Call(Array[AssignExpr])
   DotAccess(String)
@@ -192,7 +192,7 @@ test "PostfixExpr Parsing Test" {
 //        | '&&' Identifier // GCC extension address of label
 //    )
 //    ;
-struct UnaryExpr {
+pub struct UnaryExpr {
   prifix: Array[UnaryPrefix]
   body: UnaryExprBody
 } derive(Show, Eq)
@@ -207,7 +207,7 @@ fn UnaryExpr::parse(toks: ArrayView[Token], ctx: Context) -> (UnaryExpr, ArrayVi
   (unary_expr, rest_toks)
 }
 
-enum UnaryPrefix {
+pub enum UnaryPrefix {
   PlusPlus
   MinusMinus
   Sizeof
@@ -243,7 +243,7 @@ fn UnaryPrefix::parse(toks: ArrayView[Token], ctx: Context) -> (Array[UnaryPrefi
   (prefixes, rest_toks)
 }
 
-enum UnaryOperator {
+pub enum UnaryOperator {
   AddressOf  // &
   Dereference // *
   Positive    // +
@@ -252,19 +252,7 @@ enum UnaryOperator {
   BitwiseNot  // ~
 } derive(Show, Eq)
 
-fn UnaryOperator::parse(toks: ArrayView[Token]) -> (UnaryOperator, ArrayView[Token]) raise {
-  match toks {
-    [And, .. rest_toks] => (AddressOf, rest_toks)
-    [Star, .. rest_toks] => (Dereference, rest_toks)
-    [Plus, .. rest_toks] => (Positive, rest_toks)
-    [Minus, .. rest_toks] => (Negative, rest_toks)
-    [Not, .. rest_toks] => (LogicalNot, rest_toks)
-    [Tilde, .. rest_toks] => (BitwiseNot, rest_toks)
-    _ => raise ParseError("Expected unary operator")
-  }
-}
-
-enum UnaryExprBody {
+pub enum UnaryExprBody {
   PostFix(PostFixExpr)
   UnaryOp(UnaryOperator, CastExpr)
   SizeofTypeName(TypeName)
@@ -375,12 +363,12 @@ test "CastExpr Parsing Test" {
 //multiplicativeExpression
 //    : castExpression (('*' | '/' | '%') castExpression)*
 //    ;
-struct MultExpr {
+pub struct MultExpr {
   exprs: Array[CastExpr]
   ops: Array[MultOp]
 } derive(Show, Eq)
 
-enum MultOp {
+pub enum MultOp {
   Mult // *
   Div // /
   Mod // %
@@ -436,12 +424,12 @@ test "MultExpr Parsing Test" {
 //additiveExpression
 //    : multiplicativeExpression (('+' | '-') multiplicativeExpression)*
 //    ;
-struct AddSubExpr {
+pub struct AddSubExpr {
   exprs: Array[MultExpr]
   ops: Array[AddSubOp]
 } derive(Show, Eq)
 
-enum AddSubOp {
+pub enum AddSubOp {
   Add // +
   Sub // -
 } derive(Show, Eq)
@@ -489,12 +477,12 @@ test "AddSubExpr Parsing Test" {
 //shiftExpression
 //    : additiveExpression (('<<' | '>>') additiveExpression)*
 //    ;
-struct ShiftExpr {
+pub struct ShiftExpr {
   exprs: Array[AddSubExpr]
   ops: Array[ShiftOp]
 } derive(Show, Eq)
 
-enum ShiftOp {
+pub enum ShiftOp {
   Shl // <<
   Shr // >>
 } derive(Show, Eq)
@@ -542,12 +530,12 @@ test "ShiftExpr Parsing Test" {
 //relationalExpression
 //    : shiftExpression (('<' | '>' | '<=' | '>=') shiftExpression)*
 //    ;
-struct RelationalExpr {
+pub struct RelationalExpr {
   exprs: Array[ShiftExpr]
   ops: Array[RelationalOp]
 } derive(Show, Eq)
 
-enum RelationalOp {
+pub enum RelationalOp {
   LT // <
   GT // >
   LE // <=
@@ -610,12 +598,12 @@ test "RelationalExpr Parsing Test" {
 //equalityExpression
 //    : relationalExpression (('==' | '!=') relationalExpression)*
 //    ;
-struct EqualityExpr {
+pub struct EqualityExpr {
   exprs: Array[RelationalExpr]
   ops: Array[EqualityOp]
 } derive(Show, Eq)
 
-enum EqualityOp {
+pub enum EqualityOp {
   EQ // ==
   NE // !=
 } derive(Show, Eq)
@@ -664,7 +652,7 @@ test "EqualityExpr Parsing Test" {
 //andExpression
 //    : equalityExpression ('&' equalityExpression)*
 //    ;
-struct AndExpr {
+pub struct AndExpr {
   exprs: Array[EqualityExpr]
 } derive(Show, Eq)
 
@@ -702,7 +690,7 @@ test "AndExpr Parsing Test" {
 //exclusiveOrExpression
 //    : andExpression ('^' andExpression)*
 //    ;
-struct ExclusiveOrExpr {
+pub struct ExclusiveOrExpr {
   exprs: Array[AndExpr]
 } derive(Show, Eq)
 
@@ -740,7 +728,7 @@ test "ExclusiveOrExpr Parsing Test" {
 //inclusiveOrExpression
 //    : exclusiveOrExpression ('|' exclusiveOrExpression)*
 //    ;
-struct InclusiveOrExpr {
+pub struct InclusiveOrExpr {
   exprs: Array[ExclusiveOrExpr]
 } derive(Show, Eq)
 
@@ -779,7 +767,7 @@ test "InclusiveOrExpr Parsing Test" {
 //logicalAndExpression
 //    : inclusiveOrExpression ('&&' inclusiveOrExpression)*
 //    ;
-struct LogicalAndExpr {
+pub struct LogicalAndExpr {
   exprs: Array[InclusiveOrExpr]
 } derive(Show, Eq)
 
@@ -817,7 +805,7 @@ test "LogicalAndExpr Parsing Test" {
 //logicalOrExpression
 //    : logicalAndExpression ('||' logicalAndExpression)*
 //    ;
-struct LogicalOrExpr {
+pub struct LogicalOrExpr {
   exprs: Array[LogicalAndExpr]
 } derive(Show, Eq)
 
@@ -855,7 +843,7 @@ test "LogicalOrExpr Parsing Test" {
 //conditionalExpression
 //    : logicalOrExpression ('?' expression ':' conditionalExpression)?
 //    ;
-struct ConditionalExpr {
+pub struct ConditionalExpr {
   expr: LogicalOrExpr
   select: (Expr, ConditionalExpr)?
 } derive(Show, Eq)
@@ -908,7 +896,7 @@ test "ConditionalExpr Parsing Test" {
 //    | unaryExpression assignmentOperator assignmentExpression
 //    | DigitSequence // for
 //    ;
-enum AssignExpr {
+pub enum AssignExpr {
   Conditional(ConditionalExpr)
   Assign(UnaryExpr, AssignOp, AssignExpr)
 } derive(Show, Eq)
@@ -960,7 +948,7 @@ test "AssignExpr Parsing Test" {
   }
 }
 
-enum AssignOp {
+pub enum AssignOp {
   Assign // =
   AddAssign // +=
   SubAssign // -=
@@ -979,7 +967,7 @@ enum AssignOp {
 //expression
 //    : assignmentExpression (',' assignmentExpression)*
 //    ;
-struct Expr {
+pub struct Expr {
   exprs: Array[AssignExpr]
 } derive(Show, Eq)
 
@@ -1021,7 +1009,7 @@ typealias ConditionalExpr as ConstantExpr
 //    : declarationSpecifiers initDeclaratorList? ';'
 //    | staticAssertDeclaration
 //    ;
-enum Declaration {
+pub enum Declaration {
   Decl(Array[DeclSpec], Array[InitDeclarator])
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
@@ -1049,7 +1037,7 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
       Declaration::Decl(_, inits) => inits
       //_ => raise ParseError("Expected declaration in typedef")
     }
-    inits.each(i => ctx.typedefs.add(i.get_ident()))
+    inits.each(i => ctx.add_typedef(i.get_ident()))
   }
   (declaration, rest_toks)
 }
@@ -1075,7 +1063,7 @@ test "Declaration Parsing Test" {
   }
 }
 
-enum DeclSpec {
+pub enum DeclSpec {
   StorageClassSpec(StorageClassSpec)
   TypeSpec(TypeSpec)
   TypeQualifier(TypeQualifier)
@@ -1108,7 +1096,7 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
   }
 }
 
-type DeclSpecList Array[DeclSpec] derive(Show, Eq)
+priv type DeclSpecList Array[DeclSpec]
 
 fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, ArrayView[Token]) {
   let decl_specs: Array[DeclSpec] = Array::new()
@@ -1121,7 +1109,7 @@ fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, A
       break
     }
   }
-  (DeclSpecList(decl_specs), rest_toks)
+  (decl_specs, rest_toks)
 }
 
 test "DeclSpecList Parsing Test" {
@@ -1139,7 +1127,7 @@ test "DeclSpecList Parsing Test" {
   }
 }
 
-enum StorageClassSpec {
+pub enum StorageClassSpec {
   Auto // auto
   Register // register
   Static // static
@@ -1182,7 +1170,7 @@ fn StorageClassSpec::parse(toks: ArrayView[Token]) -> (StorageClassSpec, ArrayVi
 //    | typedefName
 //    | '__typeof__' '(' constantExpression ')' // GCC extension
 //    ;
-enum TypeSpec {
+pub enum TypeSpec {
   Void // void
   Char // char
   Short // short
@@ -1238,7 +1226,7 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
   }
 }
 
-enum TypeQualifier {
+pub enum TypeQualifier {
   Const // const
   Volatile // volatile
   Restrict // restrict
@@ -1281,11 +1269,11 @@ fn TypeQualifierList::parse(toks: ArrayView[Token]) -> (TypeQualifierList, Array
   (TypeQualifierList(qualifiers), rest_toks)
 }
 
-fn TypeQualifierList::is_empty(self: Self) -> Bool {
-  self.inner().is_empty()
-}
+//fn TypeQualifierList::is_empty(self: Self) -> Bool {
+//  self.inner().is_empty()
+//}
 
-enum TypeSpecOrQualifier {
+pub enum TypeSpecOrQualifier {
   TypeSpec(TypeSpec)
   TypeQualifier(TypeQualifier)
 } derive(Show, Eq)
@@ -1303,7 +1291,7 @@ fn TypeSpecOrQualifier::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec
   }
 }
 
-type TypeSpecOrQualifierList Array[TypeSpecOrQualifier] derive(Show, Eq)
+priv type TypeSpecOrQualifierList Array[TypeSpecOrQualifier]
 
 fn TypeSpecOrQualifierList::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpecOrQualifierList, ArrayView[Token]) {
   let specs: Array[TypeSpecOrQualifier] = Array::new()
@@ -1319,7 +1307,7 @@ fn TypeSpecOrQualifierList::parse(toks: ArrayView[Token], ctx: Context) -> (Type
   (TypeSpecOrQualifierList(specs), toks)
 }
 
-struct StructSpec {
+pub struct StructSpec {
   name: String?
   decls: Array[StructDeclaration]
 } derive(Show, Eq)
@@ -1372,7 +1360,7 @@ test "StructSpec Parsing Test" {
   }
 }
 
-struct UnionSpec {
+pub struct UnionSpec {
   name: String?
   decls: Array[StructDeclaration]
 } derive(Show, Eq)
@@ -1430,7 +1418,7 @@ test "UnionSpec Parsing Test" {
 //    | specifierQualifierList ';'
 //    | staticAssertDeclaration
 //    ;
-enum StructDeclaration {
+pub enum StructDeclaration {
   Normal(Array[TypeSpecOrQualifier], Array[StructDeclarator])
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
@@ -1464,12 +1452,7 @@ test "StructDeclaration Parsing Test" {
   }
 }
 
-enum StructOrUnionKind {
-  Struct // struct
-  Union // union
-} derive(Show, Eq)
-
-enum StructDeclarator {
+pub enum StructDeclarator {
   Declarator(Declarator)
   Field(Declarator?, ConstantExpr)
 } derive(Show, Eq)
@@ -1494,7 +1477,7 @@ fn StructDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (StructDecla
   }
 }
 
-type StructDeclaratorList Array[StructDeclarator] derive(Show, Eq)
+priv type StructDeclaratorList Array[StructDeclarator]
 
 fn StructDeclaratorList::parse(toks: ArrayView[Token], ctx: Context) -> (StructDeclaratorList, ArrayView[Token]) raise {
   let decls: Array[StructDeclarator] = Array::new()
@@ -1527,7 +1510,7 @@ test "StructDeclaratorList Parsing Test" {
   }
 }
 
-struct Declarator {
+pub struct Declarator {
   pointer: Pointer?
   directDeclarator: DirectDeclarator
 } derive(Show, Eq)
@@ -1627,7 +1610,7 @@ test "Pointer Parsing Test" {
 //    | vcSpecificModifer Identifier         // Visual C Extension
 //    | '(' vcSpecificModifer declarator ')' // Visual C Extension
 //    ;
-enum DirectDeclarator {
+pub enum DirectDeclarator {
   Identifier(String)
   Parenthesized(Declarator)
   Array(DirectDeclarator, TypeQualifierList, AssignExpr?)
@@ -1774,7 +1757,7 @@ test "DirectDeclarator Parsing Test" {
 //initDeclarator
 //    : declarator ('=' initializer)?
 //    ;
-struct InitDeclarator {
+pub struct InitDeclarator {
   declarator: Declarator
   initializer: Initializer?
 } derive(Show, Eq)
@@ -1811,7 +1794,7 @@ test "InitDeclarator Parsing Test" {
   }
 }
 
-type InitDeclaratorList Array[InitDeclarator] derive(Show, Eq)
+priv type InitDeclaratorList Array[InitDeclarator]
 
 fn InitDeclaratorList::parse(toks: ArrayView[Token], ctx: Context) -> (InitDeclaratorList, ArrayView[Token]) raise {
   let decls: Array[InitDeclarator] = Array::new()
@@ -1850,7 +1833,7 @@ fn InitDeclaratorList::parse(toks: ArrayView[Token], ctx: Context) -> (InitDecla
 //    : '[' constantExpression ']'
 //    | '.' Identifier
 //    ;
-enum Initializer {
+pub enum Initializer {
   AssignExpr(AssignExpr)
   InitList(Array[(Array[Designator], Initializer)])
 } derive(Show, Eq)
@@ -1869,7 +1852,7 @@ fn Initializer::parse(toks: ArrayView[Token], ctx: Context) -> (Initializer, Arr
   }
 }
 
-type InitializerList Array[(Array[Designator], Initializer)] derive(Show, Eq)
+priv type InitializerList Array[(Array[Designator], Initializer)]
 
 fn InitializerList::parse(toks: ArrayView[Token], ctx: Context) -> (InitializerList, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
@@ -1925,7 +1908,7 @@ test "InitializerList Parsing Test" {
 //    : '[' constantExpression ']'
 //    | '.' Identifier
 //    ;
-enum Designator {
+pub enum Designator {
   ConstExpr(ConstantExpr)
   DotAccess(String)
 } derive(Show, Eq)
@@ -1944,7 +1927,7 @@ fn Designator::parse(toks: ArrayView[Token], ctx: Context) -> (Designator, Array
   }
 }
 
-type DesignatorList Array[Designator] derive(Show, Eq)
+priv type DesignatorList Array[Designator]
 
 fn DesignatorList::parse(toks: ArrayView[Token], ctx: Context) -> (DesignatorList, ArrayView[Token]) raise {
   let designators: Array[Designator] = Array::new()
@@ -1994,7 +1977,7 @@ test "DesignatorList Parsing Test" {
 //enumerationConstant
 //    : Identifier
 //    ;
-struct EnumSpec {
+pub struct EnumSpec {
   name: String?
   enumerators: Array[Enumerator]
 } derive(Show, Eq)
@@ -2011,6 +1994,7 @@ fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView
     }
     [Identifier(name), LBrace, .. rest_toks] => {
       let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      let enumerators = enumerators.inner()
       guard rest_toks is [RBrace, .. rest_toks] else {
         raise ParseError("Expected closing brace after enumerator list in enum specification")
       }
@@ -2026,6 +2010,7 @@ fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView
     [LBrace, .. rest_toks] => {
       // Anonymous enum
       let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      let enumerators = enumerators.inner()
       guard rest_toks is [RBrace, .. rest_toks] else {
         raise ParseError("Expected closing brace after enumerator list in anonymous enum")
       }
@@ -2067,7 +2052,7 @@ fn Enumerator::parse(toks: ArrayView[Token], ctx: Context) -> (Enumerator, Array
 }
 
 
-typealias Array[Enumerator] as EnumeratorList
+priv type EnumeratorList Array[Enumerator]
 
 fn EnumeratorList::parse(toks: ArrayView[Token], ctx: Context) -> (EnumeratorList, ArrayView[Token]) raise {
   let enumerators: Array[Enumerator] = Array::new()
@@ -2098,7 +2083,7 @@ fn EnumeratorList::parse(toks: ArrayView[Token], ctx: Context) -> (EnumeratorLis
 //    | gccAttributeSpecifier
 //    | '__declspec' '(' Identifier ')'
 //    ;
-enum FunctionSpec {
+pub enum FunctionSpec {
   Inline // inline
   Noreturn // _Noreturn
 } derive(Show, Eq)
@@ -2111,7 +2096,7 @@ fn FunctionSpec::parse(toks: ArrayView[Token]) -> (FunctionSpec, ArrayView[Token
   }
 }
 
-enum AlignmentSpec {
+pub enum AlignmentSpec {
   AlignasExpr(ConstantExpr) // _Alignas(expr)
   AlignasType(TypeName) // _Alignof(type)
 } derive(Show, Eq)
@@ -2140,7 +2125,7 @@ fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec,
 //typeName
 //    : specifierQualifierList abstractDeclarator?
 //    ;
-struct TypeName {
+pub struct TypeName {
   specifiers: Array[TypeSpecOrQualifier]
   abstract_declarator: AbstractDeclarator?
 } derive(Show, Eq)
@@ -2188,7 +2173,7 @@ test "TypeName Parsing Test" {
 //    : pointer
 //    | pointer? directAbstractDeclarator gccDeclaratorExtension*
 //    ;
-struct AbstractDeclarator {
+pub struct AbstractDeclarator {
   pointer: Pointer?
   directAbstractDeclarator: DirectAbstractDeclarator?
 } derive(Show, Eq)
@@ -2247,7 +2232,7 @@ test "AbstractDeclarator Parsing Test" {
 //    | directAbstractDeclarator '[' '*' ']'
 //    | directAbstractDeclarator '(' parameterTypeList? ')' gccDeclaratorExtension*
 //    ;
-enum DirectAbstractDeclarator {
+pub enum DirectAbstractDeclarator {
   FuncDecl(DirectAbstractDeclarator?, ParameterTypeList)
   ArrayDecl(DirectAbstractDeclarator?, is_static~:Bool, Array[TypeQualifier], AssignExpr?) // Bool indicates if it's a static array
   InCompleteArray(DirectAbstractDeclarator?) // '[' '*' ']'
@@ -2379,9 +2364,9 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
 //        logicalOrExpression (',' logicalOrExpression)*
 //    )? (':' (logicalOrExpression (',' logicalOrExpression)*)?)* ')' ';'
 //    ;
-enum Statement {
+pub enum Statement {
   LabeledStatement(LabeledStatement)
-  CompoundStatement(Array[BlockItem])
+  CompoundStatement(CompoundStatement)
   ExpressionStatement(Expr)
   SelectionStatement(SelectionStatement)
   IterationStatement(IterationStatement)
@@ -2394,7 +2379,7 @@ fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayVi
   match toks {
     [LBrace, ..] as toks => {
       let (compound_statement, rest_toks) = CompoundStatement::parse(toks, ctx);
-      (Statement::CompoundStatement(compound_statement.inner()), rest_toks)
+      (Statement::CompoundStatement(compound_statement), rest_toks)
     }
     [If | Switch, ..] as toks => {
       let (selection_statement, rest_toks) = SelectionStatement::parse(toks, ctx);
@@ -2454,7 +2439,7 @@ test "Statement Parsing Test" {
 //    | 'case' constantExpression ':' statement
 //    | 'default' ':' statement
 //    ;
-enum LabeledStatement {
+pub enum LabeledStatement {
   Label(String, Statement)
   Case(ConstantExpr, Statement)
   Default(Statement)
@@ -2501,16 +2486,20 @@ test "LabeledStatement Parsing Test" {
   }
 }
 
-type CompoundStatement Array[BlockItem] derive(Show, Eq)
+pub struct CompoundStatement {
+  items: Array[BlockItem]
+} derive(Show, Eq)
 
 fn CompoundStatement::parse(toks: ArrayView[Token], ctx: Context) -> (CompoundStatement, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
     raise ParseError("Expected '{' for compound statement")
   }
+  ctx.enter_scope()
   let items: Array[BlockItem] = Array::new()
   loop toks {
     [RBrace, .. rest_toks] => {
-      break (CompoundStatement(items), rest_toks) // End of compound statement
+      ctx.leave_scope()
+      break (CompoundStatement::{items}, rest_toks) // End of compound statement
     }
     [Semi, .. rest_toks] => {
       // Empty statement, just skip it
@@ -2543,7 +2532,7 @@ test "CompoundStatement Parsing Test" {
   }
 }
 
-enum BlockItem {
+pub enum BlockItem {
   Statement(Statement)
   Declaration(Declaration)
 } derive(Show, Eq)
@@ -2558,7 +2547,7 @@ fn BlockItem::parse(toks: ArrayView[Token], ctx: Context) -> (BlockItem, ArrayVi
   }
 }
 
-enum SelectionStatement {
+pub enum SelectionStatement {
   If(Expr, Statement, Statement?)
   Switch(Expr, Statement)
 } derive(Show, Eq)
@@ -2608,7 +2597,7 @@ test "SelectionStatement Parsing Test" {
   }
 }
 
-enum IterationStatement {
+pub enum IterationStatement {
   While(Expr, Statement)
   DoWhile(Statement, Expr)
   For(ForCondition, Statement)
@@ -2666,7 +2655,7 @@ test "IterationStatement Parsing Test" {
 //forCondition
 //    : (forDeclaration | expression?) ';' forExpression? ';' forExpression?
 //    ;
-struct ForCondition {
+pub struct ForCondition {
   for_init: ForInit
   cond: Array[AssignExpr]
   inc: Array[AssignExpr]
@@ -2700,7 +2689,7 @@ fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, A
   (for_condition, rest_toks)
 }
 
-struct ForInit {
+pub struct ForInit {
   decl: Array[Declaration]
   initDecl: Array[InitDeclarator]
 } derive(Show, Eq)
@@ -2730,7 +2719,7 @@ fn ForInit::parse(toks: ArrayView[Token], ctx: Context) -> (ForInit, ArrayView[T
   }
 }
 
-enum JumpStatement {
+pub enum JumpStatement {
   Goto(String)
   Continue
   Break
@@ -2772,7 +2761,7 @@ test "Jump Statement Parsing Test" {
   }
 }
 
-struct CompilationUnit {
+pub struct CompilationUnit {
   externalDecls: Array[ExternalDeclaration]
 } derive(Show, Eq)
 
@@ -2803,7 +2792,7 @@ test "CompilationUnit Parsing Test" {
   }
 }
 
-enum ExternalDeclaration {
+pub enum ExternalDeclaration {
   FunctionDefinition(FunctionDefinition)
   Declaration(Declaration)
 } derive(Show, Eq)
@@ -2843,16 +2832,15 @@ test "ExternalDeclaration Parsing Test" {
 //functionDefinition
 //    : declarationSpecifiers declarator declarationList? compoundStatement
 //    ;
-struct FunctionDefinition {
+pub struct FunctionDefinition {
   declSpecs: Array[DeclSpec]
   declarator: Declarator
   kr_declarations: Array[Declaration]
-  body: Array[BlockItem]
+  body: CompoundStatement
 } derive(Show, Eq)
 
 fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionDefinition, ArrayView[Token]) raise {
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
-  let decl_specs = decl_specs.inner()
 
   let (declarator, rest_toks) = Declarator::parse(rest_toks, ctx);
 
@@ -2875,9 +2863,8 @@ fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionD
   }
 
   let (body, rest_toks) = CompoundStatement::parse(rest_toks, ctx);
-  let body = body.inner()
   let function_def = FunctionDefinition::{
-    declSpecs: decl_specs,
+    declSpecs: decl_specs.inner(),
     declarator,
     kr_declarations,
     body
@@ -2905,7 +2892,7 @@ test "FunctionDefinition Parsing Test" {
 //parameterTypeList
 //    : parameterList (',' '...')?
 //    ;
-struct ParameterTypeList {
+pub struct ParameterTypeList {
   params: Array[ParameterDecl]
   variadic: Bool
 } derive(Show, Eq)
@@ -2928,7 +2915,7 @@ fn ParameterTypeList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterT
 //parameterList
 //    : parameterDeclaration (',' parameterDeclaration)*
 //    ;
-type ParameterList Array[ParameterDecl] derive(Show, Eq)
+priv type ParameterList Array[ParameterDecl]
 
 fn ParameterList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterList, ArrayView[Token]) raise {
   let decls: Array[ParameterDecl] = Array::new()
@@ -2970,8 +2957,8 @@ test "ParameterList Parsing Test" {
 //parameterDeclaration
 //    : declarationSpecifiers (declarator | abstractDeclarator)?
 //    ;
-struct ParameterDecl {
-  declspecs: Array[DeclSpec]
+pub struct ParameterDecl {
+  decl_specs: Array[DeclSpec]
   declarator: ParamDeclarator?
 } derive(Show, Eq)
 
@@ -2987,7 +2974,7 @@ fn ParameterDecl::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterDecl,
     Err(_) => (None, rest_toks) // No declarator or abstract declarator
   }
   let param_decl = ParameterDecl::{
-    declspecs: decl_specs,
+    decl_specs,
     declarator
   }
   (param_decl, rest_toks)
@@ -3010,7 +2997,7 @@ test "ParameterDecl Parsing Test" {
   }
 }
 
-enum ParamDeclarator {
+pub enum ParamDeclarator {
   Declarator(Declarator)
   AbstractDeclarator(AbstractDeclarator)
 } derive(Show, Eq)
