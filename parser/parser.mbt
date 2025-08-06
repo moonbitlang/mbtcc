@@ -1,4 +1,4 @@
-pub suberror ParseError(Int, String) derive(Show)
+pub suberror ParseError(Int, String) derive(Show, Eq)
 
 //primaryExpression
 //    : Identifier

@@ -1,5 +1,6 @@
 {
   "is-main": true,
   "import": [
+    "Kaida-Amethyst/mbtcc/parser"
   ]
 }

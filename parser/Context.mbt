@@ -18,6 +18,28 @@ priv enum WarningError {
   Error
 }
 
+pub fn Context::print_toks(self: Context) -> Unit {
+  let str_builder = StringBuilder::new();
+  str_builder.write_char('[')
+  let toklen = self.alltoks.length()
+  for i in 0..<(toklen-1) {
+    str_builder.write_string("\{self.alltoks[i]}, ")
+  }
+  if toklen > 0 {
+    str_builder.write_string("\{self.alltoks[toklen-1]}")
+  }
+  str_builder.write_char(']')
+
+  let str = str_builder.to_string()
+  println(str)
+}
+
+pub fn Context::print_ast(self: Context) -> Unit {
+  for d in self.external_decls {
+    println(d)
+  }
+}
+
 fn Context::get_error_or_warning_msg(self: Self, idx: Int, msg: String, we: WarningError) -> String {
   let color = match we {
     Warning => @color.Yellow
@@ -55,11 +77,11 @@ fn Context::get_error_or_warning_msg(self: Self, idx: Int, msg: String, we: Warn
   str_builder.to_string()
 }
 
-fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
+pub fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
   self.get_error_or_warning_msg(idx, msg, Warning)
 }
 
-fn Context::get_error_msg(self: Self, idx: Int, msg: String) -> String {
+pub fn Context::get_error_msg(self: Self, idx: Int, msg: String) -> String {
   self.get_error_or_warning_msg(idx, msg, Error)
 }
 
@@ -156,7 +178,7 @@ fn[V] Env::contains(self: Env[V], name: String) -> Bool {
   }
 }
 
-fn Context::create(code: String, source_file~: String = "demo") -> Context {
+pub fn Context::create(code: String, source_file~: String = "demo") -> Context {
   Context::{
     source_file,
     code,
