@@ -1,4 +1,4 @@
-pub suberror ParseError(String) derive(Show)
+pub suberror ParseError(Int, String) derive(Show)
 
 //primaryExpression
 //    : Identifier
@@ -25,8 +25,7 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
     }
     [Identifier(name), ..] => {
       let idx = ctx.alltoks.length() - toks.length()
-      let msg = ctx.get_error_msg(idx, "Parse Error: Identifier \{name} is a type, cannot be used as a primary expression")
-      raise ParseError(msg)
+      raise ParseError((idx, "Parse Error: Identifier \{name} is a type, cannot be used as a primary expression"))
     }
     [Constant(constant), .. rest_toks] => {
       (PrimExpr::Constant(constant), rest_toks)
@@ -46,15 +45,13 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest_toks] else {
         let idx = ctx.alltoks.length() - rest_toks.length()
-        let msg = ctx.get_error_msg(idx, "Parse Error: Expected closing parenthesis after expression")
-        raise ParseError(msg)
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression"))
       }
       (PrimExpr::ParenExpr(expr), rest_toks)
     }
     curr_toks => {
       let idx = ctx.alltoks.length() - curr_toks.length()
-      let msg = ctx.get_error_msg(idx, "Parse Error: Expected Identifier, Constant, StringLiteral, or '(' expression ')', but found \{curr_toks[0]}")
-      raise ParseError(msg)
+      raise ParseError((idx, "Parse Error: Expected Identifier, Constant, StringLiteral, or '(' expression ')', but found \{curr_toks[0]}"))
     }
   }
 }
@@ -144,15 +141,17 @@ fn PostFixSuffix::parse(toks: ArrayView[Token], ctx: Context) -> (Array[PostFixS
     [LBracket, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [RBracket, .. rest_toks] else {
-        raise ParseError("Expected closing bracket after expression")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after expression"))
       }
       suffixes.push(PostFixSuffix::Indexing(expr))
       continue rest_toks
     }
     [LParen, .. rest_toks] => {
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after argument expression list")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after argument expression list"))
       }
       let args = expr.exprs
       suffixes.push(PostFixSuffix::Call(args))
@@ -275,16 +274,18 @@ fn UnaryExprBody::parse(toks: ArrayView[Token], ctx: Context) -> (UnaryExprBody,
       (UnaryExprBody::UnaryOp(unary_op, cast_expr), rest_toks)
     }
     [Sizeof, LParen, .. rest_toks] => {
-      let (type_name, rest_toks) = TypeName::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after type name in sizeof")
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in sizeof"))
       }
       (UnaryExprBody::SizeofTypeName(type_name), rest_toks)
     }
     [Alignof, LParen, .. rest_toks] => {
-      let (type_name, rest_toks) = TypeName::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after type name in _Alignof")
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
       }
       (UnaryExprBody::AlignOfTypeName(type_name), rest_toks)
     }
@@ -333,7 +334,8 @@ fn CastExpr::parse(toks: ArrayView[Token], ctx: Context) -> (CastExpr, ArrayView
     [LParen, .. rest_toks] => {
       let (type_name, rest) = TypeName::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
-        raise ParseError("Expected closing parenthesis after type name in cast")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast"))
       }
       cast_types.push(type_name)
       continue rest
@@ -855,7 +857,8 @@ fn ConditionalExpr::parse(toks: ArrayView[Token], ctx: Context) -> (ConditionalE
     [Question, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [Colon, .. rest_toks] else {
-        raise ParseError("Expected ':' after expression in conditional expression")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ':' after expression in conditional expression"))
       }
       let (conditional_expr, rest_toks) = ConditionalExpr::parse(rest_toks, ctx);
       let conditional_expr = ConditionalExpr::{
@@ -1020,7 +1023,8 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
   let decl_specs = decl_specs.inner()
   guard !decl_specs.is_empty() else {
-    raise ParseError("Declaration specifiers cannot be empty")
+    let idx = ctx.alltoks.length() - rest_toks.length()
+    raise ParseError((idx, "Parse Error: Declaration specifiers cannot be empty"))
   }
   let (declaration, rest_toks) = match rest_toks {
     [Semi, .. rest_toks] => {
@@ -1075,15 +1079,15 @@ pub enum DeclSpec {
 fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView[Token]) raise {
   match toks {
     [Auto | Register | Static | ThreadLocal | Extern | Typedef, ..] => {
-      let (storage_class_spec, rest_toks) = StorageClassSpec::parse(toks);
+      let (storage_class_spec, rest_toks) = StorageClassSpec::parse(toks, ctx);
       (DeclSpec::StorageClassSpec(storage_class_spec), rest_toks)
     }
     [Const | Volatile | Restrict | Atomic, ..] => {
-      let (type_qualifier, rest_toks) = TypeQualifier::parse(toks);
+      let (type_qualifier, rest_toks) = TypeQualifier::parse(toks, ctx);
       (DeclSpec::TypeQualifier(type_qualifier), rest_toks)
     }
     [Inline, Noreturn, ..] => {
-      let (function_spec, rest_toks) = FunctionSpec::parse(toks);
+      let (function_spec, rest_toks) = FunctionSpec::parse(toks, ctx);
       (DeclSpec::FunctionSpec(function_spec), rest_toks)
     }
     [Alignas, ..] => {
@@ -1137,7 +1141,7 @@ pub enum StorageClassSpec {
   Typedef // typedef
 } derive(Show, Eq)
 
-fn StorageClassSpec::parse(toks: ArrayView[Token]) -> (StorageClassSpec, ArrayView[Token]) raise {
+fn StorageClassSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StorageClassSpec, ArrayView[Token]) raise {
   match toks {
     [Auto, .. rest_toks] => (StorageClassSpec::Auto, rest_toks)
     [Register, .. rest_toks] => (StorageClassSpec::Register, rest_toks)
@@ -1145,7 +1149,10 @@ fn StorageClassSpec::parse(toks: ArrayView[Token]) -> (StorageClassSpec, ArrayVi
     [ThreadLocal, .. rest_toks] => (StorageClassSpec::ThreadLocal, rest_toks)
     [Extern, .. rest_toks] => (StorageClassSpec::Extern, rest_toks)
     [Typedef, .. rest_toks] => (StorageClassSpec::Typedef, rest_toks)
-    _ => raise ParseError("Unimplemented storage class specifier")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented storage class specifier"))
+    }
   }
 }
 
@@ -1206,7 +1213,8 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
     [Atomic, LParen, .. rest_toks] => {
       let (type_name, rest) = TypeName::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
-        raise ParseError("Expected closing parenthesis after type name in _Atomic")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Atomic"))
       }
       (TypeSpec::Atomic(type_name), rest)
     }
@@ -1223,7 +1231,10 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
       (TypeSpec::EnumSpec(enum_spec), rest_toks)
     }
     [Identifier(name), .. rest_toks] if ctx.typedefs.contains(name) => (TypeSpec::TypedefName(name), rest_toks)
-    toks => raise ParseError("Parse TypeSpec Error, unexpect token \{toks[0]}")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Parse TypeSpec Error, unexpect token \{toks[0]}"))
+    }
   }
 }
 
@@ -1234,13 +1245,16 @@ pub enum TypeQualifier {
   Atomic // _Atomic
 } derive(Show, Eq)
 
-fn TypeQualifier::parse(toks: ArrayView[Token]) -> (TypeQualifier, ArrayView[Token]) raise {
+fn TypeQualifier::parse(toks: ArrayView[Token], ctx: Context) -> (TypeQualifier, ArrayView[Token]) raise {
   match toks {
     [Const, .. rest_toks] => (TypeQualifier::Const, rest_toks)
     [Volatile, .. rest_toks] => (TypeQualifier::Volatile, rest_toks)
     [Restrict, .. rest_toks] => (TypeQualifier::Restrict, rest_toks)
     [Atomic, .. rest_toks] => (TypeQualifier::Atomic, rest_toks)
-    _ => raise ParseError("Unimplemented type qualifier")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented type qualifier"))
+    }
   }
 }
 
@@ -1315,13 +1329,17 @@ pub struct StructSpec {
 
 fn StructSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StructSpec, ArrayView[Token]) raise {
   guard toks is [Struct, .. toks] else {
-    raise ParseError("Expected 'struct' keyword for struct specification")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected 'struct' keyword for struct specification"))
   }
 
   let (name, rest_toks) = match toks {
     [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
     [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
-    _ => raise ParseError("Expected identifier or '{' after 'struct'")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Expected identifier or '{' after 'struct'"))
+    }
   }
 
   let decls : Array[StructDeclaration] = Array::new()
@@ -1368,13 +1386,17 @@ pub struct UnionSpec {
 
 fn UnionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (UnionSpec, ArrayView[Token]) raise {
   guard toks is [Union, .. toks] else {
-    raise ParseError("Expected 'struct' keyword for struct specification")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected 'union' keyword for union specification"))
   }
 
   let (name, rest_toks) = match toks {
     [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
     [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
-    _ => raise ParseError("Expected identifier or '{' after 'struct'")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Expected identifier or '{' after 'union'"))
+    }
   }
 
   let decls : Array[StructDeclaration] = Array::new()
@@ -1641,11 +1663,15 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
     [LParen, .. rest_toks] => {
       let (declarator, rest) = Declarator::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
-        raise ParseError("Expected closing parenthesis after declarator")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after declarator"))
       }
       (DirectDeclarator::Parenthesized(declarator), rest)
     }
-    toks => raise ParseError("Unimplemented direct declarator parsing, current token: \{toks[0]}")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented direct declarator parsing, current token: \{toks[0]}"))
+    }
   }
   let mut current_decl = head_decl
   loop rest_toks {
@@ -1659,17 +1685,19 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks);
       let rest_toks = match rest_toks {
         [Static, .. rest_toks] => {
-          let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+          let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
           current_decl = DirectDeclarator::StaticArray(current_decl, type_qualifiers.inner(), assign_expr)
-          guard rest_toks is [RBracket, ..rest_toks] else {
-            raise ParseError("Expected closing bracket after static array declaration")
+          guard rest is [RBracket, ..rest_toks] else {
+            let idx = ctx.alltoks.length() - rest.length()
+            raise ParseError((idx, "Parse Error: Expected closing bracket after static array declaration"))
           }
           rest_toks
         }
-        [Star, .. rest_toks] => {
+        [Star, .. rest] => {
           current_decl = DirectDeclarator::VallengthArray(current_decl, type_qualifiers.inner())
-          guard rest_toks is [RBracket, ..rest_toks] else {
-            raise ParseError("Expected closing bracket after variable length array declaration")
+          guard rest is [RBracket, ..rest_toks] else {
+            let idx = ctx.alltoks.length() - rest.length()
+            raise ParseError((idx, "Parse Error: Expected closing bracket after variable length array declaration"))
           }
           rest_toks
         }
@@ -1678,10 +1706,11 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
           rest_toks
         }
         _ => {
-          let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+          let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
           current_decl = DirectDeclarator::Array(current_decl, type_qualifiers.inner(), Some(assign_expr))
-          guard rest_toks is [RBracket, ..rest_toks] else {
-            raise ParseError("Expected closing bracket after array declaration")
+          guard rest is [RBracket, ..rest_toks] else {
+            let idx = ctx.alltoks.length() - rest.length()
+            raise ParseError((idx, "Parse Error: Expected closing bracket after array declaration"))
           }
           rest_toks
         }
@@ -1700,7 +1729,10 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
         [RParen, ..rest_toks] => {
           break rest_toks
         }
-        _ => raise ParseError("Expected identifier or closing parenthesis in identifier list")
+        _ => {
+          let idx = ctx.alltoks.length() - toks.length()
+          raise ParseError((idx, "Parse Error: Expected identifier or closing parenthesis in identifier list"))
+        }
       }
       current_decl = DirectDeclarator::FunctionPtr(current_decl, identifiers)
       continue rest_toks
@@ -1717,10 +1749,11 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
     }
     // parameterTypeList
     [LParen, ..rest_toks] => {
-      let (params, rest_toks) = ParameterTypeList::parse(rest_toks, ctx);
+      let (params, rest) = ParameterTypeList::parse(rest_toks, ctx);
       current_decl = DirectDeclarator::FunctionDecl(current_decl, params);
-      guard rest_toks is [RParen, ..rest_toks] else {
-        raise ParseError("Expected closing parenthesis after parameter type list")
+      guard rest is [RParen, ..rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after parameter type list"))
       }
       continue rest_toks
     }
@@ -1857,14 +1890,16 @@ priv type InitializerList Array[(Array[Designator], Initializer)]
 
 fn InitializerList::parse(toks: ArrayView[Token], ctx: Context) -> (InitializerList, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
-    raise ParseError("Expected '{' to start initializer list")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected '{' to start initializer list"))
   }
   let init_list: Array[(Array[Designator], Initializer)] = Array::new()
   loop toks {
     [Dot | LBracket, ..] as toks => {
       let (designators, rest) = DesignatorList::parse(toks, ctx);
       guard rest is [Assign, .. rest] else {
-        raise ParseError("Expected '=' after designator list in initializer")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected '=' after designator list in initializer"))
       }
       let (initializer, rest) = Initializer::parse(rest, ctx);
       init_list.push((designators.inner(), initializer))
@@ -1919,12 +1954,16 @@ fn Designator::parse(toks: ArrayView[Token], ctx: Context) -> (Designator, Array
     [LBracket, .. rest_toks] => {
       let (const_expr, rest) = ConstantExpr::parse(rest_toks, ctx);
       guard rest is [RBracket, .. rest] else {
-        raise ParseError("Expected closing bracket after constant expression in designator")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after constant expression in designator"))
       }
       (Designator::ConstExpr(const_expr), rest)
     }
     [Dot, Identifier(name), .. rest_toks] => (Designator::DotAccess(name), rest_toks)
-    toks => raise ParseError("Unimplemented designator parsing, current token: \{toks[0]}")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented designator parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -1985,7 +2024,8 @@ pub struct EnumSpec {
 
 fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView[Token]) raise {
   guard toks is [Enum, .. toks] else {
-    raise ParseError("Expected 'enum' keyword for enum specification")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected 'enum' keyword for enum specification"))
   }
 
   match toks {
@@ -1994,10 +2034,11 @@ fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView
       (EnumSpec::{ name: Some(name), enumerators: Array::new() }, rest_toks)
     }
     [Identifier(name), LBrace, .. rest_toks] => {
-      let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      let (enumerators, rest) = EnumeratorList::parse(rest_toks, ctx);
       let enumerators = enumerators.inner()
-      guard rest_toks is [RBrace, .. rest_toks] else {
-        raise ParseError("Expected closing brace after enumerator list in enum specification")
+      guard rest is [RBrace, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing brace after enumerator list in enum specification"))
       }
       (EnumSpec::{ name: Some(name), enumerators }, rest_toks)
     }
@@ -2010,14 +2051,18 @@ fn EnumSpec::parse(toks: ArrayView[Token], ctx: Context) -> (EnumSpec, ArrayView
     }
     [LBrace, .. rest_toks] => {
       // Anonymous enum
-      let (enumerators, rest_toks) = EnumeratorList::parse(rest_toks, ctx);
+      let (enumerators, rest) = EnumeratorList::parse(rest_toks, ctx);
       let enumerators = enumerators.inner()
-      guard rest_toks is [RBrace, .. rest_toks] else {
-        raise ParseError("Expected closing brace after enumerator list in anonymous enum")
+      guard rest is [RBrace, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing brace after enumerator list in anonymous enum"))
       }
       (EnumSpec::{ name: None, enumerators }, rest_toks)
     }
-    toks => raise ParseError("Parse error, current tok is \{toks[0]}")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented enum specification parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2048,7 +2093,10 @@ fn Enumerator::parse(toks: ArrayView[Token], ctx: Context) -> (Enumerator, Array
       (Enumerator((name, Some(const_expr))), rest_toks)
     }
     [Identifier(name), .. rest_toks] => (Enumerator((name, None)), rest_toks)
-    toks => raise ParseError("Expected identifier for enumeration constant, current token: \{toks[0]}")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented enumerator parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2069,7 +2117,8 @@ fn EnumeratorList::parse(toks: ArrayView[Token], ctx: Context) -> (EnumeratorLis
       break toks // End of enumerator list
     }
     rest_toks => {
-      raise ParseError("Expected comma or closing brace in enumerator list, current token: \{rest_toks[0]}")
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected comma or closing brace in enumerator list, current token: \{rest_toks[0]}"))
     }
   }
   (enumerators, rest_toks)
@@ -2089,11 +2138,14 @@ pub enum FunctionSpec {
   Noreturn // _Noreturn
 } derive(Show, Eq)
 
-fn FunctionSpec::parse(toks: ArrayView[Token]) -> (FunctionSpec, ArrayView[Token]) raise {
+fn FunctionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionSpec, ArrayView[Token]) raise {
   match toks {
     [Inline, .. rest_toks] => (FunctionSpec::Inline, rest_toks)
     [Noreturn, .. rest_toks] => (FunctionSpec::Noreturn, rest_toks)
-    _ => raise ParseError("Unimplemented function specifier")
+    _ => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented function specifier"))
+    }
   }
 }
 
@@ -2107,18 +2159,23 @@ fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec,
     [Alignas, LParen, .. rest_toks] => {
       let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
-        raise ParseError("Expected closing parenthesis after expression in _Alignas")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
       }
       (AlignmentSpec::AlignasExpr(expr), rest)
     }
     [Alignof, LParen, .. rest_toks] => {
       let (type_name, rest) = TypeName::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
-        raise ParseError("Expected closing parenthesis after type name in _Alignof")
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
       }
       (AlignmentSpec::AlignasType(type_name), rest)
     }
-    _ => raise ParseError("Unimplemented alignment specifier")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented alignment specifier, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2198,7 +2255,10 @@ fn AbstractDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (AbstractD
       }
       (abstract_declarator, rest_toks)
     }
-    _ => raise ParseError("Expected pointer or direct abstract declarator")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented abstract declarator parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2244,16 +2304,18 @@ pub enum DirectAbstractDeclarator {
 fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (DirectAbstractDeclarator?, ArrayView[Token]) raise {
   let (head_decl, rest_toks) = match toks {
     [LParen, Star | LBracket | LParen, ..] as toks => {
-      let (abstract_declarator, rest_toks) = AbstractDeclarator::parse(toks[1:], ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after abstract declarator")
+      let (abstract_declarator, rest) = AbstractDeclarator::parse(toks[1:], ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after abstract declarator"))
       }
       (DirectAbstractDeclarator::FuncPtr(None, abstract_declarator), rest_toks)
     }
     [LParen, .. rest_toks] => {
-      let (parameter_type_list, rest_toks) = ParameterTypeList::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after parameter type list")
+      let (parameter_type_list, rest) = ParameterTypeList::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after parameter type list"))
       }
       (DirectAbstractDeclarator::FuncDecl(None, parameter_type_list), rest_toks)
     }
@@ -2289,9 +2351,10 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       (DirectAbstractDeclarator::ArrayDecl(None, is_static=false, Array::new(), None), rest_toks)
     }
     [LBracket, .. rest_toks] => {
-      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
-      guard rest_toks is [RBracket, .. rest_toks] else {
-        raise ParseError("Expected closing bracket after array declaration")
+      let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after array declaration"))
       }
       (DirectAbstractDeclarator::ArrayDecl(None, is_static=false, Array::new(), Some(assign_expr)), rest_toks)
     }
@@ -2300,9 +2363,10 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
   let mut curr_decl = head_decl;
   loop rest_toks {
     [LParen, .. rest_toks] => {
-      let (parameter_type_list, rest_toks) = ParameterTypeList::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after parameter type list")
+      let (parameter_type_list, rest) = ParameterTypeList::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after parameter type list"))
       }
       curr_decl = DirectAbstractDeclarator::FuncDecl(Some(curr_decl), parameter_type_list);
       continue rest_toks
@@ -2343,9 +2407,10 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       continue rest_toks
     }
     [LBracket, .. rest_toks] => {
-      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
-      guard rest_toks is [RBracket, .. rest_toks] else {
-        raise ParseError("Expected closing bracket after array declaration")
+      let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after array declaration"))
       }
       curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static=false, Array::new(), Some(assign_expr));
       continue rest_toks
@@ -2366,6 +2431,7 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
 //    )? (':' (logicalOrExpression (',' logicalOrExpression)*)?)* ')' ';'
 //    ;
 pub enum Statement {
+  Empty // Empty statement, just a semicolon
   LabeledStatement(LabeledStatement)
   CompoundStatement(CompoundStatement)
   ExpressionStatement(Expr)
@@ -2402,13 +2468,14 @@ fn Statement::parse(toks: ArrayView[Token], ctx: Context) -> (Statement, ArrayVi
       let (jump_statement, rest_toks) = JumpStatement::parse(toks, ctx);
       (Statement::JumpStatement(jump_statement), rest_toks)
     }
-    [Semi, .. ] => {
-      raise ParseError("Empty statement, should skip it")
+    [Semi, .. rest_toks] => {
+      (Statement::Empty, rest_toks)
     }
     _ => {
-      let (expr, rest_toks) = Expr::parse(toks, ctx);
-      guard rest_toks is [Semi, .. rest_toks] else {
-        raise ParseError("Expected ';' after expression statement")
+      let (expr, rest) = Expr::parse(toks, ctx);
+      guard rest is [Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after expression statement"))
       }
       (Statement::ExpressionStatement(expr), rest_toks)
     }
@@ -2453,9 +2520,10 @@ fn LabeledStatement::parse(toks: ArrayView[Token], ctx: Context) -> (LabeledStat
       (LabeledStatement::Label(name, statement), rest_toks)
     }
     [Case, ..rest_toks] => {
-      let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx);
-      guard rest_toks is [Colon, .. rest_toks] else {
-        raise ParseError("Expected ':' after case constant expression")
+      let (const_expr, rest) = ConstantExpr::parse(rest_toks, ctx);
+      guard rest is [Colon, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ':' after case constant expression"))
       }
       let (statement, rest_toks) = Statement::parse(rest_toks, ctx);
       (LabeledStatement::Case(const_expr, statement), rest_toks)
@@ -2464,8 +2532,9 @@ fn LabeledStatement::parse(toks: ArrayView[Token], ctx: Context) -> (LabeledStat
       let (statement, rest_toks) = Statement::parse(rest_toks, ctx);
       (LabeledStatement::Default(statement), rest_toks)
     }
-    rest_toks => {
-      raise ParseError("Expected labeled statement, current token is \{rest_toks[0]}")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented labeled statement parsing, current token: \{toks[0]}"))
     }
   }
 }
@@ -2493,7 +2562,8 @@ pub struct CompoundStatement {
 
 fn CompoundStatement::parse(toks: ArrayView[Token], ctx: Context) -> (CompoundStatement, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
-    raise ParseError("Expected '{' for compound statement")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected '{' for compound statement"))
   }
   ctx.enter_scope()
   let items: Array[BlockItem] = Array::new()
@@ -2556,9 +2626,10 @@ pub enum SelectionStatement {
 fn SelectionStatement::parse(toks: ArrayView[Token], ctx: Context) -> (SelectionStatement, ArrayView[Token]) raise {
   match toks {
     [If, LParen, .. rest_toks] => {
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after if condition")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after if condition"))
       }
       let (then_stmt, rest_toks) = Statement::parse(rest_toks, ctx);
       let (else_stmt, rest_toks) = if rest_toks is [Else, .. rest_toks] {
@@ -2570,14 +2641,18 @@ fn SelectionStatement::parse(toks: ArrayView[Token], ctx: Context) -> (Selection
       (SelectionStatement::If(expr, then_stmt, else_stmt), rest_toks)
     }
     [Switch, LParen, .. rest_toks] => {
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after switch condition")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after switch condition"))
       }
       let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
       (SelectionStatement::Switch(expr, stmt), rest_toks)
     }
-    _ => raise ParseError("Unimplemented selection statement parsing")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented selection statement parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2607,21 +2682,24 @@ pub enum IterationStatement {
 fn IterationStatement::parse(toks: ArrayView[Token], ctx: Context) -> (IterationStatement, ArrayView[Token]) raise {
   match toks {
     [While, LParen, .. rest_toks] => {
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis after while condition")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after while condition"))
       }
       let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
       (IterationStatement::While(expr, stmt), rest_toks)
     }
     [Do, .. rest_toks] => {
-      let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
-      guard rest_toks is [While, LParen, .. rest_toks] else {
-        raise ParseError("Expected 'while' after do-while statement")
+      let (stmt, rest) = Statement::parse(rest_toks, ctx);
+      guard rest is [While, LParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected 'while' after do-while statement"))
       }
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [RParen, Semi, .. rest_toks] else {
-        raise ParseError("Expected closing parenthesis and ';' after do-while condition")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis and ';' after do-while condition"))
       }
       (IterationStatement::DoWhile(stmt, expr), rest_toks)
     }
@@ -2630,7 +2708,10 @@ fn IterationStatement::parse(toks: ArrayView[Token], ctx: Context) -> (Iteration
       let (stmt, rest_toks) = Statement::parse(rest_toks, ctx);
       (IterationStatement::For(for_cond, stmt), rest_toks)
     }
-    _ => raise ParseError("Unimplemented iteration statement parsing")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented iteration statement parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2664,15 +2745,18 @@ pub struct ForCondition {
 
 fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, ArrayView[Token]) raise {
   guard toks is [For, LParen, .. toks] else {
-    raise ParseError("Expected 'for' condition to start with 'for('")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected 'for' condition to start with 'for('"))
   }
   let (for_init, rest_toks) = ForInit::parse(toks, ctx);
   let (cond, rest_toks) = if rest_toks is [Semi, .. rest_toks] {
     (Array::new(), rest_toks) // No condition
   } else {
-    let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-    guard rest_toks is [Semi, .. rest_toks] else {
-      raise ParseError("Expected ';' after for condition expression")
+    let (expr, rest) = Expr::parse(rest_toks, ctx);
+    guard rest is [Semi, .. rest_toks] else {
+      //raise ParseError("Expected ';' after for condition expression")
+      let idx = ctx.alltoks.length() - rest.length()
+      raise ParseError((idx, "Parse Error: Expected ';' after for condition expression"))
     }
     (expr.exprs, rest_toks)
   }
@@ -2680,9 +2764,10 @@ fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, A
   let (inc, rest_toks) = if rest_toks is [RParen, .. rest_toks] {
     (Array::new(), rest_toks) // No increment
   } else {
-    let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-    guard rest_toks is [RParen, .. rest_toks] else {
-      raise ParseError("Expected closing parenthesis and ';' after for increment expression")
+    let (expr, rest) = Expr::parse(rest_toks, ctx);
+    guard rest is [RParen, .. rest_toks] else {
+      let idx = ctx.alltoks.length() - rest.length()
+      raise ParseError((idx, "Parse Error: Expected closing parenthesis and ';' after for increment expression"))
     }
     (expr.exprs, rest_toks)
   }
@@ -2734,13 +2819,17 @@ fn JumpStatement::parse(toks: ArrayView[Token], ctx: Context) -> (JumpStatement,
     [Break, Semi, .. rest_toks] => (JumpStatement::Break, rest_toks)
     [Return, Semi, .. rest_toks] => (JumpStatement::Return(None), rest_toks)
     [Return, .. rest_toks] => {
-      let (expr, rest_toks) = Expr::parse(rest_toks, ctx);
-      guard rest_toks is [Semi, .. rest_toks] else {
-        raise ParseError("Expected ';' after return expression")
+      let (expr, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after return expression"))
       }
       (JumpStatement::Return(Some(expr)), rest_toks)
     }
-    _ => raise ParseError("Unimplemented jump statement parsing")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Unimplemented jump statement parsing, current token: \{toks[0]}"))
+    }
   }
 }
 
@@ -2802,9 +2891,10 @@ fn ExternalDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (External
   match (try? FunctionDefinition::parse(toks, ctx)) {
     Ok((func_def, rest_toks)) => (ExternalDeclaration::FunctionDefinition(func_def), rest_toks)
     Err(_) => {
-      let (decl, rest_toks) = Declaration::parse(toks, ctx);
-      guard rest_toks is [Semi, .. rest_toks] else {
-        raise ParseError("Expected ';' after declaration")
+      let (decl, rest) = Declaration::parse(toks, ctx);
+      guard rest is [Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after declaration"))
       }
       (ExternalDeclaration::Declaration(decl), rest_toks)
     }
@@ -2931,7 +3021,10 @@ fn ParameterList::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterList,
     [RParen, ..] as rest_toks => {
       break rest_toks // End of parameter list
     }
-    rest_toks => raise ParseError("Expected ',' or ')' in parameter list, current token is \{rest_toks[0]}")
+    toks => {
+      let idx = ctx.alltoks.length() - toks.length()
+      raise ParseError((idx, "Parse Error: Expected ',' or ')' in parameter list, current token is \{toks[0]}"))
+    }
   }
   let param_list = ParameterList(decls)
   (param_list, rest_toks)
@@ -2967,9 +3060,9 @@ fn ParameterDecl::parse(toks: ArrayView[Token], ctx: Context) -> (ParameterDecl,
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
   let decl_specs = decl_specs.inner()
   guard decl_specs.length() > 0 else {
-    raise ParseError("Parameter declaration must have at least one declaration specifier")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Parameter declaration must have at least one declaration specifier"))
   }
-  //let (declarator, rest_toks) = ParamDeclarator::parse(rest_toks, ctx);
   let (declarator, rest_toks) = match (try? ParamDeclarator::parse(rest_toks, ctx)) {
     Ok((declarator, rest_toks)) => (Some(declarator), rest_toks)
     Err(_) => (None, rest_toks) // No declarator or abstract declarator
@@ -3009,6 +3102,21 @@ fn ParamDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (ParamDeclara
   } else if (try? AbstractDeclarator::parse(toks, ctx)) is Ok((abstract_declarator, rest_toks)) && rest_toks is [Comma | RParen, ..] {
     (ParamDeclarator::AbstractDeclarator(abstract_declarator), rest_toks)
   } else {
-    raise ParseError("Expected declarator or abstract declarator in parameter declaration, current tok is \{toks[0]}")
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected declarator or abstract declarator in parameter declaration, current token is \{toks[0]}"))
+  }
+}
+
+// --------------------
+
+pub fn Context::parse(self: Self) -> Unit raise {
+  guard self.alltoks.length() > 0 else {
+    println("Should do `tokenize` before parsing")
+    panic()
+  }
+
+  let compilation_unit = CompilationUnit::parse(self.alltoks, self);
+  for e in compilation_unit.externalDecls {
+    self.external_decls.push(e);
   }
 }

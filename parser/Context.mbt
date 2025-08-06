@@ -10,6 +10,7 @@ struct Context {
   alltoks: Array[Token]
   tokinfos: Array[TokenInfo]
   mut typedefs: Env[Int]
+  external_decls: Array[ExternalDeclaration]
 }
 
 priv enum WarningError {
@@ -161,7 +162,8 @@ fn Context::create(code: String, source_file~: String = "demo") -> Context {
     code,
     alltoks: Array::new(),
     tokinfos: Array::new(),
-    typedefs: Env::new()
+    typedefs: Env::new(),
+    external_decls: Array::new()
   }
 }
 
