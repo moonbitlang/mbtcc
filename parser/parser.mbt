@@ -1611,6 +1611,15 @@ fn StructSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StructSpec, Array
     raise ParseError((idx, "Parse Error: Expected 'struct' keyword for struct specification"))
   }
 
+  // Special case: struct name without body
+  // for example:
+  // - `struct Point;`
+  // - `struct Point p;`
+  // - `struct Point *p;`
+  if toks is [Identifier(name), Identifier(_) | Star | Semi, ..] {
+    return (StructSpec::{ name: Some(name), decls: Array::new() }, toks[1:])
+  }
+
   let (name, rest_toks) = match toks {
     [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
     [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
@@ -1646,6 +1655,7 @@ test "StructSpec Parsing Test" {
     "struct { char c; }" : [EOF],
     "struct EmptyStruct {}" : [EOF],
     "struct AnotherStruct { int x; }" : [EOF],
+    "struct Point p;" : [Identifier("p"), Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1782,6 +1792,7 @@ test "StructDeclaration Parsing Test" {
     "int a, b;" : [Semi, EOF],
     "double x;" : [Semi, EOF],
     "int a : 1, b : 2;" : [Semi, EOF],
+    "struct Point p ;": [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
