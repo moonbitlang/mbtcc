@@ -1186,7 +1186,7 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
       let (type_qualifier, rest_toks) = TypeQualifier::parse(toks, ctx);
       (DeclSpec::TypeQualifier(type_qualifier), rest_toks)
     }
-    [Inline, Noreturn, ..] => {
+    [Inline | Noreturn, ..] => {
       let (function_spec, rest_toks) = FunctionSpec::parse(toks, ctx);
       (DeclSpec::FunctionSpec(function_spec), rest_toks)
     }
@@ -1221,6 +1221,8 @@ test "DeclSpecList Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
     "int a;" : [Identifier("a"), Semi, EOF],
     "const char *p;" : [Star, Identifier("p"), Semi, EOF],
+    "inline void f()": [Identifier("f"), LParen, RParen, EOF],
+    "_Noreturn void g()": [Identifier("g"), LParen, RParen, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1253,6 +1255,25 @@ fn StorageClassSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StorageClas
       let idx = ctx.alltoks.length() - toks.length()
       raise ParseError((idx, "Parse Error: Unimplemented storage class specifier"))
     }
+  }
+}
+
+test "StorageClassSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "auto a;" : [Identifier("a"), Semi, EOF],
+    "register b;" : [Identifier("b"), Semi, EOF],
+    "static c;" : [Identifier("c"), Semi, EOF],
+    "_Thread_local d;" : [Identifier("d"), Semi, EOF],
+    "extern e;" : [Identifier("e"), Semi, EOF],
+    "typedef f;" : [Identifier("f"), Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = StorageClassSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -1335,6 +1356,34 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
       let idx = ctx.alltoks.length() - toks.length()
       raise ParseError((idx, "Parse Error: Parse TypeSpec Error, unexpect token \{toks[0]}"))
     }
+  }
+}
+
+test "TypeSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "void a;" : [Identifier("a"), Semi, EOF],
+    "char b;" : [Identifier("b"), Semi, EOF],
+    "short c;" : [Identifier("c"), Semi, EOF],
+    "int d;" : [Identifier("d"), Semi, EOF],
+    "long e;" : [Identifier("e"), Semi, EOF],
+    "float f;" : [Identifier("f"), Semi, EOF],
+    "double g;" : [Identifier("g"), Semi, EOF],
+    "signed h;" : [Identifier("h"), Semi, EOF],
+    "unsigned i;" : [Identifier("i"), Semi, EOF],
+    "_Bool j;" : [Identifier("j"), Semi, EOF],
+    "_Complex k;" : [Identifier("k"), Semi, EOF],
+    "_Atomic(int) l;" : [Identifier("l"), Semi, EOF],
+    "struct Point { double x, y;};" : [Semi, EOF],
+    "union MyUnion { int x; float y;};" : [Semi, EOF],
+    "enum Color { Red, Green };" : [Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = TypeSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -1457,6 +1506,24 @@ fn TypeQualifierList::parse(toks: ArrayView[Token]) -> (TypeQualifierList, Array
   (TypeQualifierList(qualifiers), rest_toks)
 }
 
+test "TypeQualifierList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "const int a;" : [Int, Identifier("a"), Semi, EOF],
+    "volatile char b;" : [Char, Identifier("b"), Semi, EOF],
+    "restrict double c;" : [Double, Identifier("c"), Semi, EOF],
+    "_Atomic int d;" : [Int, Identifier("d"), Semi, EOF],
+    "const volatile int e;" : [Int, Identifier("e"), Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = TypeQualifierList::parse(toks);
+    assert_eq(rest_toks, expect_rest)
+  }
+}
+
 //fn TypeQualifierList::is_empty(self: Self) -> Bool {
 //  self.inner().is_empty()
 //}
@@ -1493,6 +1560,26 @@ fn TypeSpecOrQualifierList::parse(toks: ArrayView[Token], ctx: Context) -> (Type
     }
   }
   (TypeSpecOrQualifierList(specs), toks)
+}
+
+test "TypeSpecOrQualifierList Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "int f;" : [Identifier("f"), Semi, EOF],
+    "const int a;" : [Identifier("a"), Semi, EOF],
+    "volatile char b;" : [Identifier("b"), Semi, EOF],
+    "restrict double c;" : [Identifier("c"), Semi, EOF],
+    "_Atomic int d;" : [Identifier("d"), Semi, EOF],
+    "const volatile int e;" : [Identifier("e"), Semi, EOF],
+    "struct { double a, b;} p;" : [Identifier("p"), Semi, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = TypeSpecOrQualifierList::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
+  }
 }
 
 pub struct StructSpec {
@@ -2349,6 +2436,21 @@ fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec,
       let idx = ctx.alltoks.length() - toks.length()
       raise ParseError((idx, "Parse Error: Unimplemented alignment specifier, current token: \{toks[0]}"))
     }
+  }
+}
+
+test "AlignmentSpec Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "_Alignas(16)" : [EOF],
+    "_Alignof(int)" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = AlignmentSpec::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
