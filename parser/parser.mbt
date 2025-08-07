@@ -44,7 +44,7 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
     [LParen, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest_toks] else {
-        let idx = ctx.alltoks.length() - rest_toks.length()
+        let idx = ctx.alltoks.length() - rest.length()
         raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression"))
       }
       (PrimExpr::ParenExpr(expr), rest_toks)
@@ -84,6 +84,29 @@ test "PrimExpr Parsing Test" {
     let (_, rest_toks) = PrimExpr::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+}
+
+test "PrimExpr Parsing Negative Test" {
+  let code = "MyInt + 1"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PrimExpr::parse(toks, ctx)) is Ok(_))
+
+  ctx.typedefs.set("MyInt", 1)
+  assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((0, _))))
+
+  let code = "(a + 1 ;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((4, _))))
+
+  let code = " ++ 3 "
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((0, _))))
 }
 
 //postfixExpression
@@ -1237,6 +1260,79 @@ fn TypeSpec::parse(toks: ArrayView[Token], ctx: Context) -> (TypeSpec, ArrayView
     }
   }
 }
+
+//enum AtomTypeSpec {
+//  Void
+//  Char
+//  Bool
+//  Short
+//  Int
+//  Long
+//  Float
+//  Double
+//  Signed
+//  Unsigned
+//} derive(Hash, Eq, Show)
+//
+//fn convert_typespec_list_to_type(type_specs: Array[TypeSpec]) -> Type {
+//  // if type_specs is [StructSpec(_), ..t] {
+//  //   if !t.is_empty() { panic() }
+//  //   ...
+//  // }
+//  // if type_specs is [UnionSpec(_), ..t] {
+//  //  if !t.is_empty() { panic() }
+//  //  ...
+//  //  }
+//  let atom_type_specs: Set[AtomTypeSpec] = Set::new()
+//  for tyspec in type_specs {
+//    let atype_spec = match tyspec {
+//      TypeSpec::Void => AtomTypeSpec::Void
+//      TypeSpec::Char => AtomTypeSpec::Char
+//      TypeSpec::Bool => AtomTypeSpec::Bool
+//      TypeSpec::Short => AtomTypeSpec::Short
+//      TypeSpec::Int => AtomTypeSpec::Int
+//      TypeSpec::Long => AtomTypeSpec::Long
+//      TypeSpec::Float => AtomTypeSpec::Float
+//      TypeSpec::Double => AtomTypeSpec::Double
+//      TypeSpec::Signed => AtomTypeSpec::Signed
+//      TypeSpec::Unsigned => AtomTypeSpec::Unsigned
+//      _ => {
+//        panic()
+//      }
+//    }
+//    atom_type_specs.add(atype_spec)
+//  }
+//  let atom_type_specs = atom_type_specs.to_array()
+//  match atom_type_specs {
+//    [Void] => Type::Void
+//    [Char] => Type::Int8
+//    [Bool] => Type::Bool
+//    [Short] => Type::Int16
+//    [Int | Signed] => Type::Int32
+//    [Long] => Type::Int64
+//    [Float] => Type::Float
+//    [Double] => Type::Double
+//    [Unsigned] => Type::UInt32
+//    [Char, Unsigned] => Type::UInt8
+//    [Short, Unsigned] => Type::UInt16
+//    [Long, Unsigned] => Type::UInt64
+//    [Int, Unsigned] => Type::UInt32
+//    [Int, Long] => Type::Int64
+//    [Long, Long] => Type::Int64
+//    [Int, Long, Long] => Type::Int64
+//    [Int, Long, Signed] => Type::Int64
+//    [Long, Long, Signed] => Type::Int64
+//    [Int, Long, Long, Signed] => Type::Int64
+//    [Int, Long, Unsigned] => Type::UInt64
+//    [Long, Long, Unsigned] => Type::UInt64
+//    [Int, Unsigned, Long, Long] => Type::UInt64
+//    [Double, Long] => Type::Double
+//    _ => {
+//      println("Fatal Error: Unimplemented type combination: \{atom_type_specs}")
+//      panic()
+//    }
+//  }
+//}
 
 pub enum TypeQualifier {
   Const // const
@@ -2890,6 +2986,9 @@ pub enum ExternalDeclaration {
 fn ExternalDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (ExternalDeclaration, ArrayView[Token]) raise {
   match (try? FunctionDefinition::parse(toks, ctx)) {
     Ok((func_def, rest_toks)) => (ExternalDeclaration::FunctionDefinition(func_def), rest_toks)
+    Err(e) if e is FunctionDefinitionParseError::CompoundStatementParseError(ce) => {
+      raise ce
+    }
     Err(_) => {
       let (decl, rest) = Declaration::parse(toks, ctx);
       guard rest is [Semi, .. rest_toks] else {
@@ -2930,10 +3029,18 @@ pub struct FunctionDefinition {
   body: CompoundStatement
 } derive(Show, Eq)
 
-fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionDefinition, ArrayView[Token]) raise {
-  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
+pub suberror FunctionDefinitionParseError {
+  DeclaratorParseError(Error)
+  KRDeclarationParseError(Error)
+  CompoundStatementParseError(Error)
+}
 
-  let (declarator, rest_toks) = Declarator::parse(rest_toks, ctx);
+fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionDefinition, ArrayView[Token]) raise FunctionDefinitionParseError {
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
+
+  let (declarator, rest_toks) = Declarator::parse(rest_toks, ctx) catch {
+    err => raise FunctionDefinitionParseError::DeclaratorParseError(err)
+  }
 
   let (kr_declarations, rest_toks) = if !(rest_toks is [LBrace, ..]) {
     let decls: Array[Declaration] = Array::new()
@@ -2944,7 +3051,9 @@ fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionD
         continue rest_toks
       }
       rest_toks => {
-        let (decl, rest_toks) = Declaration::parse(rest_toks, ctx);
+        let (decl, rest_toks) = Declaration::parse(rest_toks, ctx) catch {
+          err => raise FunctionDefinitionParseError::KRDeclarationParseError(err)
+        }
         decls.push(decl);
         continue rest_toks
       }
@@ -2953,7 +3062,9 @@ fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionD
     (Array::new(), rest_toks) // No kr_declarations
   }
 
-  let (body, rest_toks) = CompoundStatement::parse(rest_toks, ctx);
+  let (body, rest_toks) = CompoundStatement::parse(rest_toks, ctx) catch {
+    err => raise FunctionDefinitionParseError::CompoundStatementParseError(err)
+  }
   let function_def = FunctionDefinition::{
     declSpecs: decl_specs.inner(),
     declarator,
