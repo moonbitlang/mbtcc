@@ -1182,8 +1182,13 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
       let (storage_class_spec, rest_toks) = StorageClassSpec::parse(toks, ctx);
       (DeclSpec::StorageClassSpec(storage_class_spec), rest_toks)
     }
-    [Const | Volatile | Restrict | Atomic, ..] => {
-      let (type_qualifier, rest_toks) = TypeQualifier::parse(toks, ctx);
+    [Const | Volatile | Restrict | Atomic as q, .. rest_toks] => {
+      let type_qualifier = match q {
+        Const => TypeQualifier::Const
+        Volatile => TypeQualifier::Volatile
+        Restrict => TypeQualifier::Restrict
+        _ => TypeQualifier::Atomic
+      }
       (DeclSpec::TypeQualifier(type_qualifier), rest_toks)
     }
     [Inline | Noreturn, ..] => {
@@ -1221,8 +1226,12 @@ test "DeclSpecList Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
     "int a;" : [Identifier("a"), Semi, EOF],
     "const char *p;" : [Star, Identifier("p"), Semi, EOF],
+    "volatile int x;" : [Identifier("x"), Semi, EOF],
+    "restrict int y;" : [Identifier("y"), Semi, EOF],
+    "_Atomic int z;" : [Identifier("z"), Semi, EOF],
     "inline void f()": [Identifier("f"), LParen, RParen, EOF],
     "_Noreturn void g()": [Identifier("g"), LParen, RParen, EOF],
+    "_Alignas(16) struct S { int x; };": [Semi, EOF], 
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1275,6 +1284,13 @@ test "StorageClassSpec Parsing Test" {
     let (_, rest_toks) = StorageClassSpec::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "int a;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? StorageClassSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
 }
 
 //typeSpecifier
@@ -1387,6 +1403,21 @@ test "TypeSpec Parsing Test" {
   }
 }
 
+test "TypeSpec Parsing Negative Test" {
+  let code = "_Atomic(int a;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? TypeSpec::parse(toks, ctx)) is Err(ParseError((3, _))))
+
+
+  let code = "MyInt a;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? TypeSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
+}
+
 //enum AtomTypeSpec {
 //  Void
 //  Char
@@ -1466,19 +1497,6 @@ pub enum TypeQualifier {
   Restrict // restrict
   Atomic // _Atomic
 } derive(Show, Eq)
-
-fn TypeQualifier::parse(toks: ArrayView[Token], ctx: Context) -> (TypeQualifier, ArrayView[Token]) raise {
-  match toks {
-    [Const, .. rest_toks] => (TypeQualifier::Const, rest_toks)
-    [Volatile, .. rest_toks] => (TypeQualifier::Volatile, rest_toks)
-    [Restrict, .. rest_toks] => (TypeQualifier::Restrict, rest_toks)
-    [Atomic, .. rest_toks] => (TypeQualifier::Atomic, rest_toks)
-    _ => {
-      let idx = ctx.alltoks.length() - toks.length()
-      raise ParseError((idx, "Parse Error: Unimplemented type qualifier"))
-    }
-  }
-}
 
 type TypeQualifierList Array[TypeQualifier] derive(Show, Eq)
 
@@ -1639,6 +1657,26 @@ test "StructSpec Parsing Test" {
   }
 }
 
+test "StructSpec Parsing Negative Test" {
+  let code = "strut MyStruct { int a; double b; };"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
+
+  let code = "struct Point { int x; )"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((6, _))))
+
+  let code = "struct int {};"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
+}
+
 pub struct UnionSpec {
   name: String?
   decls: Array[StructDeclaration]
@@ -1694,6 +1732,26 @@ test "UnionSpec Parsing Test" {
     let (_, rest_toks) = UnionSpec::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+}
+
+test "UnionSpec Parsing Negative Test" {
+  let code = "unoin MyUnion { int a; double b; };"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
+
+  let code = "union Point { int x; )"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((6, _))))
+
+  let code = "union int {};"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
 }
 
 //structDeclaration // The first two rules have priority order and cannot be simplified to one expression.
