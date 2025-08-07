@@ -437,6 +437,14 @@ test "CastExpr Parsing Test" {
   }
 }
 
+test "CastExpr Parsing Negative Test" {
+  let code = "(int + 1"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? CastExpr::parse(toks, ctx)) is Err(ParseError((2, _))))
+}
+
 //multiplicativeExpression
 //    : castExpression (('*' | '/' | '%') castExpression)*
 //    ;
@@ -968,6 +976,13 @@ test "ConditionalExpr Parsing Test" {
   }
 }
 
+test "ConditionalExpr Parsing Negative Test" {
+  let code = "cond1 ? 123 ;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? ConditionalExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
+}
 
 //assignmentExpression
 //    : conditionalExpression
@@ -983,7 +998,7 @@ fn AssignExpr::parse(toks: ArrayView[Token], ctx:Context) -> (AssignExpr, ArrayV
   let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
   match rest_toks {
     [Assign | PlusAssign | MinusAssign | StarAssign | DivAssign | ModAssign |
-     LeftShiftAssign | RightShiftAssign | AndAssign | BitXorAssign |
+     LeftShiftAssign | RightShiftAssign | AndAssign | OrAssign | BitXorAssign | BitAndAssign |
      BitOrAssign as op, .. rest_toks] => {
       let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
       let assign_op = match op {
@@ -1015,6 +1030,17 @@ test "AssignExpr Parsing Test" {
     "a = b + c; int" : [Semi, Int, EOF],
     "x += 5; union" : [Semi, Union, EOF],
     "cond1 && cond2 ? abc : def ; struct" : [Semi, Struct, EOF],
+    "a -= 1;" : [Semi, EOF],
+    "b *= 2;" : [Semi, EOF],
+    "c /= 3;" : [Semi, EOF],
+    "d %= 4;" : [Semi, EOF],
+    "e <<= 5;" : [Semi, EOF],
+    "f >>= 6;" : [Semi, EOF],
+    "g &= 7;" : [Semi, EOF],
+    "h |= 8;" : [Semi, EOF],
+    "i ^= 9;" : [Semi, EOF],
+    "j &&= l;" : [Semi, EOF],
+    "k ||= m;" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
