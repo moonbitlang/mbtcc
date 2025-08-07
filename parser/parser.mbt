@@ -1784,15 +1784,19 @@ fn StructDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (StructDecl
   }
 
   let (struct_declarators, rest_toks) = StructDeclaratorList::parse(rest_toks, ctx);
-  (StructDeclaration::Normal(type_spec_or_qualifiers, struct_declarators.inner()), rest_toks)
+  guard rest_toks is [Semi, .. rest] else {
+    let idx = ctx.alltoks.length() - rest_toks.length()
+    raise ParseError((idx, "Parse Error: Expected ';' after struct declarators"))
+  }
+  (StructDeclaration::Normal(type_spec_or_qualifiers, struct_declarators.inner()), rest)
 }
 
 test "StructDeclaration Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
-    "int a, b;" : [Semi, EOF],
-    "double x;" : [Semi, EOF],
-    "int a : 1, b : 2;" : [Semi, EOF],
-    "struct Point p ;": [Semi, EOF],
+    "int a, b;" : [EOF],
+    "double x;" : [EOF],
+    "int a : 1, b : 2;" : [EOF],
+    "struct Point ;": [ EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1851,6 +1855,7 @@ test "StructDeclaratorList Parsing Test" {
     "a ;" : [Semi, EOF],
     "a, b ;" : [Semi, EOF],
     "a : 1, b : 2 ;" : [Semi, EOF],
+    ": 1": [EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1900,7 +1905,7 @@ test "Declarator Parsing Test" {
 }
 
 //pointer
-//    : (('*' | '^') typeQualifierList?)+ // ^ - Blocks language extension
+//    : ('*' typeQualifierList?)+
 //    ;
 type Pointer Array[TypeQualifier?]  derive(Show, Eq)
 
@@ -1936,6 +1941,8 @@ test "Pointer Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
     "*a": [Identifier("a"), EOF],
     "**b": [Identifier("b"), EOF],
+    "*volatile *restrict c": [Identifier("c"), EOF],
+    "** _Atomic d" : [Identifier("d"), EOF],
     "* const Point": [Identifier("Point"), EOF],
   }
 
