@@ -157,9 +157,17 @@ fn PostFixSuffix::parse(toks: ArrayView[Token], ctx: Context) -> (Array[PostFixS
       suffixes.push(PostFixSuffix::DotAccess(name))
       continue rest_toks
     }
+    [Dot, ..rest] => {
+      let idx = ctx.alltoks.length() - rest.length()
+      raise ParseError((idx, "Parse Error: Expected identifier after '.' in postfix expression"))
+    }
     [Arrow, Identifier(name), .. rest_toks] => {
       suffixes.push(PostFixSuffix::ArrowAccess(name))
       continue rest_toks
+    }
+    [Arrow, ..rest] => {
+      let idx = ctx.alltoks.length() - rest.length()
+      raise ParseError((idx, "Parse Error: Expected identifier after '->' in postfix expression"))
     }
     [LBracket, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
@@ -205,6 +213,34 @@ test "PostfixExpr Parsing Test" {
     let (_, rest_toks) = PostFixExpr::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+}
+
+test "PostifxExpr Parsing Negative Test" {
+  let code = "arr[index;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
+
+  let code = "func(arg;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
+
+  // 测试点号后面缺少标识符
+  let code = "obj.3"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((2, _)))) // 应该成功，只是没有后缀
+
+  // 测试箭头后面缺少标识符
+  let code = "ptr->123"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((2, _)))) // 应该成功，只是没有后缀
 }
 
 //unaryExpression
@@ -300,7 +336,7 @@ fn UnaryExprBody::parse(toks: ArrayView[Token], ctx: Context) -> (UnaryExprBody,
       let (type_name, rest) = TypeName::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest_toks] else {
         let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in sizeof"))
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in sizeof, while get \{rest[0]}"))
       }
       (UnaryExprBody::SizeofTypeName(type_name), rest_toks)
     }
@@ -320,11 +356,12 @@ fn UnaryExprBody::parse(toks: ArrayView[Token], ctx: Context) -> (UnaryExprBody,
 }
 
 test "UnaryExpr Parsing Test" {
-
   let code_expect_rest: Map[String, ArrayView[Token]] = {
     "++abc + b" : [Plus, Identifier("b"), EOF],
     "--abc + b" : [Plus, Identifier("b"), EOF],
     "sizeof(int) + 1" : [Plus, Constant(Constant::Int(1)), EOF],
+    "sizeof(42) + 1" : [Plus, Constant(Constant::Int(1)), EOF],
+    "sizeof 42 + 1" : [Plus, Constant(Constant::Int(1)), EOF],
     "_Alignof(int) + 2" : [Plus, Constant(Constant::Int(2)), EOF],
     "&abc + b" : [Plus, Identifier("b"), EOF],
     "*abc + b" : [Plus, Identifier("b"), EOF],
@@ -342,6 +379,20 @@ test "UnaryExpr Parsing Test" {
     let (_, rest_toks) = UnaryExpr::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+}
+
+test "UnaryExpr Parsing Negative Test" {
+  let code = "sizeof(int ;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? UnaryExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
+
+  let code = "_Alignof(double; "
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? UnaryExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
 }
 
 //castExpression
@@ -2296,6 +2347,10 @@ fn TypeName::parse(toks: ArrayView[Token], ctx: Context) -> (TypeName, ArrayView
     (Some(a), rest)
   } else {
     (None, rest_toks)
+  }
+  if specifiers.is_empty() && abstract_declarator is None {
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: InValud TypeName."))
   }
   let type_name = TypeName::{
     specifiers,
