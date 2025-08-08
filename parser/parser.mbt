@@ -1191,9 +1191,11 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
       }
       (DeclSpec::TypeQualifier(type_qualifier), rest_toks)
     }
-    [Inline | Noreturn, ..] => {
-      let (function_spec, rest_toks) = FunctionSpec::parse(toks, ctx);
-      (DeclSpec::FunctionSpec(function_spec), rest_toks)
+    [Inline, ..rest_toks] => {
+      (DeclSpec::FunctionSpec(Inline), rest_toks)
+    }
+    [Noreturn, ..rest_toks] => {
+      (DeclSpec::FunctionSpec(Noreturn), rest_toks)
     }
     [Alignas, ..] => {
       let (alignment_spec, rest_toks) = AlignmentSpec::parse(toks, ctx);
@@ -1808,7 +1810,7 @@ test "StructDeclaration Parsing Test" {
   }
 
   // Negative test
-  let code = "struct Point p,"
+  let code = "struct Point p:"
   let ctx = Context::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
@@ -2001,6 +2003,11 @@ fn DirectDeclarator::get_ident(self: Self) -> String {
 }
 
 fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDeclarator, ArrayView[Token]) raise {
+  if toks is [Identifier(name), Colon, Constant(Int(i)), .. rest_toks] {
+    // BitField case
+    return (DirectDeclarator::BitField(name, i), rest_toks)
+  }
+
   let (head_decl, rest_toks) = match toks {
     [Identifier(name), .. rest_toks] => (DirectDeclarator::Identifier(name), rest_toks)
     [LParen, .. rest_toks] => {
@@ -2020,7 +2027,11 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
   loop rest_toks {
     [LBracket, Static, ..rest_toks] => {
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks);
-      let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
+      let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, ..rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after static array declaration"))
+      }
       current_decl = DirectDeclarator::StaticArray(current_decl, type_qualifiers.inner(), assign_expr)
       continue rest_toks
     }
@@ -2100,11 +2111,6 @@ fn DirectDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (DirectDecla
       }
       continue rest_toks
     }
-    // BitField
-    [Identifier(name), Colon, Constant(Int(i)), ..rest_toks] => {
-      current_decl = DirectDeclarator::BitField(name, i);
-      continue rest_toks
-    }
     rest_toks => {
       break (current_decl, rest_toks) // No more direct declarators
     }
@@ -2117,9 +2123,16 @@ test "DirectDeclarator Parsing Test" {
     "fact() ;" : [Semi, EOF],
     "fact(int a) ;" : [Semi, EOF],
     "fib(int a, int b) ;" : [Semi, EOF],
+    "fib(a, b) ;" : [Semi, EOF], // K & R style
     "arr[] ;" : [Semi, EOF],
     "arr[10] ;" : [Semi, EOF],
+    "arr[static const 10] ;" : [Semi, EOF],
+    "arr[const static 10] ;" : [Semi, EOF],
+    "arr[static 10] ;" : [Semi, EOF],
+    "arr[*];" : [Semi, EOF],
+    "arr[len];" : [Semi, EOF],
     "(*fptr)(int, int) ;" : [Semi, EOF],
+    "r: 4 ;" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -2129,6 +2142,19 @@ test "DirectDeclarator Parsing Test" {
     let (_, rest_toks) = DirectDeclarator::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // Negative test
+  let code = "(*fptr](int, int);"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? DirectDeclarator::parse(toks, ctx)) is Err(_))
+
+  let code = "fib(int a, int b;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? DirectDeclarator::parse(toks, ctx)) is Err(_))
 }
 
 //initDeclarator
@@ -2281,6 +2307,19 @@ test "InitializerList Parsing Test" {
     let (_, rest_toks) = InitializerList::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "1, 2}"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? InitializerList::parse(toks, ctx)) is Err(ParseError((0, _))))
+
+  let code = "{ .f += 3 }"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? InitializerList::parse(toks, ctx)) is Err(ParseError((3, _))))
 }
 
 //designator
@@ -2416,6 +2455,8 @@ test "EnumSpec Parsing Test" {
     "enum EmptyEnum {}" : [EOF],
     "enum AnotherEnum { ONE = 1, TWO = 2 }" : [EOF],
     "enum SingleEnum { ONLY }" : [EOF],
+    "enum AnaEnum ;": [Semi, EOF],
+    "enum {}; " : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -2425,6 +2466,25 @@ test "EnumSpec Parsing Test" {
     let (_, rest_toks) = EnumSpec::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "struct Point ;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
+
+  let code = "enum { A, "
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((4, _))))
+
+  let code = "enum int a; "
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
 }
 
 type Enumerator (String, ConstantExpr?) derive(Show, Eq)
@@ -2480,17 +2540,6 @@ pub enum FunctionSpec {
   Inline // inline
   Noreturn // _Noreturn
 } derive(Show, Eq)
-
-fn FunctionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionSpec, ArrayView[Token]) raise {
-  match toks {
-    [Inline, .. rest_toks] => (FunctionSpec::Inline, rest_toks)
-    [Noreturn, .. rest_toks] => (FunctionSpec::Noreturn, rest_toks)
-    _ => {
-      let idx = ctx.alltoks.length() - toks.length()
-      raise ParseError((idx, "Parse Error: Unimplemented function specifier"))
-    }
-  }
-}
 
 pub enum AlignmentSpec {
   AlignasExpr(ConstantExpr) // _Alignas(expr)
