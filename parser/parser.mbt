@@ -1157,6 +1157,9 @@ test "Declaration Parsing Test" {
     "struct Point { int x; int y; };" : [EOF],
     "typedef struct { int a; int b; } MyStruct;" : [Semi, EOF],
     "typedef double *p, *const q;" : [Semi, EOF],
+    "typedef int IntArr[];" : [Semi, EOF],
+    "typedef int IntArr[10];" : [Semi, EOF],
+    "typedef int (*BinaryFunc)(int, int);" : [Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1197,9 +1200,31 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
     [Noreturn, ..rest_toks] => {
       (DeclSpec::FunctionSpec(Noreturn), rest_toks)
     }
-    [Alignas, ..] => {
-      let (alignment_spec, rest_toks) = AlignmentSpec::parse(toks, ctx);
-      (DeclSpec::AlignmentSpec(alignment_spec), rest_toks)
+    [Alignas, LParen, ..rest_toks] => {
+      let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
+      }
+      let spec = AlignmentSpec::AlignasExpr(expr)
+      (DeclSpec::AlignmentSpec(spec), rest)
+    }
+    [Alignas, ..rest_toks] => {
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected '(' after _Alignas"))
+    }
+    [Alignof, LParen, ..rest_toks] => {
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
+      }
+      let spec = AlignmentSpec::AlignofType(type_name)
+      (DeclSpec::AlignmentSpec(spec), rest)
+    }
+    [Alignof, ..rest_toks] => {
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected '(' after _Alignof"))
     }
     _ => {
       let (type_spec, rest_toks) = TypeSpec::parse(toks, ctx);
@@ -1234,6 +1259,7 @@ test "DeclSpecList Parsing Test" {
     "inline void f()": [Identifier("f"), LParen, RParen, EOF],
     "_Noreturn void g()": [Identifier("g"), LParen, RParen, EOF],
     "_Alignas(16) struct S { int x; };": [Semi, EOF], 
+    "_Alignof(int) a;" : [Identifier("a"), Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1243,6 +1269,13 @@ test "DeclSpecList Parsing Test" {
     let (_, rest_toks) = DeclSpecList::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "_Alignas 16 int a;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? DeclSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
 }
 
 pub enum StorageClassSpec {
@@ -2474,11 +2507,11 @@ test "EnumSpec Parsing Test" {
   let toks = ctx.alltoks
   assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
 
-  let code = "enum { A, "
+  let code = "enum { A; "
   let ctx = Context::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
-  assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((4, _))))
+  assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((3, _))))
 
   let code = "enum int a; "
   let ctx = Context::create(code)
@@ -2543,48 +2576,69 @@ pub enum FunctionSpec {
 
 pub enum AlignmentSpec {
   AlignasExpr(ConstantExpr) // _Alignas(expr)
-  AlignasType(TypeName) // _Alignof(type)
+  AlignofType(TypeName) // _Alignof(type)
 } derive(Show, Eq)
 
-fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec, ArrayView[Token]) raise {
-  match toks {
-    [Alignas, LParen, .. rest_toks] => {
-      let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
-      guard rest is [RParen, .. rest] else {
-        let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
-      }
-      (AlignmentSpec::AlignasExpr(expr), rest)
-    }
-    [Alignof, LParen, .. rest_toks] => {
-      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
-      guard rest is [RParen, .. rest] else {
-        let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
-      }
-      (AlignmentSpec::AlignasType(type_name), rest)
-    }
-    toks => {
-      let idx = ctx.alltoks.length() - toks.length()
-      raise ParseError((idx, "Parse Error: Unimplemented alignment specifier, current token: \{toks[0]}"))
-    }
-  }
-}
-
-test "AlignmentSpec Parsing Test" {
-  let code_expect_rest: Map[String, ArrayView[Token]] = {
-    "_Alignas(16)" : [EOF],
-    "_Alignof(int)" : [EOF],
-  }
-
-  for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
-    ctx.tokenize()
-    let toks = ctx.alltoks
-    let (_, rest_toks) = AlignmentSpec::parse(toks, ctx);
-    assert_eq(rest_toks, expect_rest)
-  }
-}
+//fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec, ArrayView[Token]) raise {
+//  match toks {
+//    [Alignas, LParen, .. rest_toks] => {
+//      let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
+//      guard rest is [RParen, .. rest] else {
+//        let idx = ctx.alltoks.length() - rest.length()
+//        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
+//      }
+//      (AlignmentSpec::AlignasExpr(expr), rest)
+//    }
+//    [Alignas, ..rest_toks] => {
+//      let idx = ctx.alltoks.length() - rest_toks.length()
+//      raise ParseError((idx, "Parse Error: Expected '(' after _Alignas"))
+//    }
+//    [Alignof, LParen, .. rest_toks] => {
+//      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+//      guard rest is [RParen, .. rest] else {
+//        let idx = ctx.alltoks.length() - rest.length()
+//        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
+//      }
+//      (AlignmentSpec::AlignasType(type_name), rest)
+//    }
+//    [Alignof, ..rest_toks] => {
+//      let idx = ctx.alltoks.length() - rest_toks.length()
+//      raise ParseError((idx, "Parse Error: Expected '(' after _Alignof"))
+//    }
+//    toks => {
+//      let idx = ctx.alltoks.length() - toks.length()
+//      raise ParseError((idx, "Parse Error: Unimplemented alignment specifier, current token: \{toks[0]}"))
+//    }
+//  }
+//}
+//
+//test "AlignmentSpec Parsing Test" {
+//  let code_expect_rest: Map[String, ArrayView[Token]] = {
+//    "_Alignas(16)" : [EOF],
+//    "_Alignof(int)" : [EOF],
+//  }
+//
+//  for code, expect_rest in code_expect_rest {
+//    let ctx = Context::create(code)
+//    ctx.tokenize()
+//    let toks = ctx.alltoks
+//    let (_, rest_toks) = AlignmentSpec::parse(toks, ctx);
+//    assert_eq(rest_toks, expect_rest)
+//  }
+//
+//  // Negative test
+//  let code = "_Alignas 16"
+//  let ctx = Context::create(code)
+//  ctx.tokenize()
+//  let toks = ctx.alltoks
+//  assert_true((try? AlignmentSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
+//
+//  let code = "_Alignof int"
+//  let ctx = Context::create(code)
+//  ctx.tokenize()
+//  let toks = ctx.alltoks
+//  assert_true((try? AlignmentSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
+//}
 
 
 //typeName
@@ -2733,15 +2787,14 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
     [LBracket, Star, RBracket, .. rest_toks] => {
       (DirectAbstractDeclarator::InCompleteArray(None), rest_toks)
     }
-    [LBracket, Static, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+    [LBracket, Static, ..] as toks => {
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[2:]);
-      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
-        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
-        (Some(assign_expr), rest_toks)
-      } else {
-        (None, rest_toks)
+      let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after static array declaration"))
       }
-      (DirectAbstractDeclarator::ArrayDecl(None, is_static=true, type_qualifiers.inner(), assign_expr), rest_toks)
+      (DirectAbstractDeclarator::ArrayDecl(None, is_static=true, type_qualifiers.inner(), Some(assign_expr)), rest_toks)
     }
     [LBracket, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[1:]);
@@ -2750,11 +2803,15 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       } else {
         (false, rest_toks)
       }
-      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
+      let (assign_expr, rest_toks) = if !(rest_toks[0] is RBracket) {
         let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
         (Some(assign_expr), rest_toks)
       } else {
         (None, rest_toks)
+      }
+      guard rest_toks is [RBracket, ..rest_toks] else {
+        let idx = ctx.alltoks.length() - rest_toks.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after array declaration"))
       }
       (DirectAbstractDeclarator::ArrayDecl(None, is_static~, type_qualifiers.inner(), assign_expr), rest_toks)
     }
@@ -2786,15 +2843,16 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       curr_decl = DirectAbstractDeclarator::InCompleteArray(Some(curr_decl));
       continue rest_toks
     }
-    [LBracket, Static, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+    [LBracket, Static, ..] as toks => {
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(toks[2:]);
-      let (assign_expr, rest_toks) = if !(rest_toks is [RBracket, ..]) {
-        let (assign_expr, rest_toks) = AssignExpr::parse(rest_toks, ctx);
-        (Some(assign_expr), rest_toks)
-      } else {
-        (None, rest_toks)
+      let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx);
+      guard rest is [RBracket, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing bracket after static array declaration"))
       }
-      curr_decl = DirectAbstractDeclarator::ArrayDecl(Some(curr_decl), is_static=true, type_qualifiers.inner(), assign_expr);
+      curr_decl = DirectAbstractDeclarator::ArrayDecl(
+        Some(curr_decl), is_static=true, type_qualifiers.inner(), Some(assign_expr)
+      );
       continue rest_toks
     }
     [LBracket, tok, ..] as toks if ctx.is_declspec_tok(tok) => {
@@ -2827,6 +2885,27 @@ fn DirectAbstractDeclarator::parse(toks: ArrayView[Token], ctx:Context) -> (Dire
       continue rest_toks
     }
     rest_toks => break (Some(curr_decl), rest_toks) // No more direct abstract declarators
+  }
+}
+
+test "DirectAbstractDeclarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "(*)(int, int)" : [EOF],
+    "[*]" : [EOF],
+    "[]" : [EOF],
+    "[static 10]": [EOF],
+    "[const static 10]" : [EOF],
+    "[static const 10]" : [EOF],
+    "[static 5][10]" : [EOF],
+    "(int, int)" : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = DirectAbstractDeclarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -2965,6 +3044,19 @@ test "LabeledStatement Parsing Test" {
     let (_, rest_toks) = LabeledStatement::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "case 5 ;"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? LabeledStatement::parse(toks, ctx)) is Err(ParseError((2, _))))
+
+  let code = "int :"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? LabeledStatement::parse(toks, ctx)) is Err(ParseError((0, _))))
 }
 
 pub struct CompoundStatement {
@@ -3012,6 +3104,13 @@ test "CompoundStatement Parsing Test" {
     let (_, rest_toks) = CompoundStatement::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // negative test
+  let code = "if (x) { y++; }"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? CompoundStatement::parse(toks, ctx)) is Err(ParseError((0, _))))
 }
 
 pub enum BlockItem {
@@ -3082,6 +3181,12 @@ test "SelectionStatement Parsing Test" {
     let (_, rest_toks) = SelectionStatement::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  let code = "switch n { case 1: y++; }"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? SelectionStatement::parse(toks, ctx)) is Err(ParseError((0, _))))
 }
 
 pub enum IterationStatement {
@@ -3213,6 +3318,28 @@ fn ForInit::parse(toks: ArrayView[Token], ctx: Context) -> (ForInit, ArrayView[T
       init_decls.push(init_decl);
       continue rest_toks
     }
+  }
+}
+
+test "ForCondition Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "for (int i = 0; i < 10; i++) " : [EOF],
+    "for (int i = 0;;) " : [EOF],
+    "for (;;)" : [EOF],
+    "for (i = 0; i < 10; i++) " : [EOF],
+    "for (i = 0;;) " : [EOF],
+    "for (;i < 0; i++) " : [EOF],
+    "for (;i < 0;) " : [EOF],
+    "for (;; i++) " : [EOF],
+    "for (int i = 0, j = 1; i+j < 10;) " : [EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = ForCondition::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
@@ -3530,6 +3657,23 @@ fn ParamDeclarator::parse(toks: ArrayView[Token], ctx: Context) -> (ParamDeclara
   } else {
     let idx = ctx.alltoks.length() - toks.length()
     raise ParseError((idx, "Parse Error: Expected declarator or abstract declarator in parameter declaration, current token is \{toks[0]}"))
+  }
+}
+
+test "ParamDeclarator Parsing Test" {
+  let code_expect_rest: Map[String, ArrayView[Token]] = {
+    "a," : [Comma, EOF],
+    "*b," : [Comma, EOF],
+    "(*)(int, int),": [Comma, EOF],
+    "[*]," : [Comma, EOF],
+  }
+
+  for code, expect_rest in code_expect_rest {
+    let ctx = Context::create(code)
+    ctx.tokenize()
+    let toks = ctx.alltoks
+    let (_, rest_toks) = ParamDeclarator::parse(toks, ctx);
+    assert_eq(rest_toks, expect_rest)
   }
 }
 
