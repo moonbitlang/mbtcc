@@ -228,14 +228,6 @@ test "PostifxExpr Parsing Negative Test" {
   let toks = ctx.alltoks
   assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
 
-  // 测试点号后面缺少标识符
-  //let code = "obj.3"
-  //let ctx = Context::create(code)
-  //ctx.tokenize()
-  //let toks = ctx.alltoks
-  //println((try? PostFixExpr::parse(toks, ctx)))
-  //assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((1, _)))) // 应该成功，只是没有后缀
-
   // 测试箭头后面缺少标识符
   let code = "ptr->123"
   let ctx = Context::create(code)
@@ -1128,7 +1120,7 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
     raise ParseError((idx, "Parse Error: Declaration specifiers cannot be empty"))
   }
   let (declaration, rest_toks) = match rest_toks {
-    [Semi, .. rest_toks] => {
+    [Semi, ..] => {
       let declaration = Declaration::Decl(decl_specs, Array::new())
       (declaration, rest_toks)
     }

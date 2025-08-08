@@ -51,10 +51,14 @@ fn main {
   let ctx = @parser.Context::create(code, source_file=filename)
   ctx.tokenize() catch {
     err => { 
-      ctx.print_toks()
       println("Tokenization error: \{err}")
       return
     }
+  }
+
+  if args.contains("--stop-after=lex") {
+    ctx.print_toks()
+    return
   }
 
   println("Tokenization Passed")
