@@ -1112,15 +1112,17 @@ pub enum Declaration {
 } derive(Show, Eq)
 
 fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
+  let save_toks = toks
   let is_typedef = toks is [Typedef, ..]
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
   let decl_specs = decl_specs.inner()
-  guard !decl_specs.is_empty() else {
+  guard decl_specs.length() > 0 else {
     let idx = ctx.alltoks.length() - rest_toks.length()
+    println(save_toks[0:4])
     raise ParseError((idx, "Parse Error: Declaration specifiers cannot be empty"))
   }
   let (declaration, rest_toks) = match rest_toks {
-    [Semi, ..] => {
+    [Semi, ..rest_toks] => {
       let declaration = Declaration::Decl(decl_specs, Array::new())
       (declaration, rest_toks)
     }
@@ -1234,10 +1236,6 @@ fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, A
   while (try? DeclSpec::parse(rest_toks, ctx)) is Ok((decl_spec, rest)) {
     decl_specs.push(decl_spec)
     rest_toks = rest
-    // If we encounter a TypeSpec, we can stop parsing further decl specs
-    if decl_spec is TypeSpec(_) {
-      break
-    }
   }
   (decl_specs, rest_toks)
 }
@@ -1245,6 +1243,7 @@ fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, A
 test "DeclSpecList Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
     "int a;" : [Identifier("a"), Semi, EOF],
+    "long long int p;": [Identifier("p"), Semi, EOF],
     "const char *p;" : [Star, Identifier("p"), Semi, EOF],
     "volatile int x;" : [Identifier("x"), Semi, EOF],
     "restrict int y;" : [Identifier("y"), Semi, EOF],
@@ -3390,6 +3389,10 @@ fn CompilationUnit::parse(toks: ArrayView[Token], ctx: Context) -> CompilationUn
   let external_decls: Array[ExternalDeclaration] = Array::new()
   loop toks {
     [EOF] => break CompilationUnit::{ externalDecls: external_decls } // End of input
+    [Semi, .. rest_toks] => {
+      // Empty declaration, just skip it
+      continue rest_toks
+    }
     toks => {
       let (external_decl, rest_toks) = ExternalDeclaration::parse(toks, ctx);
       external_decls.push(external_decl);
@@ -3425,11 +3428,7 @@ fn ExternalDeclaration::parse(toks: ArrayView[Token], ctx: Context) -> (External
       raise ce
     }
     Err(_) => {
-      let (decl, rest) = Declaration::parse(toks, ctx);
-      guard rest is [Semi, .. rest_toks] else {
-        let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected ';' after declaration"))
-      }
+      let (decl, rest_toks) = Declaration::parse(toks, ctx);
       (ExternalDeclaration::Declaration(decl), rest_toks)
     }
   }
