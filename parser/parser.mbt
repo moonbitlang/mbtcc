@@ -1654,7 +1654,7 @@ test "StructSpec Parsing Test" {
     "struct MyStruct { int a; double b; }" : [EOF],
     "struct { char c; }" : [EOF],
     "struct EmptyStruct {}" : [EOF],
-    "struct AnotherStruct { int x; }" : [EOF],
+    "struct AnotherStruct { int x;; }" : [EOF],
     "struct Point p;" : [Identifier("p"), Semi, EOF],
   }
 
@@ -1732,7 +1732,7 @@ test "UnionSpec Parsing Test" {
     "union MyUnion { int a; double b; }" : [EOF],
     "union { char c; }" : [EOF],
     "union EmptyUnion {}" : [EOF],
-    "union AnotherUnion { int x; }" : [EOF],
+    "union AnotherUnion { int x;; }" : [EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1806,6 +1806,13 @@ test "StructDeclaration Parsing Test" {
     let (_, rest_toks) = StructDeclaration::parse(toks, ctx);
     assert_eq(rest_toks, expect_rest)
   }
+
+  // Negative test
+  let code = "struct Point p,"
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  let toks = ctx.alltoks
+  assert_true((try? StructDeclaration::parse(toks, ctx)) is Err(ParseError((4, _))))
 }
 
 pub enum StructDeclarator {
