@@ -116,11 +116,8 @@ pub enum Token {
 
 pub enum Constant {
   Int(Int)
-  //UInt(UInt)
-  //Long(Int64)
-  //ULong(UInt64)
-  //Float(Float)
-  //Double(Double)
+  Long(Int64)  
+  Double(Double)
   Char(Char)
 } derive(Show, Eq)
 
@@ -425,6 +422,16 @@ pub fn Context::tokenize(self: Self) -> Unit raise {
       codeidx += 1
       continue rest 
     }
+    ['.', '0'..='9', ..] as code => {
+      // 这是一个以 . 开头的浮点数
+      let tokinfo = TokenInfo::{lineno, column, codeidx}
+      let (tok, rest, char_count) = lex_number(code)
+      tokens.push(tok)
+      tokinfos.push(tokinfo)
+      column += char_count
+      codeidx += char_count
+      continue rest
+    }
     ['.', ..rest] => { 
       tokens.push(Dot); 
       tokinfos.push(TokenInfo::{lineno, column, codeidx})
@@ -627,18 +634,229 @@ fn lex_char_literal(code: @string.View) -> (Token, @string.View, Int) raise {
 // @strconv.parse_int64: (String, Int) -> Int64, input is string and base, return an int
 // @strconv.parse_double: (String, Int) -> Double, input is string and base, return an int
 fn lex_number(code: @string.View) -> (Token, @string.View, Int) raise {
-  let num = Array::new()
+  match code {
+    // 十六进制数字 (0x 或 0X 开头)
+    [.. "0x", .. ] | [.. "0X", .. ] => lex_hex_number(code)
+    ['0', '0'..='7', ..] => lex_octal_number(code)
+    ['0', '8'|'9', ..] => lex_decimal_number(code) // 八进制数字后面跟了 8 或 9，作为十进制处理
+    // 单独的 0
+    ['0'] => lex_octal_number(code)
+    // 以小数点开始的浮点数
+    ['.', '0'..='9', ..] => lex_decimal_number(code)
+    // 十进制数字或浮点数
+    _ => lex_decimal_number(code)
+  }
+}
+
+// 解析十六进制数字
+fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
+  let hex_digits = Array::new()
+  let mut char_count = 2 // "0x" 或 "0X"
+  let rest = match code {
+    [.. "0x", .. rest] | [.. "0X", .. rest] => {
+      loop rest {
+        ['0'..='9' | 'a'..='f' | 'A'..='F' as c, .. rest_str] => {
+          hex_digits.push(c)
+          char_count += 1
+          continue rest_str
+        }
+        _ as rest_str => break rest_str
+      }
+    }
+    _ => raise LexerError("Invalid hex number")
+  }
+  
+  if hex_digits.is_empty() {
+    raise LexerError("Invalid hex number: no digits after 0x")
+  }
+  
+  let hex_str = String::from_array(hex_digits)
+  
+  // 检查后缀
+  let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
+  char_count += suffix_len
+  
+  let num = @strconv.parse_int64(hex_str, base=16)
+  let token = match suffix {
+    // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
+    "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
+    "l" | "L" => Token::Constant(Constant::Long(num))
+    "" => {
+      // 根据数值大小决定类型
+      if num <= 2147483647L && num >= -2147483648L {
+        Token::Constant(Constant::Int(num.to_int()))
+      } else {
+        Token::Constant(Constant::Long(num))
+      }
+    }
+    _ => raise LexerError("Invalid integer suffix: \{suffix}")
+  }
+  
+  (token, rest, char_count)
+}
+
+// 解析八进制数字
+fn lex_octal_number(code: @string.View) -> (Token, @string.View, Int) raise {
+  let octal_digits = Array::new()
+  let mut char_count = 0
+  
   let rest = loop code {
-    ['0'..='9' as c, .. rest_str] => {
-      num.push(c)
+    ['0'..='7' as c, .. rest_str] => {
+      octal_digits.push(c)
+      char_count += 1
       continue rest_str
     }
     _ as rest_str => break rest_str
   }
-  let numstr = String::from_array(num)
-  let num = @strconv.parse_int(numstr, base=10)
-  let num = Constant::Int(num)
-  (Constant(num), rest, numstr.length())
+  
+  let octal_str = String::from_array(octal_digits)
+  
+  // 检查后缀
+  let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
+  char_count += suffix_len
+  
+  let num = @strconv.parse_int64(octal_str, base=8)
+  let token = match suffix {
+    "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
+    "l" | "L" => Token::Constant(Constant::Long(num))
+    "" => {
+      if num <= 2147483647L && num >= -2147483648L {
+        Token::Constant(Constant::Int(num.to_int()))
+      } else {
+        Token::Constant(Constant::Long(num))
+      }
+    }
+    _ => raise LexerError("Invalid integer suffix: \{suffix}")
+  }
+  
+  (token, rest, char_count)
+}
+
+// 解析十进制数字（可能是整数或浮点数）
+fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
+  let digits = Array::new()
+  let mut char_count = 0
+  let mut has_dot = false
+  let mut has_exp = false
+  
+  // 读取整数部分
+  let mut rest = loop code {
+    ['0'..='9' as c, .. rest_str] => {
+      digits.push(c)
+      char_count += 1
+      continue rest_str
+    }
+    _ as rest_str => break rest_str
+  }
+  
+  // 检查小数点
+  rest = match rest {
+    ['.', .. dot_rest] => {
+      has_dot = true
+      digits.push('.')
+      char_count += 1
+      // 读取小数点后的数字（可能没有）
+      loop dot_rest {
+        ['0'..='9' as c, .. rest_str] => {
+          digits.push(c)
+          char_count += 1
+          continue rest_str
+        }
+        _ as rest_str => break rest_str
+      }
+    }
+    _ => rest
+  }
+  
+  // 检查指数部分
+  rest = match rest {
+    ['e' | 'E' as e, .. exp_rest] => {
+      has_exp = true
+      digits.push(e)
+      char_count += 1
+      
+      // 检查正负号
+      let exp_rest = match exp_rest {
+        ['+' | '-' as sign, .. sign_rest] => {
+          digits.push(sign)
+          char_count += 1
+          sign_rest
+        }
+        _ => exp_rest
+      }
+      
+      // 读取指数数字
+      loop exp_rest {
+        ['0'..='9' as c, .. rest_str] => {
+          digits.push(c)
+          char_count += 1
+          continue rest_str
+        }
+        _ as rest_str => break rest_str
+      }
+    }
+    _ => rest
+  }
+  
+  let num_str = String::from_array(digits)
+  
+  if has_dot || has_exp {
+    // 浮点数
+    let (_, rest, suffix_len) = parse_float_suffix(rest)
+    char_count += suffix_len
+    
+    let num = @strconv.parse_double(num_str)
+    let token = Token::Constant(Constant::Double(num))
+    (token, rest, char_count)
+  } else {
+    // 整数
+    let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
+    char_count += suffix_len
+    
+    let num = @strconv.parse_int64(num_str, base=10)
+    let token = match suffix {
+      "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
+      "l" | "L" => Token::Constant(Constant::Long(num))
+      "" => {
+        if num <= 2147483647L && num >= -2147483648L {
+          Token::Constant(Constant::Int(num.to_int()))
+        } else {
+          Token::Constant(Constant::Long(num))
+        }
+      }
+      _ => raise LexerError("Invalid integer suffix: \{suffix}")
+    }
+    (token, rest, char_count)
+  }
+}
+
+// 解析整数后缀 (u, l, ul, etc.)
+fn parse_integer_suffix(code: @string.View) -> (String, @string.View, Int) {
+  match code {
+    ['u' | 'U' as c1, 'l' | 'L' as c2, .. rest] => {
+      (String::from_array([c1, c2]), rest, 2)
+    }
+    ['l' | 'L' as c1, 'u' | 'U' as c2, .. rest] => {
+      (String::from_array([c1, c2]), rest, 2)
+    }
+    ['u' | 'U' as c, .. rest] => {
+      (String::from_array([c]), rest, 1)
+    }
+    ['l' | 'L' as c, .. rest] => {
+      (String::from_array([c]), rest, 1)
+    }
+    _ => ("", code, 0)
+  }
+}
+
+// 解析浮点数后缀 (f, l)
+fn parse_float_suffix(code: @string.View) -> (String, @string.View, Int) {
+  match code {
+    ['f' | 'F' | 'l' | 'L' as c, .. rest] => {
+      (String::from_array([c]), rest, 1)
+    }
+    _ => ("", code, 0)
+  }
 }
 
 let keywords : Map[String, Token] = {
@@ -814,3 +1032,107 @@ test "tokenize error test" {
   let ctx = Context::create(code)
   assert_true((try? ctx.tokenize()) is Err(_), msg = "Tokenization should fail for non-ASCII character")
 }
+
+test "tokenize numbers test" {
+  let code = 
+    #|123 456L 789U 012UL
+    #|0x123 0xFF 0xABCDEF 0x123L 0x456U 0x789UL
+    #|0123 0777 0123L 0456U 0777UL
+    #|3.14 2.5f 1.0L 6.02e23 1.5e-10 2.0E+5
+    #|.5 5. 1e10 2E-5
+
+  let expect : Array[Token] = [
+    // 十进制整数
+    Token::Constant(Constant::Int(123)),
+    Token::Constant(Constant::Long(456L)),
+    Token::Constant(Constant::Long(789L)), // U 后缀用 Long 表示
+    Token::Constant(Constant::Long(10L)), // 012UL 八进制 = 10
+    
+    // 十六进制整数
+    Token::Constant(Constant::Int(291)), // 0x123 = 291
+    Token::Constant(Constant::Int(255)), // 0xFF = 255
+    Token::Constant(Constant::Int(11259375)), // 0xABCDEF = 11259375
+    Token::Constant(Constant::Long(291L)), // 0x123L
+    Token::Constant(Constant::Long(1110L)), // 0x456U
+    Token::Constant(Constant::Long(1929L)), // 0x789UL
+    
+    // 八进制整数
+    Token::Constant(Constant::Int(83)), // 0123 = 83
+    Token::Constant(Constant::Int(511)), // 0777 = 511
+    Token::Constant(Constant::Long(83L)), // 0123L
+    Token::Constant(Constant::Long(302L)), // 0456U
+    Token::Constant(Constant::Long(511L)), // 0777UL
+    
+    // 浮点数
+    Token::Constant(Constant::Double(3.14)),
+    Token::Constant(Constant::Double(2.5)),
+    Token::Constant(Constant::Double(1.0)),
+    Token::Constant(Constant::Double(6.02e23)),
+    Token::Constant(Constant::Double(1.5e-10)),
+    Token::Constant(Constant::Double(2.0e5)),
+    
+    // 特殊浮点数格式
+    Token::Constant(Constant::Double(0.5)), // .5
+    Token::Constant(Constant::Double(5.0)), // 5.
+    Token::Constant(Constant::Double(10000000000.0)), // 1e10
+    Token::Constant(Constant::Double(0.00002)), // 2E-5
+    
+    EOF
+  ]
+
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.length(), ctx.tokinfos.length(), msg="Tokenization length mismatch")
+  
+  for i in 0..<expect.length() {
+    let expected = expect[i]
+    let actual = ctx.alltoks.get(i)
+    assert_eq(actual, Some(expected), msg="Number tokenization test failed at index \{i}, expected \{expected} got \{actual}")
+  }
+}
+
+test "tokenize number edge cases test" {
+  // 测试 0
+  let ctx = Context::create("0")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Int(0))), msg="0 should be Int(0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 0L  
+  let ctx = Context::create("0L")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Long(0L))), msg="0L should be Long(0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 0U
+  let ctx = Context::create("0U")  
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Long(0L))), msg="0U should be Long(0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 0x0
+  let ctx = Context::create("0x0")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Int(0))), msg="0x0 should be Int(0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 0.0
+  let ctx = Context::create("0.0")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(0.0))), msg="0.0 should be Double(0.0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 1.
+  let ctx = Context::create("1.")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(1.0))), msg="1. should be Double(1.0)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+
+  // 测试 .1
+  let ctx = Context::create(".1")
+  ctx.tokenize()
+  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(0.1))), msg=".1 should be Double(0.1)")
+  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
+}
+
+
