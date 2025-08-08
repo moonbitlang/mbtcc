@@ -117,6 +117,8 @@ pub enum Token {
 pub enum Constant {
   Int(Int)
   Long(Int64)  
+  UInt(UInt)
+  ULong(UInt64)
   Double(Double)
   Char(Char)
 } derive(Show, Eq)
@@ -676,17 +678,25 @@ fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
   char_count += suffix_len
   
-  let num = @strconv.parse_int64(hex_str, base=16)
+  let num = @strconv.parse_uint64(hex_str, base=16)
   let token = match suffix {
     // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
-    "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
-    "l" | "L" => Token::Constant(Constant::Long(num))
+    "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+    "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+    "u" | "U" => {
+      if num >= 0 && num <= 4294967295UL {
+        Token::Constant(Constant::UInt(num.to_uint()))
+      } else {
+        raise LexerError("Invalid unsigned integer: \{hex_str}")
+      }
+    }
     "" => {
       // 根据数值大小决定类型
-      if num <= 2147483647L && num >= -2147483648L {
+      //if num <= 2147483647L && num >= -2147483648L {
+      if num >= 0 && num <= 2147483647UL {
         Token::Constant(Constant::Int(num.to_int()))
       } else {
-        Token::Constant(Constant::Long(num))
+        Token::Constant(Constant::Long(num.reinterpret_as_int64()))
       }
     }
     _ => raise LexerError("Invalid integer suffix: \{suffix}")
@@ -715,15 +725,22 @@ fn lex_octal_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
   char_count += suffix_len
   
-  let num = @strconv.parse_int64(octal_str, base=8)
+  let num = @strconv.parse_uint64(octal_str, base=8)
   let token = match suffix {
-    "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
-    "l" | "L" => Token::Constant(Constant::Long(num))
+    "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+    "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+    "u" | "U" => {
+      if num >= 0 && num <= 4294967295UL {
+        Token::Constant(Constant::UInt(num.to_uint()))
+      } else {
+        raise LexerError("Invalid unsigned integer: \{octal_str}")
+      }
+    }
     "" => {
-      if num <= 2147483647L && num >= -2147483648L {
+      if num >= 0 && num <= 2147483647UL {
         Token::Constant(Constant::Int(num.to_int()))
       } else {
-        Token::Constant(Constant::Long(num))
+        Token::Constant(Constant::Long(num.reinterpret_as_int64()))
       }
     }
     _ => raise LexerError("Invalid integer suffix: \{suffix}")
@@ -813,15 +830,22 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
     let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
     char_count += suffix_len
     
-    let num = @strconv.parse_int64(num_str, base=10)
+    let num = @strconv.parse_uint64(num_str, base=10)
     let token = match suffix {
-      "u" | "U" | "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::Long(num))
-      "l" | "L" => Token::Constant(Constant::Long(num))
+      "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+      "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+      "u" | "U" => {
+        if num >= 0 && num <= 4294967295UL {
+          Token::Constant(Constant::UInt(num.to_uint()))
+        } else {
+          raise LexerError("Invalid unsigned integer: \{num_str}")
+        }
+      }
       "" => {
-        if num <= 2147483647L && num >= -2147483648L {
+        if num >= 0 && num <= 2147483647UL {
           Token::Constant(Constant::Int(num.to_int()))
         } else {
-          Token::Constant(Constant::Long(num))
+          Token::Constant(Constant::Long(num.reinterpret_as_int64()))
         }
       }
       _ => raise LexerError("Invalid integer suffix: \{suffix}")
@@ -1035,47 +1059,53 @@ test "tokenize error test" {
 
 test "tokenize numbers test" {
   let code = 
-    #|123 456L 789U 012UL
+    #|123 456L 789U 012UL 4294967295UL
     #|0x123 0xFF 0xABCDEF 0x123L 0x456U 0x789UL
     #|0123 0777 0123L 0456U 0777UL
     #|3.14 2.5f 1.0L 6.02e23 1.5e-10 2.0E+5
-    #|.5 5. 1e10 2E-5
+    #|.5 5. 1e10 2E-5 .1 0 0x0 0UL 0L 0U 
 
   let expect : Array[Token] = [
-    // 十进制整数
-    Token::Constant(Constant::Int(123)),
-    Token::Constant(Constant::Long(456L)),
-    Token::Constant(Constant::Long(789L)), // U 后缀用 Long 表示
-    Token::Constant(Constant::Long(10L)), // 012UL 八进制 = 10
+    Constant(Int(123)),
+    Constant(Long(456L)),
+    Constant(UInt(789U)), // U 后缀用 Long 表示
+    Constant(ULong(10UL)), // 012UL 八进制 = 10
+    Constant(ULong(4294967295UL)), // 4294967295UL = 2^32 - 1
     
-    // 十六进制整数
-    Token::Constant(Constant::Int(291)), // 0x123 = 291
-    Token::Constant(Constant::Int(255)), // 0xFF = 255
-    Token::Constant(Constant::Int(11259375)), // 0xABCDEF = 11259375
-    Token::Constant(Constant::Long(291L)), // 0x123L
-    Token::Constant(Constant::Long(1110L)), // 0x456U
-    Token::Constant(Constant::Long(1929L)), // 0x789UL
+    Constant(Int(291)), // 0x123 = 291
+    Constant(Int(255)), // 0xFF = 255
+    Constant(Int(11259375)), // 0xABCDEF = 11259375
+    Constant(Long(291L)), // 0x123L
+    Constant(UInt(1110U)), // 0x456U
+    Constant(ULong(1929UL)), // 0x789UL
     
     // 八进制整数
-    Token::Constant(Constant::Int(83)), // 0123 = 83
-    Token::Constant(Constant::Int(511)), // 0777 = 511
-    Token::Constant(Constant::Long(83L)), // 0123L
-    Token::Constant(Constant::Long(302L)), // 0456U
-    Token::Constant(Constant::Long(511L)), // 0777UL
+    Constant(Int(83)), // 0123 = 83
+    Constant(Int(511)), // 0777 = 511
+    Constant(Long(83L)), // 0123L
+    Constant(UInt(302U)), // 0456U
+    Constant(ULong(511UL)), // 0777UL
     
     // 浮点数
-    Token::Constant(Constant::Double(3.14)),
-    Token::Constant(Constant::Double(2.5)),
-    Token::Constant(Constant::Double(1.0)),
-    Token::Constant(Constant::Double(6.02e23)),
-    Token::Constant(Constant::Double(1.5e-10)),
-    Token::Constant(Constant::Double(2.0e5)),
+    Constant(Double(3.14)),
+    Constant(Double(2.5)),
+    Constant(Double(1.0)),
+    Constant(Double(6.02e23)),
+    Constant(Double(1.5e-10)),
+    Constant(Double(2.0e5)),
     
     // 特殊浮点数格式
-    Token::Constant(Constant::Double(0.5)), // .5
-    Token::Constant(Constant::Double(5.0)), // 5.
-    Token::Constant(Constant::Double(10000000000.0)), // 1e10
-    Token::Constant(Constant::Double(0.00002)), // 2E-5
+    Constant(Double(0.5)), // .5
+    Constant(Double(5.0)), // 5.
+    Constant(Double(10000000000.0)), // 1e10
+    Constant(Double(0.00002)), // 2E-5
+
+    Constant(Double(0.1)), // .1
+    Constant(Int(0)), // 0
+    Constant(Int(0)), // 0x0
+    Constant(ULong(0UL)), // 0UL
+    Constant(Long(0L)), // 0L
+    Constant(UInt(0U)), // 0U
     
     EOF
   ]
@@ -1090,49 +1120,3 @@ test "tokenize numbers test" {
     assert_eq(actual, Some(expected), msg="Number tokenization test failed at index \{i}, expected \{expected} got \{actual}")
   }
 }
-
-test "tokenize number edge cases test" {
-  // 测试 0
-  let ctx = Context::create("0")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Int(0))), msg="0 should be Int(0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 0L  
-  let ctx = Context::create("0L")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Long(0L))), msg="0L should be Long(0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 0U
-  let ctx = Context::create("0U")  
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Long(0L))), msg="0U should be Long(0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 0x0
-  let ctx = Context::create("0x0")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Int(0))), msg="0x0 should be Int(0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 0.0
-  let ctx = Context::create("0.0")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(0.0))), msg="0.0 should be Double(0.0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 1.
-  let ctx = Context::create("1.")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(1.0))), msg="1. should be Double(1.0)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-
-  // 测试 .1
-  let ctx = Context::create(".1")
-  ctx.tokenize()
-  assert_eq(ctx.alltoks.get(0), Some(Token::Constant(Constant::Double(0.1))), msg=".1 should be Double(0.1)")
-  assert_eq(ctx.alltoks.get(1), Some(EOF), msg="Should end with EOF")
-}
-
-
