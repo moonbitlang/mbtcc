@@ -398,14 +398,22 @@ type CastExpr (Array[TypeName], UnaryExpr) derive(Show, Eq)
 fn CastExpr::parse(toks: ArrayView[Token], ctx: Context) -> (CastExpr, ArrayView[Token]) raise {
   let cast_types: Array[TypeName] = Array::new()
   loop toks {
-    [LParen, .. rest_toks] => {
-      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
-      guard rest is [RParen, .. rest] else {
-        let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast"))
+    // (type)(unar_expr) or a primary expression
+    [LParen, .. rest_toks] as toks => {
+      match (try? TypeName::parse(rest_toks, ctx)) {
+        Ok((ty_name, rest)) => {
+          guard rest is [RParen, .. rest_toks] else {
+            let idx = ctx.alltoks.length() - rest.length()
+            raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast"))
+          }
+          cast_types.push(ty_name)
+          continue rest_toks
+        }
+        Err(_) => {
+          let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
+          (CastExpr((cast_types, unary_expr)), rest_toks)
+        }
       }
-      cast_types.push(type_name)
-      continue rest
     }
     toks => {
       let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
@@ -988,6 +996,10 @@ pub enum AssignExpr {
 } derive(Show, Eq)
 
 fn AssignExpr::parse(toks: ArrayView[Token], ctx:Context) -> (AssignExpr, ArrayView[Token]) raise {
+  if toks is [LParen, ..] {
+    let (cond_expr, rest_toks) = ConditionalExpr::parse(toks, ctx);
+    return (AssignExpr::Conditional(cond_expr), rest_toks)
+  }
   let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
   match rest_toks {
     [Assign | PlusAssign | MinusAssign | StarAssign | DivAssign | ModAssign |
