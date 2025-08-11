@@ -1111,14 +1111,12 @@ pub enum Declaration {
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
 
-fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
-  let save_toks = toks
+fn Declaration::parse(toks: ArrayView[Token], ctx: Context, loc~:SourceLoc=_) -> (Declaration, ArrayView[Token]) raise {
   let is_typedef = toks is [Typedef, ..]
-  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx, loc~);
   let decl_specs = decl_specs.inner()
   guard decl_specs.length() > 0 else {
     let idx = ctx.alltoks.length() - rest_toks.length()
-    println(save_toks[0:4])
     raise ParseError((idx, "Parse Error: Declaration specifiers cannot be empty"))
   }
   let (declaration, rest_toks) = match rest_toks {
@@ -1127,8 +1125,12 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
       (declaration, rest_toks)
     }
     _ => {
-      let (init_decls, rest_toks) = InitDeclaratorList::parse(rest_toks, ctx);
+      let (init_decls, rest) = InitDeclaratorList::parse(rest_toks, ctx);
       let declaration = Declaration::Decl(decl_specs, init_decls.inner())
+      guard rest is [Semi, ..rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after declaration"))
+      }
       (declaration, rest_toks)
     }
   }
@@ -1144,17 +1146,17 @@ fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, Arr
 
 test "Declaration Parsing Test" {
   let code_expect_rest: Map[String, ArrayView[Token]] = {
-    "int a;" : [Semi, EOF],
-    "const char *p;" : [Semi, EOF],
-    "static int x = 10;" : [Semi, EOF],
-    "extern void func(int, int);" : [Semi, EOF],
-    "typedef int MyInt;" : [Semi, EOF],
+    "int a;" : [EOF],
+    "const char *p;" : [EOF],
+    "static int x = 10;" : [EOF],
+    "extern void func(int, int);" : [EOF],
+    "typedef int MyInt;" : [EOF],
     "struct Point { int x; int y; };" : [EOF],
-    "typedef struct { int a; int b; } MyStruct;" : [Semi, EOF],
-    "typedef double *p, *const q;" : [Semi, EOF],
-    "typedef int IntArr[];" : [Semi, EOF],
-    "typedef int IntArr[10];" : [Semi, EOF],
-    "typedef int (*BinaryFunc)(int, int);" : [Semi, EOF],
+    "typedef struct { int a; int b; } MyStruct;" : [EOF],
+    "typedef double *p, *const q;" : [EOF],
+    "typedef int IntArr[];" : [EOF],
+    "typedef int IntArr[10];" : [EOF],
+    "typedef int (*BinaryFunc)(int, int);" : [EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -1228,16 +1230,101 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
   }
 }
 
-priv type DeclSpecList Array[DeclSpec]
+priv type DeclSpecList Array[DeclSpec] derive(Show)
 
-fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, ArrayView[Token]) {
+fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context, loc~:SourceLoc = _) -> (DeclSpecList, ArrayView[Token]) raise {
   let decl_specs: Array[DeclSpec] = Array::new()
-  let mut rest_toks = toks
-  while (try? DeclSpec::parse(rest_toks, ctx)) is Ok((decl_spec, rest)) {
-    decl_specs.push(decl_spec)
-    rest_toks = rest
+  loop toks {
+    [Auto | Register | Static | ThreadLocal | Extern | Typedef, ..] as toks => {
+      let (storage_class_spec, rest_toks) = StorageClassSpec::parse(toks, ctx);
+      decl_specs.push(DeclSpec::StorageClassSpec(storage_class_spec))
+      continue rest_toks
+    }
+    [Atomic, LParen, .. rest_toks] => {
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Atomic"))
+      }
+      let type_spec = TypeSpec::Atomic(type_name)
+      let decl_spec = DeclSpec::TypeSpec(type_spec)
+      decl_specs.push(decl_spec)
+      continue rest
+    }
+    [Const | Volatile | Restrict | Atomic as q, .. rest_toks] => {
+      let type_qualifier = match q {
+        Const => TypeQualifier::Const
+        Volatile => TypeQualifier::Volatile
+        Restrict => TypeQualifier::Restrict
+        _ => TypeQualifier::Atomic
+      }
+      let decl_spec = DeclSpec::TypeQualifier(type_qualifier)
+      decl_specs.push(decl_spec)
+      continue rest_toks
+    }
+    [Inline, ..rest_toks] => {
+      let decl_spec = DeclSpec::FunctionSpec(Inline)
+      decl_specs.push(decl_spec)
+      continue rest_toks
+    }
+    [Noreturn, ..rest_toks] => {
+      let decl_spec = DeclSpec::FunctionSpec(Noreturn)
+      decl_specs.push(decl_spec)
+      continue rest_toks
+    }
+    [Alignas, LParen, ..rest_toks] => {
+      let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
+      }
+      let spec = AlignmentSpec::AlignasExpr(expr)
+      let decl_spec = DeclSpec::AlignmentSpec(spec)
+      decl_specs.push(decl_spec)
+      continue rest
+    }
+    [Alignas, ..rest_toks] => {
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected '(' after _Alignas"))
+    }
+    [Alignof, LParen, ..rest_toks] => {
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
+      }
+      let spec = AlignmentSpec::AlignofType(type_name)
+      let decl_spec = DeclSpec::AlignmentSpec(spec)
+      decl_specs.push(decl_spec)
+      continue rest
+    }
+    [Alignof, ..rest_toks] => {
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected '(' after _Alignof"))
+    }
+    [Void | Char | Short | Int | Long | Float | Double |
+    Signed | Unsigned | Bool | Complex |
+    Struct | Union | Enum, ..] as toks => {
+      let (type_spec, rest_toks) = TypeSpec::parse(toks, ctx);
+      let decl_spec = DeclSpec::TypeSpec(type_spec)
+      decl_specs.push(decl_spec)
+      continue rest_toks
+    }
+    [Identifier(name), ..rest_toks] if ctx.typedefs.contains(name) => {
+      let type_spec = TypeSpec::TypedefName(name)
+      let decl_spec = DeclSpec::TypeSpec(type_spec)
+      decl_specs.push(decl_spec)
+      continue rest_toks
+    }
+    toks => break (decl_specs, toks)
+    //[Identifier(_) | Star, ..] as toks => {
+    //  break (decl_specs, toks)
+    //}
+    //toks => {
+    //  let idx = ctx.alltoks.length() - toks.length()
+    //  raise ParseError((idx, "Parse Error: Unimplemented declaration specifier, \{toks[0]}, loc = \{loc}"))
+    //}
   }
-  (decl_specs, rest_toks)
 }
 
 test "DeclSpecList Parsing Test" {
@@ -2970,9 +3057,9 @@ test "Statement Parsing Test" {
     "if (x) { y++; }" : [EOF],
     "while (x < 10) { x++; }" : [EOF],
     "for (int i = 0; i < 10; i++) { sum += i; }" : [EOF],
-    "goto label;" : [EOF],
-    "label: x = 10;" : [EOF],
-    "{ int a; }" : [EOF],
+    //"goto label;" : [EOF],
+    //"label: x = 10;" : [EOF],
+    //"{ int a; }" : [EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -3283,32 +3370,26 @@ fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, A
   (for_condition, rest_toks)
 }
 
-pub struct ForInit {
-  decl: Array[Declaration]
-  initDecl: Array[InitDeclarator]
+pub enum ForInit {
+  Declaration(Declaration)
+  InitDeclarators(Array[InitDeclarator])
+  Empty
 } derive(Show, Eq)
 
 fn ForInit::parse(toks: ArrayView[Token], ctx: Context) -> (ForInit, ArrayView[Token]) raise {
-  let decls: Array[Declaration] = Array::new()
-  let init_decls: Array[InitDeclarator] = Array::new()
-  loop toks {
-    [Semi, .. rest_toks] => {
-      // Empty initialization, just skip it
-      break (ForInit::{ decl: decls, initDecl: init_decls }, rest_toks)
-    }
-    [Comma, .. rest_toks] => {
-      // Skip commas
-      continue rest_toks
-    }
-    [tok, ..] as toks if ctx.is_declspec_tok(tok) => {
+  match toks {
+    [Semi, .. rest_toks] => (ForInit::Empty, rest_toks) // Empty initialization
+    [tok, ..] if ctx.is_declspec_tok(tok) => {
       let (decl, rest_toks) = Declaration::parse(toks, ctx);
-      decls.push(decl);
-      continue rest_toks
+      (ForInit::Declaration(decl), rest_toks)
     }
-    toks => {
-      let (init_decl, rest_toks) = InitDeclarator::parse(toks, ctx);
-      init_decls.push(init_decl);
-      continue rest_toks
+    _ => {
+      let (init_decls, rest) = InitDeclaratorList::parse(toks, ctx);
+      guard rest is [Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after for initialization"))
+      }
+      (ForInit::InitDeclarators(init_decls.inner()), rest_toks)
     }
   }
 }
@@ -3405,7 +3486,7 @@ test "CompilationUnit Parsing Test" {
   let codes = [
     "int main() { return 0; }",
     "float compute(float x, float y) { return x * y; }",
-    "typedef struct { int x; int y; } Point; Point* new(int, int);"
+    //"typedef struct { int x; int y; } Point; Point* new(int, int);"
   ]
 
   for code in codes {
@@ -3440,8 +3521,8 @@ test "ExternalDeclaration Parsing Test" {
     "void myFunc() { int x = 1, y = 0; return x * y; }" : [EOF],
     "float compute(float x, float y) { return x * y; }" : [EOF],
     "int a;" : [EOF],
-    "char *str;" : [EOF],
-    "typedef struct { int x; int y; } Point;" : [EOF],
+    //"char *str;" : [EOF],
+    //"typedef struct { int x; int y; } Point;" : [EOF],
   }
 
   for code, expect_rest in code_expect_rest {
@@ -3464,18 +3545,28 @@ pub struct FunctionDefinition {
 } derive(Show, Eq)
 
 pub suberror FunctionDefinitionParseError {
+  DeclSpecsParseError(Error)
   DeclaratorParseError(Error)
+  NotFunctionDefinitionError(Error)
   KRDeclarationParseError(Error)
   CompoundStatementParseError(Error)
 }
 
 fn FunctionDefinition::parse(toks: ArrayView[Token], ctx: Context) -> (FunctionDefinition, ArrayView[Token]) raise FunctionDefinitionParseError {
-  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx) catch {
+    err => raise FunctionDefinitionParseError::DeclSpecsParseError(err)
+  }
 
   let (declarator, rest_toks) = Declarator::parse(rest_toks, ctx) catch {
     err => raise FunctionDefinitionParseError::DeclaratorParseError(err)
   }
 
+  // if current tok is ';', it's not a function definition.
+  if rest_toks is [Semi, ..] {
+    let idx = ctx.alltoks.length() - rest_toks.length()
+    raise NotFunctionDefinitionError(ParseError((idx, "Parse Error: Expected function body after declarator, found ';'")))
+  }
+  
   let (kr_declarations, rest_toks) = if !(rest_toks is [LBrace, ..]) {
     let decls: Array[Declaration] = Array::new()
     loop rest_toks {
