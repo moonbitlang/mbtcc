@@ -63,8 +63,11 @@ fn main {
     }
   }
 
-  if args.contains("--stop-after=lex") {
+  if args.contains("--print-toks") {
     ctx.print_toks()
+  }
+
+  if args.contains("--stop-after=lex") {
     return
   }
 

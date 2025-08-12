@@ -569,7 +569,7 @@ pub fn Context::tokenize(self: Self) -> Unit raise {
       codeidx += char_count
       continue rest
     }
-    ['a' ..='z' | 'A' ..='Z' | '_', ..] as code => {
+    ['a' ..='z' | 'A' ..='Z' | '_' | '$', ..] as code => {
       let tokinfo = TokenInfo::{lineno, column, codeidx}
       let (tok, rest, char_count) = lex_ident(code)
       tokens.push(tok)
@@ -578,7 +578,7 @@ pub fn Context::tokenize(self: Self) -> Unit raise {
       codeidx += char_count
       continue rest
     }
-    code => raise LexerError("Parse Error: Unexpected char: \{code[0]}")
+    code => raise LexerError("Parse Error: Unexpected char: \{code[0]}, loc = \{code.start_offset()}")
   }
 }
 

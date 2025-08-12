@@ -1702,10 +1702,6 @@ fn TypeSpecOrQualifierList::parse(toks: ArrayView[Token], ctx: Context) -> (Type
   while (try? TypeSpecOrQualifier::parse(toks, ctx)) is Ok((spec, rest)) {
     specs.push(spec)
     toks = rest
-    // If we encounter a TypeSpec, we can stop parsing further type specifiers
-    if spec is TypeSpec(_) {
-      break
-    }
   }
   (TypeSpecOrQualifierList(specs), toks)
 }
