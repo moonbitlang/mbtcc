@@ -114,6 +114,15 @@ pub enum Token {
   EOF
 } derive(Show, Eq)
 
+fn Token::is_assign_op(tok: Token) -> Bool {
+  match tok {
+    Assign | PlusAssign | MinusAssign | StarAssign | DivAssign | ModAssign |
+    LeftShiftAssign | RightShiftAssign | AndAssign | OrAssign | BitXorAssign |
+    BitAndAssign | BitOrAssign => true
+    _ => false
+  }
+}
+
 pub enum Constant {
   Int(Int)
   Long(Int64)  

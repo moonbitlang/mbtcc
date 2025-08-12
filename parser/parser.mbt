@@ -404,7 +404,7 @@ fn CastExpr::parse(toks: ArrayView[Token], ctx: Context) -> (CastExpr, ArrayView
         Ok((ty_name, rest)) => {
           guard rest is [RParen, .. rest_toks] else {
             let idx = ctx.alltoks.length() - rest.length()
-            raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast"))
+            raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast, current tok is \{rest[0]}"))
           }
           cast_types.push(ty_name)
           continue rest_toks
@@ -996,8 +996,8 @@ pub enum AssignExpr {
 } derive(Show, Eq)
 
 fn AssignExpr::parse(toks: ArrayView[Token], ctx:Context) -> (AssignExpr, ArrayView[Token]) raise {
-  if toks is [LParen, ..] {
-    let (cond_expr, rest_toks) = ConditionalExpr::parse(toks, ctx);
+  let (cond_expr, rest_toks) = ConditionalExpr::parse(toks, ctx);
+  if !rest_toks[0].is_assign_op() {
     return (AssignExpr::Conditional(cond_expr), rest_toks)
   }
   let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
@@ -2059,10 +2059,6 @@ test "Declarator Parsing Test" {
 type Pointer Array[Array[TypeQualifier]] derive(Show, Eq)
 
 fn Pointer::parse(toks: ArrayView[Token]) -> (Pointer, ArrayView[Token]) {
-  guard toks is [Star, ..] else {
-    return (Array::new(), toks) // No pointer qualifiers
-  }
-
   let quals: Array[Array[TypeQualifier]] = Array::new()
   let rest_toks = loop toks {
     [Star, .. rest_toks] => {
@@ -2753,6 +2749,10 @@ fn TypeName::parse(toks: ArrayView[Token], ctx: Context) -> (TypeName, ArrayView
     specifiers.push(spec)
     rest_toks = rest
   }
+  if specifiers.is_empty() {
+    let idx = ctx.alltoks.length() - toks.length()
+    raise ParseError((idx, "Parse Error: Expected type specifier or qualifier in TypeName"))
+  }
   let (abstract_declarator, rest_toks) = if rest_toks is [Star | LParen | LBracket, ..] { 
     let (a, rest) = AbstractDeclarator::parse(rest_toks, ctx);
     (Some(a), rest)
@@ -3390,7 +3390,8 @@ fn ForCondition::parse(toks: ArrayView[Token], ctx: Context) -> (ForCondition, A
 
 pub enum ForInit {
   Declaration(Declaration)
-  InitDeclarators(Array[InitDeclarator])
+  //InitDeclarators(Array[InitDeclarator])
+  InitExpr(Expr)
   Empty
 } derive(Show, Eq)
 
@@ -3402,12 +3403,12 @@ fn ForInit::parse(toks: ArrayView[Token], ctx: Context) -> (ForInit, ArrayView[T
       (ForInit::Declaration(decl), rest_toks)
     }
     _ => {
-      let (init_decls, rest) = InitDeclaratorList::parse(toks, ctx);
-      guard rest is [Semi, .. rest_toks] else {
-        let idx = ctx.alltoks.length() - rest.length()
-        raise ParseError((idx, "Parse Error: Expected ';' after for initialization"))
+      let (expr, rest_toks) = Expr::parse(toks, ctx);
+      guard rest_toks is [Semi, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest_toks.length()
+        raise ParseError((idx, "Parse Error: Expected ';' after for initialization expression"))
       }
-      (ForInit::InitDeclarators(init_decls.inner()), rest_toks)
+      (ForInit::InitExpr(expr), rest_toks)
     }
   }
 }
