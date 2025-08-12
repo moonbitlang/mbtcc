@@ -1123,9 +1123,9 @@ pub enum Declaration {
   //StaticAssertDecl(StaticAssertDecl)
 } derive(Show, Eq)
 
-fn Declaration::parse(toks: ArrayView[Token], ctx: Context, loc~:SourceLoc=_) -> (Declaration, ArrayView[Token]) raise {
+fn Declaration::parse(toks: ArrayView[Token], ctx: Context) -> (Declaration, ArrayView[Token]) raise {
   let is_typedef = toks is [Typedef, ..]
-  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx, loc~);
+  let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx);
   let decl_specs = decl_specs.inner()
   guard decl_specs.length() > 0 else {
     let idx = ctx.alltoks.length() - rest_toks.length()
@@ -1242,9 +1242,9 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
   }
 }
 
-priv type DeclSpecList Array[DeclSpec] derive(Show)
+priv type DeclSpecList Array[DeclSpec]
 
-fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context, loc~:SourceLoc = _) -> (DeclSpecList, ArrayView[Token]) raise {
+fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, ArrayView[Token]) raise {
   let decl_specs: Array[DeclSpec] = Array::new()
   loop toks {
     [Auto | Register | Static | ThreadLocal | Extern | Typedef, ..] as toks => {
@@ -1824,6 +1824,15 @@ fn UnionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (UnionSpec, ArrayVi
     raise ParseError((idx, "Parse Error: Expected 'union' keyword for union specification"))
   }
 
+  // Special case: struct name without body
+  // for example:
+  // - `struct Point;`
+  // - `struct Point p;`
+  // - `struct Point *p;`
+  if toks is [Identifier(name), Identifier(_) | Star | Semi, ..] {
+    return (UnionSpec::{ name: Some(name), decls: Array::new() }, toks[1:])
+  }
+
   let (name, rest_toks) = match toks {
     [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
     [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
@@ -1859,6 +1868,7 @@ test "UnionSpec Parsing Test" {
     "union { char c; }" : [EOF],
     "union EmptyUnion {}" : [EOF],
     "union AnotherUnion { int x;; }" : [EOF],
+    "union Point p;" : [Identifier("p"), Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {
