@@ -178,6 +178,10 @@ fn PostFixSuffix::parse(toks: ArrayView[Token], ctx: Context) -> (Array[PostFixS
       suffixes.push(PostFixSuffix::Indexing(expr))
       continue rest_toks
     }
+    [LParen, RParen, ..rest_toks] => {
+      suffixes.push(PostFixSuffix::Call(Array::new())) // Empty argument list
+      continue rest_toks
+    }
     [LParen, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest_toks] else {
