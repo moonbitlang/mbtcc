@@ -682,6 +682,8 @@ fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let token = match suffix {
     // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
     "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+    "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
+    "LL" | "ll" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
     "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
     "u" | "U" => {
       if num >= 0 && num <= 4294967295UL {
@@ -727,8 +729,10 @@ fn lex_octal_number(code: @string.View) -> (Token, @string.View, Int) raise {
   
   let num = @strconv.parse_uint64(octal_str, base=8)
   let token = match suffix {
-    "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+    "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu"  => Token::Constant(Constant::ULong(num))
+    "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
     "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+    "LL" | "ll" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
     "u" | "U" => {
       if num >= 0 && num <= 4294967295UL {
         Token::Constant(Constant::UInt(num.to_uint()))
@@ -832,8 +836,9 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
     
     let num = @strconv.parse_uint64(num_str, base=10)
     let token = match suffix {
-      "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+      "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" | "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
       "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+      "LL" | "ll" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
       "u" | "U" => {
         if num >= 0 && num <= 4294967295UL {
           Token::Constant(Constant::UInt(num.to_uint()))
@@ -848,7 +853,9 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
           Token::Constant(Constant::Long(num.reinterpret_as_int64()))
         }
       }
-      _ => raise LexerError("Invalid integer suffix: \{suffix}")
+      suffix => { 
+        raise LexerError("Invalid integer suffix: \{suffix}")
+      }
     }
     (token, rest, char_count)
   }
@@ -857,6 +864,12 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
 // 解析整数后缀 (u, l, ul, etc.)
 fn parse_integer_suffix(code: @string.View) -> (String, @string.View, Int) {
   match code {
+    [.."LL", .. rest] => { ("LL", rest, 2) }
+    [.."ll", .. rest] => { ("ll", rest, 2) }
+    [.."ULL", ..rest] => { ("ULL", rest, 3) }
+    [.."Ull", ..rest] => { ("Ull", rest, 3) }
+    [.."ull", ..rest] => { ("ull", rest, 3) }
+    [.."uLL", ..rest] => { ("uLL", rest, 3) }
     ['u' | 'U' as c1, 'l' | 'L' as c2, .. rest] => {
       (String::from_array([c1, c2]), rest, 2)
     }

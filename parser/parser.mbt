@@ -1827,9 +1827,9 @@ fn UnionSpec::parse(toks: ArrayView[Token], ctx: Context) -> (UnionSpec, ArrayVi
   let (name, rest_toks) = match toks {
     [Identifier(name), LBrace, .. rest_toks] => (Some(name), rest_toks)
     [LBrace, .. rest_toks] => (None, rest_toks) // No name specified
-    _ => {
+    toks => {
       let idx = ctx.alltoks.length() - toks.length()
-      raise ParseError((idx, "Parse Error: Expected identifier or '{' after 'union'"))
+      raise ParseError((idx, "Parse Error: Expected identifier or '{' after 'union', current token: \{toks[0]}"))
     }
   }
 
