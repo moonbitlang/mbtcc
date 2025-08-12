@@ -2050,34 +2050,29 @@ test "Declarator Parsing Test" {
 //pointer
 //    : ('*' typeQualifierList?)+
 //    ;
-type Pointer Array[TypeQualifier?]  derive(Show, Eq)
+// for example:
+//  * : [[]]
+//  * const : [[Const]]
+//  * const volatile : [[Const, Volatile]]
+//  * const * volatile : [[Const], [Volatile]]
+//  * const * restrict *: [[Const], [Restrict], []]
+type Pointer Array[Array[TypeQualifier]] derive(Show, Eq)
 
 fn Pointer::parse(toks: ArrayView[Token]) -> (Pointer, ArrayView[Token]) {
-  let qualifiers: Array[TypeQualifier?] = Array::new()
-  let rest_toks = loop toks {
-    [Star, Const, ..rest_toks] => {
-      qualifiers.push(Some(Const))
-      continue rest_toks
-    }
-    [Star, Volatile, ..rest_toks] => {
-      qualifiers.push(Some(Volatile))
-      continue rest_toks
-    }
-    [Star, Restrict, ..rest_toks] => {
-      qualifiers.push(Some(Restrict))
-      continue rest_toks
-    }
-    [Star, Atomic, ..rest_toks] => {
-      qualifiers.push(Some(Atomic))
-      continue rest_toks
-    }
-    [Star, .. rest_toks] => {
-      qualifiers.push(None) // Pointer without type qualifier
-      continue rest_toks
-    }
-    toks => break toks // no more pointers
+  guard toks is [Star, ..] else {
+    return (Array::new(), toks) // No pointer qualifiers
   }
-  (Pointer(qualifiers), rest_toks)
+
+  let quals: Array[Array[TypeQualifier]] = Array::new()
+  let rest_toks = loop toks {
+    [Star, .. rest_toks] => {
+      let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks);
+      quals.push(type_qualifiers.inner())
+      continue rest_toks
+    }
+    toks => break toks
+  }
+  (Pointer(quals), rest_toks)
 }
 
 test "Pointer Parsing Test" {
@@ -2087,6 +2082,7 @@ test "Pointer Parsing Test" {
     "*volatile *restrict c": [Identifier("c"), EOF],
     "** _Atomic d" : [Identifier("d"), EOF],
     "* const Point": [Identifier("Point"), EOF],
+    "* const volatile * restrict * e": [Identifier("e"), EOF],
   }
 
   for code, expect_rest in code_expect_rest {
