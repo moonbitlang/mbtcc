@@ -179,7 +179,7 @@ fn[V] Env::contains(self: Env[V], name: String) -> Bool {
 }
 
 pub fn Context::create(code: String, source_file~: String = "demo") -> Context {
-  Context::{
+  let ctx = Context::{
     source_file,
     code,
     alltoks: Array::new(),
@@ -187,6 +187,10 @@ pub fn Context::create(code: String, source_file~: String = "demo") -> Context {
     typedefs: Env::new(),
     external_decls: Array::new()
   }
+
+  // builtin typedefs
+  ctx.add_typedef("__builtin_va_list")
+  ctx
 }
 
 //fn Context::is_typedef(self: Context, name: String) -> Bool {

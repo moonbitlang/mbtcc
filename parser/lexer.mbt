@@ -687,7 +687,12 @@ fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
   char_count += suffix_len
   
-  let num = @strconv.parse_uint64(hex_str, base=16)
+  let num = @strconv.parse_uint64(hex_str, base=16) catch {
+    err => {
+      println("Error parsing hex number: \{err}")
+      raise err
+    }
+  }
   let token = match suffix {
     // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
     "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
@@ -736,7 +741,12 @@ fn lex_octal_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
   char_count += suffix_len
   
-  let num = @strconv.parse_uint64(octal_str, base=8)
+  let num = @strconv.parse_uint64(octal_str, base=8) catch {
+    err => {
+      println("Error parsing oct number: \{err}")
+      raise err
+    }
+  }
   let token = match suffix {
     "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu"  => Token::Constant(Constant::ULong(num))
     "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
@@ -835,7 +845,12 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
     let (_, rest, suffix_len) = parse_float_suffix(rest)
     char_count += suffix_len
     
-    let num = @strconv.parse_double(num_str)
+    let num = @strconv.parse_double(num_str) catch {
+      err => {
+        println("Error parsing decimal number: \{num_str}")
+        raise err
+      }
+    }
     let token = Token::Constant(Constant::Double(num))
     (token, rest, char_count)
   } else {
@@ -843,7 +858,12 @@ fn lex_decimal_number(code: @string.View) -> (Token, @string.View, Int) raise {
     let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
     char_count += suffix_len
     
-    let num = @strconv.parse_uint64(num_str, base=10)
+    let num = @strconv.parse_uint64(num_str, base=10) catch {
+      err => {
+        println("Error parsing decimal number: \{err}")
+        raise err
+      }
+    }
     let token = match suffix {
       "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" | "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
       "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
@@ -961,7 +981,7 @@ let keywords : Map[String, Token] = {
 fn lex_ident(code: @string.View) -> (Token, @string.View, Int) {
   let ident = Array::new()
   let rest_str = loop code {
-    ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' as c, .. rest_str] => {
+    ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '$' as c, .. rest_str] => {
       ident.push(c)
       continue rest_str
     }
