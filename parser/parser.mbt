@@ -137,15 +137,25 @@ test "PrimExpr Parsing Negative Test" {
 //    )*
 //    ;
 pub struct PostFixExpr {
-  prim: PrimExpr
+  head: Either[PrimExpr, (TypeName, InitializerList)]
   suffixes: Array[PostFixSuffix]
 } derive(Show, Eq)
 
 fn PostFixExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PostFixExpr, ArrayView[Token]) raise {
-  let (prim, rest_toks) = PrimExpr::parse(toks, ctx);
+  let (head, rest_toks) = if toks is [LParen, .. rtoks] && (try? TypeName::parse(rtoks, ctx)) is Ok((ty_name, rtoks)) {
+    guard rtoks is [RParen, LBrace, ..] else {
+      let idx = ctx.alltoks.length() - rtoks.length()
+      raise ParseError((idx, "Parse Error: Expected ')' and '{' after type name in compound literal"))
+    }
+    let (init_list, rest_toks) = InitializerList::parse(rtoks[1:], ctx);
+    (Either::Right((ty_name, init_list)), rest_toks)
+  } else {
+    let (prim, rest) = PrimExpr::parse(toks, ctx);
+    (Either::Left(prim), rest)
+  }
   let (suffixes, rest_toks) = PostFixSuffix::parse(rest_toks, ctx);
   let post_fix_expr = PostFixExpr::{
-    prim,
+    head,
     suffixes
   }
   (post_fix_expr, rest_toks)
@@ -415,33 +425,28 @@ test "UnaryExpr Parsing Negative Test" {
 //    | unaryExpression
 //    | DigitSequence // for
 //    ;
-type CastExpr (Array[TypeName], UnaryExpr) derive(Show, Eq)
+//type CastExpr (Array[TypeName], UnaryExpr) derive(Show, Eq)
+pub enum CastExpr {
+  UnaryExpr(UnaryExpr)
+  Cast(TypeName, CastExpr)
+} derive(Show, Eq)
 
 fn CastExpr::parse(toks: ArrayView[Token], ctx: Context) -> (CastExpr, ArrayView[Token]) raise {
-  let cast_types: Array[TypeName] = Array::new()
-  loop toks {
-    // (type)(unar_expr) or a primary expression
-    [LParen, .. rest_toks] as toks => {
-      match (try? TypeName::parse(rest_toks, ctx)) {
-        Ok((ty_name, rest)) => {
-          guard rest is [RParen, .. rest_toks] else {
-            let idx = ctx.alltoks.length() - rest.length()
-            raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in cast, current tok is \{rest[0]}"))
-          }
-          cast_types.push(ty_name)
-          continue rest_toks
-        }
-        Err(_) => {
-          let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
-          (CastExpr((cast_types, unary_expr)), rest_toks)
-        }
-      }
-    }
-    toks => {
-      let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
-      (CastExpr((cast_types, unary_expr)), rest_toks)
-    }
+  if toks is [LParen, ..rtoks] && (try? TypeName::parse(rtoks, ctx)) is Ok((_, rtoks)) && rtoks is [RParen, LBrace, ..] {
+    // This is a compound literal, not a cast expression
+    let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
+    return (CastExpr::UnaryExpr(unary_expr), rest_toks)
   }
+
+  if toks is [LParen, ..rtoks] && (try? TypeName::parse(rtoks, ctx)) is Ok((ty, rtoks)) && rtoks is [RParen, ..rtoks] {
+    // This is a cast expression
+    let (cast_expr, rest_toks) = CastExpr::parse(rtoks, ctx);
+    return (CastExpr::Cast(ty, cast_expr), rest_toks)
+  }
+
+  // Otherwise, it is a unary expression
+  let (unary_expr, rest_toks) = UnaryExpr::parse(toks, ctx);
+  (CastExpr::UnaryExpr(unary_expr), rest_toks)
 }
 
 test "CastExpr Parsing Test" {
@@ -2432,7 +2437,7 @@ fn Initializer::parse(toks: ArrayView[Token], ctx: Context) -> (Initializer, Arr
   }
 }
 
-priv type InitializerList Array[(Array[Designator], Initializer)]
+pub type InitializerList Array[(Array[Designator], Initializer)] derive(Eq, Show)
 
 fn InitializerList::parse(toks: ArrayView[Token], ctx: Context) -> (InitializerList, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
@@ -2459,7 +2464,7 @@ fn InitializerList::parse(toks: ArrayView[Token], ctx: Context) -> (InitializerL
       // End of initializer list
       break (InitializerList(init_list), rest_toks)
     }
-    toks => { 
+   toks => { 
       // If we reach here, it means we have an initializer without designators
       let (initializer, rest) = Initializer::parse(toks, ctx);
       init_list.push((Array::new(), initializer))
