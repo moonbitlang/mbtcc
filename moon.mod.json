@@ -2,7 +2,8 @@
   "name": "Kaida-Amethyst/mbtcc",
   "version": "0.1.0",
   "deps": {
-    "moonbitlang/x": "0.4.31"
+    "moonbitlang/x": "0.4.31",
+    "Kaida-Amethyst/MoonLLVM": "0.1.1"
   },
   "readme": "README.md",
   "repository": "",
