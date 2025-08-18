@@ -1,72 +1,84 @@
+///|
 priv struct TokenInfo {
-  lineno: Int
-  column: Int
-  codeidx: Int
+  lineno : Int
+  column : Int
+  codeidx : Int
 }
 
+///|
 struct Context {
-  source_file: String
-  code: String
-  alltoks: Array[Token]
-  tokinfos: Array[TokenInfo]
-  mut typedefs: Env[Int]
-  external_decls: Array[ExternalDeclaration]
+  source_file : String
+  code : String
+  alltoks : Array[Token]
+  tokinfos : Array[TokenInfo]
+  mut typedefs : Env[Int]
+  external_decls : Array[ExternalDeclaration]
 }
 
+///|
 priv enum WarningError {
   Warning
   Error
 }
 
-pub fn Context::print_toks(self: Context) -> Unit {
-  let str_builder = StringBuilder::new();
+///|
+pub fn Context::print_toks(self : Context) -> Unit {
+  let str_builder = StringBuilder::new()
   str_builder.write_char('[')
   let toklen = self.alltoks.length()
-  for i in 0..<(toklen-1) {
+  for i in 0..<(toklen - 1) {
     str_builder.write_string("\{self.alltoks[i]}, ")
   }
   if toklen > 0 {
     str_builder.write_string("\{self.alltoks[toklen-1]}")
   }
   str_builder.write_char(']')
-
   let str = str_builder.to_string()
   println(str)
 }
 
-pub fn Context::print_ast(self: Context) -> Unit {
+///|
+pub fn Context::print_ast(self : Context) -> Unit {
   for d in self.external_decls {
     println(d)
   }
 }
 
-fn Context::get_error_or_warning_msg(self: Self, idx: Int, msg: String, we: WarningError) -> String {
+///|
+fn Context::get_error_or_warning_msg(
+  self : Self,
+  idx : Int,
+  msg : String,
+  we : WarningError,
+) -> String {
   let color = match we {
     Warning => @color.Yellow
     Error => @color.Red
   }
+  if idx < 0 || idx >= self.tokinfos.length() {
+    return ""
+  }
+  let tokinfo = self.tokinfos[idx]
+  let lineno = tokinfo.lineno
+  let column = tokinfo.column
+  let codeidx = tokinfo.codeidx
+  let source_file = self.source_file
+  let str_builder = StringBuilder::new()
 
-  if idx < 0 || idx >= self.tokinfos.length() {return "" }
-  let tokinfo = self.tokinfos[idx];
-  let lineno = tokinfo.lineno;
-  let column = tokinfo.column;
-  let codeidx = tokinfo.codeidx;
-  let source_file = self.source_file;
-
-  let str_builder = StringBuilder::new();
-  
   // 第一行：文件名、行号和列号
-  let head_line = @color.taint("[\{source_file}:\{lineno}:\{column}] Warning:", @color.Magenta)
+  let head_line = @color.taint(
+    "[\{source_file}:\{lineno}:\{column}] Warning:",
+    @color.Magenta,
+  )
   str_builder.write_string("\{head_line}\n")
-  
+
   // 第二行：空行
   str_builder.write_string("\{lineno-1}|\n")
-  
+
   // 第三行：找到包含当前token的代码行
   let code_line = self.get_code_line(codeidx)
   str_builder.write_string("\{lineno}|  \{code_line}\n")
 
-  
   // 第四行：在column位置打印`^`，然后打印msg
   let mut indent = "  " // 与代码行的缩进保持一致
   for _ in 1..<column {
@@ -77,24 +89,28 @@ fn Context::get_error_or_warning_msg(self: Self, idx: Int, msg: String, we: Warn
   str_builder.to_string()
 }
 
-pub fn Context::get_warning_msg(self: Self, idx: Int, msg: String) -> String {
+///|
+pub fn Context::get_warning_msg(self : Self, idx : Int, msg : String) -> String {
   self.get_error_or_warning_msg(idx, msg, Warning)
 }
 
-pub fn Context::get_error_msg(self: Self, idx: Int, msg: String) -> String {
+///|
+pub fn Context::get_error_msg(self : Self, idx : Int, msg : String) -> String {
   self.get_error_or_warning_msg(idx, msg, Error)
 }
 
 // 辅助函数：根据codeidx获取对应的代码行
-fn Context::get_code_line(self: Self, codeidx: Int) -> String {
+
+///|
+fn Context::get_code_line(self : Self, codeidx : Int) -> String {
   let code = self.code
   let len = code.length()
-  
+
   // 如果codeidx超出范围，返回空字符串
   if codeidx >= len {
     return ""
   }
-  
+
   // 向前找到行的开始（第一个换行符，如果不是第一行）
   let mut line_start = 0
   let mut i = codeidx - 1
@@ -105,7 +121,7 @@ fn Context::get_code_line(self: Self, codeidx: Int) -> String {
     }
     i = i - 1
   }
-  
+
   // 向后找到行的结束（下一个换行符）
   let mut line_end = len
   i = codeidx
@@ -116,7 +132,7 @@ fn Context::get_code_line(self: Self, codeidx: Int) -> String {
     }
     i = i + 1
   }
-  
+
   // 提取代码行
   if line_start < line_end {
     code.substring(start=line_start, end=line_end)
@@ -125,67 +141,78 @@ fn Context::get_code_line(self: Self, codeidx: Int) -> String {
   }
 }
 
-fn Context::add_typedef(self: Context, name: String) -> Unit {
+///|
+fn Context::add_typedef(self : Context, name : String) -> Unit {
   self.typedefs.set(name, 1)
 }
 
-fn Context::enter_scope(self: Context) -> Unit {
-  let curr_scope = self.typedefs;
-  self.typedefs = Env::new();
-  self.typedefs.parent = Some(curr_scope);
+///|
+fn Context::enter_scope(self : Context) -> Unit {
+  let curr_scope = self.typedefs
+  self.typedefs = Env::new()
+  self.typedefs.parent = Some(curr_scope)
 }
 
-fn Context::leave_scope(self: Context) -> Unit {
+///|
+fn Context::leave_scope(self : Context) -> Unit {
   match self.typedefs.parent {
     Some(parent) => self.typedefs = parent
     None => ()
   }
 }
 
+///|
 priv struct Env[V] {
-  vars: Map[String, V]
-  mut parent: Env[V]?
+  vars : Map[String, V]
+  mut parent : Env[V]?
 }
 
+///|
 fn[V] Env::new() -> Env[V] {
-  Env::{
-    vars: Map::new(),
-    parent: None
-  }
+  Env::{ vars: Map::new(), parent: None }
 }
 
-fn[V] Env::get(self: Env[V], name: String) -> V? {
+///|
+fn[V] Env::get(self : Env[V], name : String) -> V? {
   match self.vars.get(name) {
     Some(v) => Some(v)
-    None => match self.parent {
-      Some(parent) => parent.get(name)
-      None => None
-    }
+    None =>
+      match self.parent {
+        Some(parent) => parent.get(name)
+        None => None
+      }
   }
 }
 
-fn[V] Env::set(self: Env[V], name: String, value: V) -> Unit {
+///|
+fn[V] Env::set(self : Env[V], name : String, value : V) -> Unit {
   self.vars.set(name, value)
 }
 
-fn[V] Env::contains(self: Env[V], name: String) -> Bool {
+///|
+fn[V] Env::contains(self : Env[V], name : String) -> Bool {
   match self.vars.get(name) {
     Some(_) => true
-    None => match self.parent {
-      Some(parent) => parent.contains(name)
-      None => false
-    }
+    None =>
+      match self.parent {
+        Some(parent) => parent.contains(name)
+        None => false
+      }
   }
 }
 
-pub fn Context::create(code: String, source_file~: String = "demo") -> Context {
+///|
+pub fn Context::create(
+  code : String,
+  source_file~ : String = "demo",
+) -> Context {
   let ctx = Context::{
     source_file,
     code,
     alltoks: Array::new(),
     tokinfos: Array::new(),
     typedefs: Env::new(),
-    external_decls: Array::new()
+    external_decls: Array::new(),
   }
 
   // builtin typedefs
@@ -197,19 +224,41 @@ pub fn Context::create(code: String, source_file~: String = "demo") -> Context {
 //  self.typedefs.contains(name)
 //}
 
-fn Context::is_declspec_tok(self: Context, tok: Token) -> Bool {
+///|
+fn Context::is_declspec_tok(self : Context, tok : Token) -> Bool {
   match tok {
-    Void | Bool | Char | Short | Int | Long |
-    Struct | Union | Typedef | Enum | Static | Extern |
-    Alignas | Signed | Unsigned | Const | Volatile |
-    Auto | Register | Restrict | Noreturn | Float | Double |
-    Typeof | Inline | ThreadLocal | Atomic => true
-    Identifier(name) => {
+    Void
+    | Bool
+    | Char
+    | Short
+    | Int
+    | Long
+    | Struct
+    | Union
+    | Typedef
+    | Enum
+    | Static
+    | Extern
+    | Alignas
+    | Signed
+    | Unsigned
+    | Const
+    | Volatile
+    | Auto
+    | Register
+    | Restrict
+    | Noreturn
+    | Float
+    | Double
+    | Typeof
+    | Inline
+    | ThreadLocal
+    | Atomic => true
+    Identifier(name) =>
       // Check if the identifier is a typedef
       //self.typedefs.contains(name)
       //self.get_typedef(name) is Some(_)
       self.typedefs.contains(name)
-    }
     _ => false
   }
 }

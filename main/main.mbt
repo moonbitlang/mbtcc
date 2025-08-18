@@ -1,21 +1,17 @@
-
+///|
 fn main {
   let args = @env.args()
-
-  let help_info = 
+  let help_info =
     #|Usgae: mbtcc [options]
     #|
     #|  -code <code>    : Compile the given code string.
     #|  -file <file>    : Compile the code from the specified file.
-
   if args.length() == 1 {
     println(help_info)
     return
   }
-
   let mut code = ""
   let mut source_file = "demo"
-
   match args.search_by(a => a is "-file" || a is "--file") {
     Some(idx) if idx + 1 < args.length() => {
       guard @env.current_dir() is Some(curr_dir) else {
@@ -38,41 +34,32 @@ fn main {
     }
     None => ()
   }
-
   match args.search_by(a => a is "-code" || a is "--code") {
-    Some(idx) if idx + 1 < args.length() => {
-      code = args[idx + 1]
-    }
+    Some(idx) if idx + 1 < args.length() => code = args[idx + 1]
     Some(_) => {
       println("Error: No code specified after -code option")
       return
     }
     None => ()
   }
-
   if code.is_empty() {
     println(help_info)
     return
   }
-
   let ctx = @parser.Context::create(code, source_file~)
   ctx.tokenize() catch {
-    err => { 
+    err => {
       println("Tokenization error: \{err}")
       return
     }
   }
-
   if args.contains("--print-toks") {
     ctx.print_toks()
   }
-
   if args.contains("--stop-after=lex") {
     return
   }
-
   println("Tokenization Passed")
-
   ctx.parse() catch {
     @parser.ParseError((idx, msg)) => {
       let msg = ctx.get_error_msg(idx, msg)
@@ -81,6 +68,5 @@ fn main {
     }
     _ => ()
   }
-
   println("Parsing Passed")
 }
