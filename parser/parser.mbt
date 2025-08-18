@@ -15,6 +15,7 @@ pub enum PrimExpr {
   Constant(Constant)
   StringLiteral(String)
   ParenExpr(Expr)
+  BuiltinOffsetof(TypeName, UnaryExpr)
   //GenericSelection
 } derive(Show, Eq)
 
@@ -49,9 +50,26 @@ fn PrimExpr::parse(toks: ArrayView[Token], ctx: Context) -> (PrimExpr, ArrayView
       }
       (PrimExpr::ParenExpr(expr), rest_toks)
     }
+    [BuiltinOffsetof, LParen, ..rest_toks] => {
+      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
+      guard rest is [Comma, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected ',' after type name in __builtin_offsetof"))
+      }
+      let (unary_expr, rest_toks) = UnaryExpr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest_toks.length()
+        raise ParseError((idx, "Parse Error: Expected closing parenthesis after unary expression in __builtin_offsetof"))
+      }
+      (PrimExpr::BuiltinOffsetof(type_name, unary_expr), rest_toks)
+    }
+    [BuiltinOffsetof, ..rest_toks] => {
+      let idx = ctx.alltoks.length() - rest_toks.length()
+      raise ParseError((idx, "Parse Error: Expected '(' after __builtin_offsetof"))
+    }
     curr_toks => {
       let idx = ctx.alltoks.length() - curr_toks.length()
-      raise ParseError((idx, "Parse Error: Expected Identifier, Constant, StringLiteral, or '(' expression ')', but found \{curr_toks[0]}"))
+      raise ParseError((idx, "PrimExpr Parse Error: Expected Identifier, Constant, StringLiteral, or '(' expression ')', but found \{curr_toks[0]}"))
     }
   }
 }
@@ -1761,7 +1779,7 @@ fn StructSpec::parse(toks: ArrayView[Token], ctx: Context) -> (StructSpec, Array
   // - `struct Point;`
   // - `struct Point p;`
   // - `struct Point *p;`
-  if toks is [Identifier(name), Identifier(_) | Star | Semi, ..] {
+  if toks is [Identifier(name), .. rtoks] && not(rtoks is [LBrace, ..]) {
     return (StructSpec::{ name: Some(name), decls: Array::new() }, toks[1:])
   }
 
@@ -2032,6 +2050,7 @@ test "StructDeclaratorList Parsing Test" {
 pub struct Declarator {
   pointer: Pointer?
   directDeclarator: DirectDeclarator
+  gccDeclExt: Array[Expr] // GCC attributes, e.g., `__attribute__((aligned(16)))
 } derive(Show, Eq)
 
 fn Declarator::get_ident(self: Self) -> String {
@@ -2045,8 +2064,21 @@ fn Declarator::parse(toks: ArrayView[Token], ctx: Context) -> (Declarator, Array
   } else {
     Some(pointer)
   }
-  let (direct_declarator, rest_toks) = DirectDeclarator::parse(rest_toks, ctx);
-  (Declarator::{ pointer, directDeclarator: direct_declarator }, rest_toks)
+  let (direct_declarator, rest) = DirectDeclarator::parse(rest_toks, ctx);
+  let gccDeclExt: Array[Expr] = Array::new();
+  let rest_toks = loop rest {
+    [Attribute, LParen, LParen, .. rest_toks] => {
+      let (gcc_decl_ext_expr, rest_toks) = Expr::parse(rest_toks, ctx);
+      guard rest_toks is [RParen, RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest_toks.length()
+        raise ParseError((idx, "Parse Error: Expected closing parentheses for GCC attribute"))
+      }
+      gccDeclExt.push(gcc_decl_ext_expr)
+      continue rest_toks
+    }
+    toks => break toks // no more GCC attributes
+  }
+  (Declarator::{ pointer, directDeclarator: direct_declarator, gccDeclExt }, rest_toks)
 }
 
 test "Declarator Parsing Test" {
@@ -2735,6 +2767,7 @@ test "TypeName Parsing Test" {
     "const char ** msg" : [Identifier("msg"), EOF],
     "int const * arr" : [Identifier("arr"), EOF],
     "int * const arr" : [Identifier("arr"), EOF],
+    "struct Point p;" : [Identifier("p"), Semi, EOF],
   }
 
   for code, expect_rest in code_expect_rest {

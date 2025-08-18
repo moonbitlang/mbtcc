@@ -47,6 +47,7 @@ pub enum Token {
   StaticAssert  // _Static_assert
   Generic
   Attribute // __attribute__
+  BuiltinOffsetof // __builtin_offsetof
 
   // Brackets
 
@@ -1123,6 +1124,7 @@ let keywords : Map[String, Token] = {
   "_Static_assert" : StaticAssert,
   "_Generic" : Generic,
   "__attribute__": Attribute,
+  "__builtin_offsetof": BuiltinOffsetof,
 }
 
 fn lex_ident(code: @string.View) -> (Token, @string.View, Int) {
