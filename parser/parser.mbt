@@ -1213,6 +1213,15 @@ fn DeclSpec::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpec, ArrayView
     [Noreturn, ..rest_toks] => {
       (DeclSpec::FunctionSpec(Noreturn), rest_toks)
     }
+    [Attribute, LParen, LParen, ..rest_toks] => {
+      let (attr_list, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parentheses after attribute list"))
+      }
+      let spec = DeclSpec::FunctionSpec(FunctionSpec::Attributes(attr_list.exprs))
+      (spec, rest)
+    }
     [Alignas, LParen, ..rest_toks] => {
       let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
       guard rest is [RParen, .. rest] else {
@@ -1287,6 +1296,16 @@ fn DeclSpecList::parse(toks: ArrayView[Token], ctx: Context) -> (DeclSpecList, A
       let decl_spec = DeclSpec::FunctionSpec(Noreturn)
       decl_specs.push(decl_spec)
       continue rest_toks
+    }
+    [Attribute, LParen, LParen, ..rest_toks] => {
+      let (attr_list, rest) = Expr::parse(rest_toks, ctx);
+      guard rest is [RParen, RParen, .. rest] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError((idx, "Parse Error: Expected closing parentheses after attribute list"))
+      }
+      let spec = DeclSpec::FunctionSpec(FunctionSpec::Attributes(attr_list.exprs))
+      decl_specs.push(spec)
+      continue rest
     }
     [Alignas, LParen, ..rest_toks] => {
       let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
@@ -2665,74 +2684,13 @@ fn EnumeratorList::parse(toks: ArrayView[Token], ctx: Context) -> (EnumeratorLis
 pub enum FunctionSpec {
   Inline // inline
   Noreturn // _Noreturn
+  Attributes(Array[AssignExpr]) // __attribute__((...))
 } derive(Show, Eq)
 
 pub enum AlignmentSpec {
   AlignasExpr(ConstantExpr) // _Alignas(expr)
   AlignofType(TypeName) // _Alignof(type)
 } derive(Show, Eq)
-
-//fn AlignmentSpec::parse(toks: ArrayView[Token], ctx: Context) -> (AlignmentSpec, ArrayView[Token]) raise {
-//  match toks {
-//    [Alignas, LParen, .. rest_toks] => {
-//      let (expr, rest) = ConstantExpr::parse(rest_toks, ctx);
-//      guard rest is [RParen, .. rest] else {
-//        let idx = ctx.alltoks.length() - rest.length()
-//        raise ParseError((idx, "Parse Error: Expected closing parenthesis after expression in _Alignas"))
-//      }
-//      (AlignmentSpec::AlignasExpr(expr), rest)
-//    }
-//    [Alignas, ..rest_toks] => {
-//      let idx = ctx.alltoks.length() - rest_toks.length()
-//      raise ParseError((idx, "Parse Error: Expected '(' after _Alignas"))
-//    }
-//    [Alignof, LParen, .. rest_toks] => {
-//      let (type_name, rest) = TypeName::parse(rest_toks, ctx);
-//      guard rest is [RParen, .. rest] else {
-//        let idx = ctx.alltoks.length() - rest.length()
-//        raise ParseError((idx, "Parse Error: Expected closing parenthesis after type name in _Alignof"))
-//      }
-//      (AlignmentSpec::AlignasType(type_name), rest)
-//    }
-//    [Alignof, ..rest_toks] => {
-//      let idx = ctx.alltoks.length() - rest_toks.length()
-//      raise ParseError((idx, "Parse Error: Expected '(' after _Alignof"))
-//    }
-//    toks => {
-//      let idx = ctx.alltoks.length() - toks.length()
-//      raise ParseError((idx, "Parse Error: Unimplemented alignment specifier, current token: \{toks[0]}"))
-//    }
-//  }
-//}
-//
-//test "AlignmentSpec Parsing Test" {
-//  let code_expect_rest: Map[String, ArrayView[Token]] = {
-//    "_Alignas(16)" : [EOF],
-//    "_Alignof(int)" : [EOF],
-//  }
-//
-//  for code, expect_rest in code_expect_rest {
-//    let ctx = Context::create(code)
-//    ctx.tokenize()
-//    let toks = ctx.alltoks
-//    let (_, rest_toks) = AlignmentSpec::parse(toks, ctx);
-//    assert_eq(rest_toks, expect_rest)
-//  }
-//
-//  // Negative test
-//  let code = "_Alignas 16"
-//  let ctx = Context::create(code)
-//  ctx.tokenize()
-//  let toks = ctx.alltoks
-//  assert_true((try? AlignmentSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
-//
-//  let code = "_Alignof int"
-//  let ctx = Context::create(code)
-//  ctx.tokenize()
-//  let toks = ctx.alltoks
-//  assert_true((try? AlignmentSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
-//}
-
 
 //typeName
 //    : specifierQualifierList abstractDeclarator?

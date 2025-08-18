@@ -46,6 +46,7 @@ pub enum Token {
   Alignof  // _Alignof
   StaticAssert  // _Static_assert
   Generic
+  Attribute // __attribute__
 
   // Brackets
 
@@ -976,6 +977,7 @@ let keywords : Map[String, Token] = {
   "_Alignof" : Alignof,
   "_Static_assert" : StaticAssert,
   "_Generic" : Generic,
+  "__attribute__": Attribute,
 }
 
 fn lex_ident(code: @string.View) -> (Token, @string.View, Int) {
