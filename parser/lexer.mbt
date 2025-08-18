@@ -642,6 +642,85 @@ fn lex_char_literal(code: @string.View) -> (Token, @string.View, Int) raise {
   }
 }
 
+// 解析十六进制浮点数 (如 1.921fb54442d18p+2)
+fn parse_hex_float(hex_str: String) -> Double {
+  // 十六进制浮点数格式: [整数部分].[小数部分]p[指数]
+  // 例如: 1.921fb54442d18p+2
+  // 这相当于 (1 + 0x921fb54442d18 / 16^13) * 2^2
+  
+  let mut mantissa = 0.0
+  let mut exponent = 0
+  let mut i = 0
+  let len = hex_str.length()
+  
+  // 跳过可能的 "0x" 前缀
+  if i + 1 < len && hex_str[i] == 48 && (hex_str[i + 1] == 120 || hex_str[i + 1] == 88) { // '0' = 48, 'x' = 120, 'X' = 88
+    i += 2
+  }
+  
+  // 解析整数部分
+  while i < len && hex_char_value_from_int(hex_str[i]) is Some(digit) {
+    mantissa = mantissa * 16.0 + digit.to_double()
+    i += 1
+  }
+  
+  // 解析小数部分
+  if i < len && hex_str[i] == 46 { // '.' = 46
+    i += 1
+    let mut fraction_power = 1.0
+    while i < len && hex_char_value_from_int(hex_str[i]) is Some(digit) {
+      fraction_power /= 16.0
+      mantissa += digit.to_double() * fraction_power
+      i += 1
+    }
+  }
+  
+  // 解析指数部分
+  if i < len && (hex_str[i] == 112 || hex_str[i] == 80) { // 'p' = 112, 'P' = 80
+    i += 1
+    let mut exp_sign = 1
+    if i < len && hex_str[i] == 43 { // '+' = 43
+      i += 1
+    } else if i < len && hex_str[i] == 45 { // '-' = 45
+      exp_sign = -1
+      i += 1
+    }
+    
+    while i < len && hex_str[i] >= 48 && hex_str[i] <= 57 { // '0' = 48, '9' = 57
+      exponent = exponent * 10 + (hex_str[i] - 48)
+      i += 1
+    }
+    exponent *= exp_sign
+  }
+  
+  // 计算最终值: mantissa * 2^exponent
+  let result = mantissa * @math.pow(2.0, exponent.to_double())
+  result
+}
+
+// 辅助函数：将十六进制字符的整数值转换为数字值
+fn hex_char_value_from_int(char_code: Int) -> Int? {
+  match char_code {
+    48 => Some(0)  // '0'
+    49 => Some(1)  // '1'
+    50 => Some(2)  // '2'
+    51 => Some(3)  // '3'
+    52 => Some(4)  // '4'
+    53 => Some(5)  // '5'
+    54 => Some(6)  // '6'
+    55 => Some(7)  // '7'
+    56 => Some(8)  // '8'
+    57 => Some(9)  // '9'
+    97 | 65 => Some(10)  // 'a' | 'A'
+    98 | 66 => Some(11)  // 'b' | 'B'
+    99 | 67 => Some(12)  // 'c' | 'C'
+    100 | 68 => Some(13) // 'd' | 'D'
+    101 | 69 => Some(14) // 'e' | 'E'
+    102 | 70 => Some(15) // 'f' | 'F'
+    _ => None
+  }
+}
+
 // @strconv.parse_int: (String, Int) -> Int, input is string and base, return an int
 // @strconv.parse_int64: (String, Int) -> Int64, input is string and base, return an int
 // @strconv.parse_double: (String, Int) -> Double, input is string and base, return an int
@@ -660,13 +739,17 @@ fn lex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   }
 }
 
-// 解析十六进制数字
+// 解析十六进制数字（可能是整数或浮点数）
 fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   let hex_digits = Array::new()
   let mut char_count = 2 // "0x" 或 "0X"
+  let mut has_dot = false
+  let mut has_p_exp = false
+  
   let rest = match code {
     [.. "0x", .. rest] | [.. "0X", .. rest] => {
-      loop rest {
+      // 读取整数部分
+      let mut rest = loop rest {
         ['0'..='9' | 'a'..='f' | 'A'..='F' as c, .. rest_str] => {
           hex_digits.push(c)
           char_count += 1
@@ -674,6 +757,57 @@ fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
         }
         _ as rest_str => break rest_str
       }
+      
+      // 检查小数点
+      rest = match rest {
+        ['.', .. dot_rest] => {
+          has_dot = true
+          hex_digits.push('.')
+          char_count += 1
+          // 读取小数点后的十六进制数字
+          loop dot_rest {
+            ['0'..='9' | 'a'..='f' | 'A'..='F' as c, .. rest_str] => {
+              hex_digits.push(c)
+              char_count += 1
+              continue rest_str
+            }
+            _ as rest_str => break rest_str
+          }
+        }
+        _ => rest
+      }
+      
+      // 检查二进制指数部分 (p 或 P)
+      rest = match rest {
+        ['p' | 'P' as p, .. exp_rest] => {
+          has_p_exp = true
+          hex_digits.push(p)
+          char_count += 1
+          
+          // 检查正负号
+          let exp_rest = match exp_rest {
+            ['+' | '-' as sign, .. sign_rest] => {
+              hex_digits.push(sign)
+              char_count += 1
+              sign_rest
+            }
+            _ => exp_rest
+          }
+          
+          // 读取指数数字（十进制）
+          loop exp_rest {
+            ['0'..='9' as c, .. rest_str] => {
+              hex_digits.push(c)
+              char_count += 1
+              continue rest_str
+            }
+            _ as rest_str => break rest_str
+          }
+        }
+        _ => rest
+      }
+      
+      rest
     }
     _ => raise LexerError("Invalid hex number")
   }
@@ -684,42 +818,53 @@ fn lex_hex_number(code: @string.View) -> (Token, @string.View, Int) raise {
   
   let hex_str = String::from_array(hex_digits)
   
-  // 检查后缀
-  let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
-  char_count += suffix_len
-  
-  let num = @strconv.parse_uint64(hex_str, base=16) catch {
-    err => {
-      println("Error parsing hex number: \{err}")
-      raise err
-    }
-  }
-  let token = match suffix {
-    // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
-    "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
-    "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
-    "LL" | "ll" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
-    "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
-    "u" | "U" => {
-      if num >= 0 && num <= 4294967295UL {
-        Token::Constant(Constant::UInt(num.to_uint()))
-      } else {
-        raise LexerError("Invalid unsigned integer: \{hex_str}")
+  // 十六进制浮点数必须有小数点或指数
+  if has_dot || has_p_exp {
+    // 这是十六进制浮点数
+    let (_, rest, suffix_len) = parse_float_suffix(rest)
+    char_count += suffix_len
+    
+    // 解析十六进制浮点数
+    let num = parse_hex_float(hex_str)
+    let token = Token::Constant(Constant::Double(num))
+    (token, rest, char_count)
+  } else {
+    // 这是十六进制整数
+    let (suffix, rest, suffix_len) = parse_integer_suffix(rest)
+    char_count += suffix_len
+    
+    let num = @strconv.parse_uint64(hex_str, base=16) catch {
+      err => {
+        println("Error parsing hex number: \{err}")
+        raise err
       }
     }
-    "" => {
-      // 根据数值大小决定类型
-      //if num <= 2147483647L && num >= -2147483648L {
-      if num >= 0 && num <= 2147483647UL {
-        Token::Constant(Constant::Int(num.to_int()))
-      } else {
-        Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+    let token = match suffix {
+      // 对于带 U 后缀的，我们仍然用 Long 类型表示但标记为无符号
+      "ul" | "UL" | "uL" | "Ul" | "lu" | "LU" | "lU" | "Lu" => Token::Constant(Constant::ULong(num))
+      "ULL" | "ull" | "Ull" | "uLL" => Token::Constant(Constant::ULong(num))
+      "LL" | "ll" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+      "l" | "L" => Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+      "u" | "U" => {
+        if num >= 0 && num <= 4294967295UL {
+          Token::Constant(Constant::UInt(num.to_uint()))
+        } else {
+          raise LexerError("Invalid unsigned integer: \{hex_str}")
+        }
       }
+      "" => {
+        // 根据数值大小决定类型
+        if num >= 0 && num <= 2147483647UL {
+          Token::Constant(Constant::Int(num.to_int()))
+        } else {
+          Token::Constant(Constant::Long(num.reinterpret_as_int64()))
+        }
+      }
+      _ => raise LexerError("Invalid integer suffix: \{suffix}")
     }
-    _ => raise LexerError("Invalid integer suffix: \{suffix}")
+    
+    (token, rest, char_count)
   }
-  
-  (token, rest, char_count)
 }
 
 // 解析八进制数字
@@ -1163,4 +1308,48 @@ test "tokenize numbers test" {
     let actual = ctx.alltoks.get(i)
     assert_eq(actual, Some(expected), msg="Number tokenization test failed at index \{i}, expected \{expected} got \{actual}")
   }
+}
+
+test "tokenize hex float test" {
+  let code = 
+    #|0x1.921fb54442d18p+2 0x1.158e460913dp+63 0x1.0p+1 0x1.5p-1 0x0.8p+3
+
+  let ctx = Context::create(code)
+  ctx.tokenize()
+  
+  // 检查tokens的数量 (5个十六进制浮点数 + EOF = 6个tokens)
+  assert_eq(ctx.alltoks.length(), 6, msg="Should have 6 tokens (5 hex floats + EOF)")
+  
+  // 检查所有的tokens都是Double类型的
+  for i in 0..<5 {
+    match ctx.alltoks.get(i) {
+      Some(Constant(Double(_))) => ()  // 正确
+      Some(other) => assert_true(false, msg="Expected Double constant at index \{i}, got \{other}")
+      None => assert_true(false, msg="No token found at index \{i}")
+    }
+  }
+  
+  // 检查最后一个token是EOF
+  assert_eq(ctx.alltoks.get(5), Some(EOF), msg="Last token should be EOF")
+}
+
+test "parse_hex_float values test" {
+  // 测试一些基本的十六进制浮点数值
+  // 直接测试几个简单的值
+  
+  // 1.0 * 2^0 = 1.0
+  let result1 = parse_hex_float("1.0p0")
+  assert_true(result1 > 0.999 && result1 < 1.001, msg="Expected ~1.0 for 1.0p0, got \{result1}")
+  
+  // 1.0 * 2^1 = 2.0
+  let result2 = parse_hex_float("1.0p1")
+  assert_true(result2 > 1.999 && result2 < 2.001, msg="Expected ~2.0 for 1.0p1, got \{result2}")
+  
+  // 1.0 * 2^2 = 4.0
+  let result3 = parse_hex_float("1.0p+2")
+  assert_true(result3 > 3.999 && result3 < 4.001, msg="Expected ~4.0 for 1.0p+2, got \{result3}")
+  
+  // 1.5 * 2^0 = 1.5 (0x1.8 = 1 + 8/16 = 1.5)
+  let result4 = parse_hex_float("1.8p0")
+  assert_true(result4 > 1.499 && result4 < 1.501, msg="Expected ~1.5 for 1.8p0, got \{result4}")
 }
