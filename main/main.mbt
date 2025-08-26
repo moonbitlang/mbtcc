@@ -46,7 +46,7 @@ fn main {
     println(help_info)
     return
   }
-  let ctx = @parser.Context::create(code, source_file~)
+  let ctx = @parser.ParserContext::create(code, source_file~)
   ctx.tokenize() catch {
     err => {
       println("Tokenization error: \{err}")

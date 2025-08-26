@@ -6,7 +6,7 @@ priv struct TokenInfo {
 }
 
 ///|
-struct Context {
+struct ParserContext {
   source_file : String
   code : String
   alltoks : Array[Token]
@@ -22,7 +22,7 @@ priv enum WarningError {
 }
 
 ///|
-pub fn Context::print_toks(self : Context) -> Unit {
+pub fn ParserContext::print_toks(self : ParserContext) -> Unit {
   let str_builder = StringBuilder::new()
   str_builder.write_char('[')
   let toklen = self.alltoks.length()
@@ -38,14 +38,14 @@ pub fn Context::print_toks(self : Context) -> Unit {
 }
 
 ///|
-pub fn Context::print_ast(self : Context) -> Unit {
+pub fn ParserContext::print_ast(self : ParserContext) -> Unit {
   for d in self.external_decls {
     println(d)
   }
 }
 
 ///|
-fn Context::get_error_or_warning_msg(
+fn ParserContext::get_error_or_warning_msg(
   self : Self,
   idx : Int,
   msg : String,
@@ -90,19 +90,19 @@ fn Context::get_error_or_warning_msg(
 }
 
 ///|
-pub fn Context::get_warning_msg(self : Self, idx : Int, msg : String) -> String {
+pub fn ParserContext::get_warning_msg(self : Self, idx : Int, msg : String) -> String {
   self.get_error_or_warning_msg(idx, msg, Warning)
 }
 
 ///|
-pub fn Context::get_error_msg(self : Self, idx : Int, msg : String) -> String {
+pub fn ParserContext::get_error_msg(self : Self, idx : Int, msg : String) -> String {
   self.get_error_or_warning_msg(idx, msg, Error)
 }
 
 // 辅助函数：根据codeidx获取对应的代码行
 
 ///|
-fn Context::get_code_line(self : Self, codeidx : Int) -> String {
+fn ParserContext::get_code_line(self : Self, codeidx : Int) -> String {
   let code = self.code
   let len = code.length()
 
@@ -142,19 +142,19 @@ fn Context::get_code_line(self : Self, codeidx : Int) -> String {
 }
 
 ///|
-fn Context::add_typedef(self : Context, name : String) -> Unit {
+fn ParserContext::add_typedef(self : ParserContext, name : String) -> Unit {
   self.typedefs.set(name, 1)
 }
 
 ///|
-fn Context::enter_scope(self : Context) -> Unit {
+fn ParserContext::enter_scope(self : ParserContext) -> Unit {
   let curr_scope = self.typedefs
   self.typedefs = Env::new()
   self.typedefs.parent = Some(curr_scope)
 }
 
 ///|
-fn Context::leave_scope(self : Context) -> Unit {
+fn ParserContext::leave_scope(self : ParserContext) -> Unit {
   match self.typedefs.parent {
     Some(parent) => self.typedefs = parent
     None => ()
@@ -202,11 +202,11 @@ fn[V] Env::contains(self : Env[V], name : String) -> Bool {
 }
 
 ///|
-pub fn Context::create(
+pub fn ParserContext::create(
   code : String,
   source_file~ : String = "demo",
-) -> Context {
-  let ctx = Context::{
+) -> ParserContext {
+  let ctx = ParserContext::{
     source_file,
     code,
     alltoks: Array::new(),
@@ -220,12 +220,12 @@ pub fn Context::create(
   ctx
 }
 
-//fn Context::is_typedef(self: Context, name: String) -> Bool {
+//fn ParserContext::is_typedef(self: ParserContext, name: String) -> Bool {
 //  self.typedefs.contains(name)
 //}
 
 ///|
-fn Context::is_declspec_tok(self : Context, tok : Token) -> Bool {
+fn ParserContext::is_declspec_tok(self : ParserContext, tok : Token) -> Bool {
   match tok {
     Void
     | Bool
@@ -270,7 +270,7 @@ fn Context::is_declspec_tok(self : Context, tok : Token) -> Bool {
 //    #|  return x;
 //    #|}
 //
-//  let ctx = Context::create(code, source_file="test.c")
+//  let ctx = ParserContext::create(code, source_file="test.c")
 //  ctx.tokenize()
 //
 //  // 演示不同位置的警告

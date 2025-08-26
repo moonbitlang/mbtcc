@@ -25,7 +25,7 @@ pub enum PrimExpr {
 ///|
 fn PrimExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (PrimExpr, ArrayView[Token]) raise {
   match toks {
     [Identifier(name), .. rest_toks] if !ctx.typedefs.contains(name) =>
@@ -110,7 +110,7 @@ test "PrimExpr Parsing Test" {
   }
   for code, expect_rest in code_expect_rest {
     let (expect_prim, expect_rest_toks) = expect_rest
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (prim, rest_toks) = PrimExpr::parse(toks, ctx)
@@ -122,7 +122,7 @@ test "PrimExpr Parsing Test" {
     "(a + b) * c": [Star, Identifier("c"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = PrimExpr::parse(toks, ctx)
@@ -133,19 +133,19 @@ test "PrimExpr Parsing Test" {
 ///|
 test "PrimExpr Parsing Negative Test" {
   let code = "MyInt + 1"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PrimExpr::parse(toks, ctx)) is Ok(_))
   ctx.typedefs.set("MyInt", 1)
   assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((0, _))))
   let code = "(a + 1 ;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((4, _))))
   let code = " ++ 3 "
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PrimExpr::parse(toks, ctx)) is Err(ParseError((0, _))))
@@ -170,7 +170,7 @@ pub struct PostFixExpr {
 ///|
 fn PostFixExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (PostFixExpr, ArrayView[Token]) raise {
   let (head, rest_toks) = if toks is [LParen, .. rtoks] &&
     (try? TypeName::parse(rtoks, ctx)) is Ok((ty_name, rtoks)) {
@@ -206,7 +206,7 @@ pub enum PostFixSuffix {
 ///|
 fn PostFixSuffix::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Array[PostFixSuffix], ArrayView[Token]) raise {
   let suffixes : Array[PostFixSuffix] = Array::new()
   let rest_toks = loop toks {
@@ -288,7 +288,7 @@ test "PostfixExpr Parsing Test" {
     "mat[0][i]++;": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = PostFixExpr::parse(toks, ctx)
@@ -299,19 +299,19 @@ test "PostfixExpr Parsing Test" {
 ///|
 test "PostifxExpr Parsing Negative Test" {
   let code = "arr[index;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
   let code = "func(arg;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
 
   // 测试箭头后面缺少标识符
   let code = "ptr->123"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? PostFixExpr::parse(toks, ctx)) is Err(ParseError((2, _)))) // 应该成功，只是没有后缀
@@ -335,7 +335,7 @@ pub struct UnaryExpr {
 ///|
 fn UnaryExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (UnaryExpr, ArrayView[Token]) raise {
   let (prefixes, rest_toks) = UnaryPrefix::parse(toks, ctx)
   let (body, rest_toks) = UnaryExprBody::parse(rest_toks, ctx)
@@ -353,7 +353,7 @@ pub enum UnaryPrefix {
 ///|
 fn UnaryPrefix::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Array[UnaryPrefix], ArrayView[Token]) {
   let prefixes : Array[UnaryPrefix] = Array::new()
   let rest_toks = loop toks {
@@ -404,7 +404,7 @@ pub enum UnaryExprBody {
 ///|
 fn UnaryExprBody::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (UnaryExprBody, ArrayView[Token]) raise {
   match toks {
     [And | Star | Plus | Minus | Not | Tilde as sym, .. rest_toks] => {
@@ -469,7 +469,7 @@ test "UnaryExpr Parsing Test" {
     "++mat[i][j];": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = UnaryExpr::parse(toks, ctx)
@@ -480,12 +480,12 @@ test "UnaryExpr Parsing Test" {
 ///|
 test "UnaryExpr Parsing Negative Test" {
   let code = "sizeof(int ;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? UnaryExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
   let code = "_Alignof(double; "
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? UnaryExpr::parse(toks, ctx)) is Err(ParseError((3, _))))
@@ -507,7 +507,7 @@ pub enum CastExpr {
 ///|
 fn CastExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (CastExpr, ArrayView[Token]) raise {
   if toks is [LParen, .. rtoks] &&
     (try? TypeName::parse(rtoks, ctx)) is Ok((_, rtoks)) &&
@@ -537,7 +537,7 @@ test "CastExpr Parsing Test" {
     "(int)123 + b": [Plus, Identifier("b"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = CastExpr::parse(toks, ctx)
@@ -548,7 +548,7 @@ test "CastExpr Parsing Test" {
 ///|
 test "CastExpr Parsing Negative Test" {
   let code = "(int + 1"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? CastExpr::parse(toks, ctx)) is Err(ParseError((2, _))))
@@ -574,7 +574,7 @@ pub enum MultOp {
 ///|
 fn MultExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (MultExpr, ArrayView[Token]) raise {
   let exprs : Array[CastExpr] = Array::new()
   let ops : Array[MultOp] = Array::new()
@@ -614,7 +614,7 @@ test "MultExpr Parsing Test" {
     "123 * 456 + 789": [Plus, Constant(Constant::Int(789)), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = MultExpr::parse(toks, ctx)
@@ -641,7 +641,7 @@ pub enum AddSubOp {
 ///|
 fn AddSubExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (AddSubExpr, ArrayView[Token]) raise {
   let exprs : Array[MultExpr] = Array::new()
   let ops : Array[AddSubOp] = Array::new()
@@ -674,7 +674,7 @@ test "AddSubExpr Parsing Test" {
     "123 + 456 - 789 == 12345": [EQ, Constant(Constant::Int(12345)), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = AddSubExpr::parse(toks, ctx)
@@ -701,7 +701,7 @@ pub enum ShiftOp {
 ///|
 fn ShiftExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ShiftExpr, ArrayView[Token]) raise {
   let exprs : Array[AddSubExpr] = Array::new()
   let ops : Array[ShiftOp] = Array::new()
@@ -734,7 +734,7 @@ test "ShiftExpr Parsing Test" {
     "c << 3 == 789": [EQ, Constant(Constant::Int(789)), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ShiftExpr::parse(toks, ctx)
@@ -763,7 +763,7 @@ pub enum RelationalOp {
 ///|
 fn RelationalExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (RelationalExpr, ArrayView[Token]) raise {
   let exprs : Array[ShiftExpr] = Array::new()
   let ops : Array[RelationalOp] = Array::new()
@@ -809,7 +809,7 @@ test "RelationalExpr Parsing Test" {
     "j >= k / l || cond": [DoubleOr, Identifier("cond"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = RelationalExpr::parse(toks, ctx)
@@ -836,7 +836,7 @@ pub enum EqualityOp {
 ///|
 fn EqualityExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (EqualityExpr, ArrayView[Token]) raise {
   let exprs : Array[RelationalExpr] = Array::new()
   let ops : Array[EqualityOp] = Array::new()
@@ -870,7 +870,7 @@ test "EqualityExpr Parsing Test" {
     "j != k / l && cond": [DoubleAnd, Identifier("cond"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = EqualityExpr::parse(toks, ctx)
@@ -890,7 +890,7 @@ pub struct AndExpr {
 ///|
 fn AndExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (AndExpr, ArrayView[Token]) raise {
   let exprs : Array[EqualityExpr] = Array::new()
   let (first_expr, rest_toks) = EqualityExpr::parse(toks, ctx)
@@ -914,7 +914,7 @@ test "AndExpr Parsing Test" {
     "a & c ^ d": [Xor, Identifier("d"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = AndExpr::parse(toks, ctx)
@@ -934,7 +934,7 @@ pub struct ExclusiveOrExpr {
 ///|
 fn ExclusiveOrExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ExclusiveOrExpr, ArrayView[Token]) raise {
   let exprs : Array[AndExpr] = Array::new()
   let (first_expr, rest_toks) = AndExpr::parse(toks, ctx)
@@ -958,7 +958,7 @@ test "ExclusiveOrExpr Parsing Test" {
     "d ^ e & 1 ? f": [Question, Identifier("f"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ExclusiveOrExpr::parse(toks, ctx)
@@ -978,7 +978,7 @@ pub struct InclusiveOrExpr {
 ///|
 fn InclusiveOrExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (InclusiveOrExpr, ArrayView[Token]) raise {
   let exprs : Array[ExclusiveOrExpr] = Array::new()
   let (first_expr, rest_toks) = ExclusiveOrExpr::parse(toks, ctx)
@@ -1003,7 +1003,7 @@ test "InclusiveOrExpr Parsing Test" {
   }
   for code, expect_rest in code_expect_rest {
     //let toks = lex(code)
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = InclusiveOrExpr::parse(toks, ctx)
@@ -1023,7 +1023,7 @@ pub struct LogicalAndExpr {
 ///|
 fn LogicalAndExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (LogicalAndExpr, ArrayView[Token]) raise {
   let exprs : Array[InclusiveOrExpr] = Array::new()
   let (first_expr, rest_toks) = InclusiveOrExpr::parse(toks, ctx)
@@ -1047,7 +1047,7 @@ test "LogicalAndExpr Parsing Test" {
     "d && e || f": [DoubleOr, Identifier("f"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = LogicalAndExpr::parse(toks, ctx)
@@ -1067,7 +1067,7 @@ pub struct LogicalOrExpr {
 ///|
 fn LogicalOrExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (LogicalOrExpr, ArrayView[Token]) raise {
   let exprs : Array[LogicalAndExpr] = Array::new()
   let (first_expr, rest_toks) = LogicalAndExpr::parse(toks, ctx)
@@ -1091,7 +1091,7 @@ test "LogicalOrExpr Parsing Test" {
     "d || e ? f": [Question, Identifier("f"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = LogicalOrExpr::parse(toks, ctx)
@@ -1112,7 +1112,7 @@ pub struct ConditionalExpr {
 ///|
 fn ConditionalExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ConditionalExpr, ArrayView[Token]) raise {
   let (logical_or_expr, rest_toks) = LogicalOrExpr::parse(toks, ctx)
   match rest_toks {
@@ -1152,7 +1152,7 @@ test "ConditionalExpr Parsing Test" {
     "a123 += 5": [PlusAssign, Constant(Constant::Int(5)), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ConditionalExpr::parse(toks, ctx)
@@ -1163,7 +1163,7 @@ test "ConditionalExpr Parsing Test" {
 ///|
 test "ConditionalExpr Parsing Negative Test" {
   let code = "cond1 ? 123 ;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -1186,7 +1186,7 @@ pub enum AssignExpr {
 ///|
 fn AssignExpr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (AssignExpr, ArrayView[Token]) raise {
   let (cond_expr, rest_toks) = ConditionalExpr::parse(toks, ctx)
   if !rest_toks[0].is_assign_op() {
@@ -1254,7 +1254,7 @@ test "AssignExpr Parsing Test" {
     "k ||= m;": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = AssignExpr::parse(toks, ctx)
@@ -1291,7 +1291,7 @@ pub struct Expr {
 ///|
 fn Expr::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Expr, ArrayView[Token]) raise {
   let exprs : Array[AssignExpr] = Array::new()
   let (first_expr, rest_toks) = AssignExpr::parse(toks, ctx)
@@ -1316,7 +1316,7 @@ test "Expr Parsing Test" {
     "cond1 && cond2 ? abc : def ; struct": [Semi, Struct, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = Expr::parse(toks, ctx)
@@ -1341,7 +1341,7 @@ pub enum Declaration {
 ///|
 fn Declaration::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Declaration, ArrayView[Token]) raise {
   let is_typedef = toks is [Typedef, ..]
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
@@ -1393,7 +1393,7 @@ test "Declaration Parsing Test" {
     "typedef int (*BinaryFunc)(int, int);": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = Declaration::parse(toks, ctx)
@@ -1413,7 +1413,7 @@ pub enum DeclSpec {
 ///|
 fn DeclSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (DeclSpec, ArrayView[Token]) raise {
   match toks {
     [Auto | Register | Static | ThreadLocal | Extern | Typedef, ..] => {
@@ -1493,7 +1493,7 @@ priv struct DeclSpecList(Array[DeclSpec])
 ///|
 fn DeclSpecList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (DeclSpecList, ArrayView[Token]) raise {
   let decl_specs : Array[DeclSpec] = Array::new()
   loop toks {
@@ -1646,7 +1646,7 @@ test "DeclSpecList Parsing Test" {
     "_Alignof(int) a;": [Identifier("a"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = DeclSpecList::parse(toks, ctx)
@@ -1655,7 +1655,7 @@ test "DeclSpecList Parsing Test" {
 
   // negative test
   let code = "_Alignas 16 int a;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? DeclSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
@@ -1674,7 +1674,7 @@ pub enum StorageClassSpec {
 ///|
 fn StorageClassSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (StorageClassSpec, ArrayView[Token]) raise {
   match toks {
     [Auto, .. rest_toks] => (StorageClassSpec::Auto, rest_toks)
@@ -1703,7 +1703,7 @@ test "StorageClassSpec Parsing Test" {
     "typedef f;": [Identifier("f"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = StorageClassSpec::parse(toks, ctx)
@@ -1712,7 +1712,7 @@ test "StorageClassSpec Parsing Test" {
 
   // negative test
   let code = "int a;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -1766,7 +1766,7 @@ pub enum TypeSpec {
 ///|
 fn TypeSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (TypeSpec, ArrayView[Token]) raise {
   match toks {
     [Void, .. rest_toks] => (TypeSpec::Void, rest_toks)
@@ -1835,7 +1835,7 @@ test "TypeSpec Parsing Test" {
     "enum Color { Red, Green };": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = TypeSpec::parse(toks, ctx)
@@ -1846,12 +1846,12 @@ test "TypeSpec Parsing Test" {
 ///|
 test "TypeSpec Parsing Negative Test" {
   let code = "_Atomic(int a;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? TypeSpec::parse(toks, ctx)) is Err(ParseError((3, _))))
   let code = "MyInt a;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? TypeSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
@@ -1978,7 +1978,7 @@ test "TypeQualifierList Parsing Test" {
     "const volatile int e;": [Int, Identifier("e"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = TypeQualifierList::parse(toks)
@@ -1999,7 +1999,7 @@ pub enum TypeSpecOrQualifier {
 ///|
 fn TypeSpecOrQualifier::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (TypeSpecOrQualifier, ArrayView[Token]) raise {
   match toks {
     [Const, .. rest_toks] =>
@@ -2023,7 +2023,7 @@ priv struct TypeSpecOrQualifierList(Array[TypeSpecOrQualifier])
 ///|
 fn TypeSpecOrQualifierList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (TypeSpecOrQualifierList, ArrayView[Token]) {
   let specs : Array[TypeSpecOrQualifier] = Array::new()
   let mut toks = toks
@@ -2046,7 +2046,7 @@ test "TypeSpecOrQualifierList Parsing Test" {
     "struct { double a, b;} p;": [Identifier("p"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = TypeSpecOrQualifierList::parse(toks, ctx)
@@ -2063,7 +2063,7 @@ pub struct StructSpec {
 ///|
 fn StructSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (StructSpec, ArrayView[Token]) raise {
   guard toks is [Struct, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -2116,7 +2116,7 @@ test "StructSpec Parsing Test" {
     "struct Point p;": [Identifier("p"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = StructSpec::parse(toks, ctx)
@@ -2127,17 +2127,17 @@ test "StructSpec Parsing Test" {
 ///|
 test "StructSpec Parsing Negative Test" {
   let code = "strut MyStruct { int a; double b; };"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
   let code = "struct Point { int x; )"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((6, _))))
   let code = "struct int {};"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? StructSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
@@ -2152,7 +2152,7 @@ pub struct UnionSpec {
 ///|
 fn UnionSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (UnionSpec, ArrayView[Token]) raise {
   guard toks is [Union, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -2208,7 +2208,7 @@ test "UnionSpec Parsing Test" {
     "union Point p;": [Identifier("p"), Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = UnionSpec::parse(toks, ctx)
@@ -2219,17 +2219,17 @@ test "UnionSpec Parsing Test" {
 ///|
 test "UnionSpec Parsing Negative Test" {
   let code = "unoin MyUnion { int a; double b; };"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
   let code = "union Point { int x; )"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((6, _))))
   let code = "union int {};"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? UnionSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
@@ -2250,7 +2250,7 @@ pub enum StructDeclaration {
 ///|
 fn StructDeclaration::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (StructDeclaration, ArrayView[Token]) raise {
   let (type_spec_or_qualifiers, rest_toks) = TypeSpecOrQualifierList::parse(
     toks, ctx,
@@ -2290,7 +2290,7 @@ test "StructDeclaration Parsing Test" {
     "struct Point ;": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = StructDeclaration::parse(toks, ctx)
@@ -2299,7 +2299,7 @@ test "StructDeclaration Parsing Test" {
 
   // Negative test
   let code = "struct Point p:"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -2321,7 +2321,7 @@ pub enum StructDeclarator {
 ///|
 fn StructDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (StructDeclarator, ArrayView[Token]) raise {
   if toks is [Colon, .. rest_toks] {
     let (const_expr, rest_toks) = ConstantExpr::parse(rest_toks, ctx)
@@ -2343,7 +2343,7 @@ priv struct StructDeclaratorList(Array[StructDeclarator])
 ///|
 fn StructDeclaratorList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (StructDeclaratorList, ArrayView[Token]) raise {
   let decls : Array[StructDeclarator] = Array::new()
   let (first_decl, rest_toks) = StructDeclarator::parse(toks, ctx)
@@ -2368,7 +2368,7 @@ test "StructDeclaratorList Parsing Test" {
     ": 1": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = StructDeclaratorList::parse(toks, ctx)
@@ -2391,7 +2391,7 @@ fn Declarator::get_ident(self : Self) -> String {
 ///|
 fn Declarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Declarator, ArrayView[Token]) raise {
   let (pointer, rest_toks) = Pointer::parse(toks)
   let pointer = if pointer.inner().is_empty() {
@@ -2430,7 +2430,7 @@ test "Declarator Parsing Test" {
     "* const Point": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = Declarator::parse(toks, ctx)
@@ -2476,7 +2476,7 @@ test "Pointer Parsing Test" {
     "* const volatile * restrict * e": [Identifier("e"), EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = Pointer::parse(toks)
@@ -2527,7 +2527,7 @@ fn DirectDeclarator::get_ident(self : Self) -> String {
 ///|
 fn DirectDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (DirectDeclarator, ArrayView[Token]) raise {
   if toks is [Identifier(name), Colon, Constant(Int(i)), .. rest_toks] {
     // BitField case
@@ -2708,7 +2708,7 @@ test "DirectDeclarator Parsing Test" {
     "r: 4 ;": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = DirectDeclarator::parse(toks, ctx)
@@ -2717,12 +2717,12 @@ test "DirectDeclarator Parsing Test" {
 
   // Negative test
   let code = "(*fptr](int, int);"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? DirectDeclarator::parse(toks, ctx)) is Err(_))
   let code = "fib(int a, int b;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? DirectDeclarator::parse(toks, ctx)) is Err(_))
@@ -2746,7 +2746,7 @@ fn InitDeclarator::get_ident(self : Self) -> String {
 ///|
 fn InitDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (InitDeclarator, ArrayView[Token]) raise {
   let (declarator, rest_toks) = Declarator::parse(toks, ctx)
   if rest_toks is [Assign, .. rest_toks] {
@@ -2767,7 +2767,7 @@ test "InitDeclarator Parsing Test" {
     "*p;": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = InitDeclarator::parse(toks, ctx)
@@ -2781,7 +2781,7 @@ priv struct InitDeclaratorList(Array[InitDeclarator])
 ///|
 fn InitDeclaratorList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (InitDeclaratorList, ArrayView[Token]) raise {
   let decls : Array[InitDeclarator] = Array::new()
   let (first_decl, rest_toks) = InitDeclarator::parse(toks, ctx)
@@ -2828,7 +2828,7 @@ pub enum Initializer {
 ///|
 fn Initializer::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Initializer, ArrayView[Token]) raise {
   match toks {
     [LBrace, ..] as toks => {
@@ -2851,7 +2851,7 @@ pub struct InitializerList(Array[(Array[Designator], Initializer)]) derive (
 ///|
 fn InitializerList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (InitializerList, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -2900,7 +2900,7 @@ test "InitializerList Parsing Test" {
     "{{1, 2}, {3, 4}}": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = InitializerList::parse(toks, ctx)
@@ -2909,14 +2909,14 @@ test "InitializerList Parsing Test" {
 
   // negative test
   let code = "1, 2}"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
     (try? InitializerList::parse(toks, ctx)) is Err(ParseError((0, _))),
   )
   let code = "{ .f += 3 }"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -2938,7 +2938,7 @@ pub enum Designator {
 ///|
 fn Designator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Designator, ArrayView[Token]) raise {
   match toks {
     [LBracket, .. rest_toks] => {
@@ -2973,7 +2973,7 @@ priv struct DesignatorList(Array[Designator])
 ///|
 fn DesignatorList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (DesignatorList, ArrayView[Token]) raise {
   let designators : Array[Designator] = Array::new()
   let rest_toks = loop toks {
@@ -2997,7 +2997,7 @@ test "DesignatorList Parsing Test" {
     "[1].field[2]": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = DesignatorList::parse(toks, ctx)
@@ -3031,7 +3031,7 @@ pub struct EnumSpec {
 ///|
 fn EnumSpec::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (EnumSpec, ArrayView[Token]) raise {
   guard toks is [Enum, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -3099,7 +3099,7 @@ test "EnumSpec Parsing Test" {
     "enum {}; ": [Semi, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = EnumSpec::parse(toks, ctx)
@@ -3108,17 +3108,17 @@ test "EnumSpec Parsing Test" {
 
   // negative test
   let code = "struct Point ;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((0, _))))
   let code = "enum { A; "
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((3, _))))
   let code = "enum int a; "
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true((try? EnumSpec::parse(toks, ctx)) is Err(ParseError((1, _))))
@@ -3130,7 +3130,7 @@ struct Enumerator(String, ConstantExpr?) derive(Show, Eq)
 ///|
 fn Enumerator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Enumerator, ArrayView[Token]) raise {
   match toks {
     [Identifier(name), Assign, .. rest_toks] => {
@@ -3156,7 +3156,7 @@ priv struct EnumeratorList(Array[Enumerator])
 ///|
 fn EnumeratorList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (EnumeratorList, ArrayView[Token]) raise {
   let enumerators : Array[Enumerator] = Array::new()
   let (first_enum, rest_toks) = Enumerator::parse(toks, ctx)
@@ -3216,7 +3216,7 @@ pub struct TypeName {
 ///|
 fn TypeName::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (TypeName, ArrayView[Token]) raise {
   let specifiers : Array[TypeSpecOrQualifier] = Array::new()
   let mut rest_toks = toks
@@ -3257,7 +3257,7 @@ test "TypeName Parsing Test" {
   }
   for code, expect_rest in code_expect_rest {
     //let toks = lex(code)
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = TypeName::parse(toks, ctx)
@@ -3279,7 +3279,7 @@ pub struct AbstractDeclarator {
 ///|
 fn AbstractDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (AbstractDeclarator, ArrayView[Token]) raise {
   match toks {
     [Star, ..] => {
@@ -3324,7 +3324,7 @@ test "AbstractDeclarator Parsing Test" {
     "[a][10]": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = AbstractDeclarator::parse(toks, ctx)
@@ -3365,7 +3365,7 @@ pub enum DirectAbstractDeclarator {
 ///|
 fn DirectAbstractDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (DirectAbstractDeclarator?, ArrayView[Token]) raise {
   let (head_decl, rest_toks) = match toks {
     [LParen, Star | LBracket | LParen, ..] as toks => {
@@ -3578,7 +3578,7 @@ test "DirectAbstractDeclarator Parsing Test" {
     "(int, int)": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = DirectAbstractDeclarator::parse(toks, ctx)
@@ -3614,7 +3614,7 @@ pub enum Statement {
 ///|
 fn Statement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (Statement, ArrayView[Token]) raise {
   match toks {
     [LBrace, ..] as toks => {
@@ -3671,7 +3671,7 @@ test "Statement Parsing Test" {
     //"{ int a; }" : [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = Statement::parse(toks, ctx)
@@ -3695,7 +3695,7 @@ pub enum LabeledStatement {
 ///|
 fn LabeledStatement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (LabeledStatement, ArrayView[Token]) raise {
   match toks {
     [Identifier(name), Colon, .. rest_toks] => {
@@ -3738,7 +3738,7 @@ test "LabeledStatement Parsing Test" {
     "myLabel: if (x) { y++; }": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = LabeledStatement::parse(toks, ctx)
@@ -3747,14 +3747,14 @@ test "LabeledStatement Parsing Test" {
 
   // negative test
   let code = "case 5 ;"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
     (try? LabeledStatement::parse(toks, ctx)) is Err(ParseError((2, _))),
   )
   let code = "int :"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -3770,7 +3770,7 @@ pub struct CompoundStatement {
 ///|
 fn CompoundStatement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (CompoundStatement, ArrayView[Token]) raise {
   guard toks is [LBrace, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -3805,7 +3805,7 @@ test "CompoundStatement Parsing Test" {
     "{ for (int i = 0; i < 10; i++) { sum += i; } }": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = CompoundStatement::parse(toks, ctx)
@@ -3814,7 +3814,7 @@ test "CompoundStatement Parsing Test" {
 
   // negative test
   let code = "if (x) { y++; }"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -3831,7 +3831,7 @@ pub enum BlockItem {
 ///|
 fn BlockItem::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (BlockItem, ArrayView[Token]) raise {
   if ctx.is_declspec_tok(toks[0]) {
     let (decl, rest_toks) = Declaration::parse(toks, ctx)
@@ -3851,7 +3851,7 @@ pub enum SelectionStatement {
 ///|
 fn SelectionStatement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (SelectionStatement, ArrayView[Token]) raise {
   match toks {
     [If, LParen, .. rest_toks] => {
@@ -3905,14 +3905,14 @@ test "SelectionStatement Parsing Test" {
     "switch (x) { case 1: y++; }": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = SelectionStatement::parse(toks, ctx)
     assert_eq(rest_toks, expect_rest)
   }
   let code = "switch n { case 1: y++; }"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   let toks = ctx.alltoks
   assert_true(
@@ -3930,7 +3930,7 @@ pub enum IterationStatement {
 ///|
 fn IterationStatement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (IterationStatement, ArrayView[Token]) raise {
   match toks {
     [While, LParen, .. rest_toks] => {
@@ -3993,7 +3993,7 @@ test "IterationStatement Parsing Test" {
     "while (i < 10) i++;": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = IterationStatement::parse(toks, ctx)
@@ -4015,7 +4015,7 @@ pub struct ForCondition {
 ///|
 fn ForCondition::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ForCondition, ArrayView[Token]) raise {
   guard toks is [For, LParen, .. toks] else {
     let idx = ctx.alltoks.length() - toks.length()
@@ -4066,7 +4066,7 @@ pub enum ForInit {
 ///|
 fn ForInit::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ForInit, ArrayView[Token]) raise {
   match toks {
     [Semi, .. rest_toks] => (ForInit::Empty, rest_toks) // Empty initialization
@@ -4101,7 +4101,7 @@ test "ForCondition Parsing Test" {
     "for (int i = 0, j = 1; i+j < 10;) ": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ForCondition::parse(toks, ctx)
@@ -4120,7 +4120,7 @@ pub enum JumpStatement {
 ///|
 fn JumpStatement::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (JumpStatement, ArrayView[Token]) raise {
   match toks {
     [Goto, Identifier(name), Semi, .. rest_toks] =>
@@ -4160,7 +4160,7 @@ test "Jump Statement Parsing Test" {
     "return 42;": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = JumpStatement::parse(toks, ctx)
@@ -4176,7 +4176,7 @@ pub struct CompilationUnit {
 ///|
 fn CompilationUnit::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> CompilationUnit raise {
   let external_decls : Array[ExternalDeclaration] = Array::new()
   loop toks {
@@ -4199,7 +4199,7 @@ test "CompilationUnit Parsing Test" {
     //"typedef struct { int x; int y; } Point; Point* new(int, int);"
   ]
   for code in codes {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     assert_true(
@@ -4218,7 +4218,7 @@ pub enum ExternalDeclaration {
 ///|
 fn ExternalDeclaration::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ExternalDeclaration, ArrayView[Token]) raise {
   match (try? FunctionDefinition::parse(toks, ctx)) {
     Ok((func_def, rest_toks)) =>
@@ -4243,7 +4243,7 @@ test "ExternalDeclaration Parsing Test" {
     //"typedef struct { int x; int y; } Point;" : [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ExternalDeclaration::parse(toks, ctx)
@@ -4275,7 +4275,7 @@ pub suberror FunctionDefinitionParseError {
 ///|
 fn FunctionDefinition::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (FunctionDefinition, ArrayView[Token]) raise FunctionDefinitionParseError {
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx) catch {
     err => raise FunctionDefinitionParseError::DeclSpecsParseError(err)
@@ -4333,7 +4333,7 @@ test "FunctionDefinition Parsing Test" {
     "int main() { return 0; }": [EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = FunctionDefinition::parse(toks, ctx)
@@ -4354,7 +4354,7 @@ pub struct ParameterTypeList {
 ///|
 fn ParameterTypeList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ParameterTypeList, ArrayView[Token]) raise {
   let (params, rest_toks) = ParameterList::parse(toks, ctx)
   let params = params.inner()
@@ -4380,7 +4380,7 @@ priv struct ParameterList(Array[ParameterDecl])
 ///|
 fn ParameterList::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ParameterList, ArrayView[Token]) raise {
   let decls : Array[ParameterDecl] = Array::new()
   let (first_decl, rest_toks) = ParameterDecl::parse(toks, ctx)
@@ -4415,7 +4415,7 @@ test "ParameterList Parsing Test" {
     "float d)": [RParen, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ParameterList::parse(toks, ctx)
@@ -4436,7 +4436,7 @@ pub struct ParameterDecl {
 ///|
 fn ParameterDecl::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ParameterDecl, ArrayView[Token]) raise {
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
   let decl_specs = decl_specs.inner()
@@ -4466,7 +4466,7 @@ test "ParameterDecl Parsing Test" {
     "float d)": [RParen, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ParameterDecl::parse(toks, ctx)
@@ -4483,7 +4483,7 @@ pub enum ParamDeclarator {
 ///|
 fn ParamDeclarator::parse(
   toks : ArrayView[Token],
-  ctx : Context,
+  ctx : ParserContext,
 ) -> (ParamDeclarator, ArrayView[Token]) raise {
   if (try? Declarator::parse(toks, ctx)) is Ok((declarator, rest_toks)) &&
     rest_toks is [Comma | RParen, ..] {
@@ -4512,7 +4512,7 @@ test "ParamDeclarator Parsing Test" {
     "[*],": [Comma, EOF],
   }
   for code, expect_rest in code_expect_rest {
-    let ctx = Context::create(code)
+    let ctx = ParserContext::create(code)
     ctx.tokenize()
     let toks = ctx.alltoks
     let (_, rest_toks) = ParamDeclarator::parse(toks, ctx)
@@ -4523,7 +4523,7 @@ test "ParamDeclarator Parsing Test" {
 // --------------------
 
 ///|
-pub fn Context::parse(self : Self) -> Unit raise {
+pub fn ParserContext::parse(self : Self) -> Unit raise {
   guard self.alltoks.length() > 0 else {
     println("Should do `tokenize` before parsing")
     panic()

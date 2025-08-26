@@ -143,7 +143,7 @@ pub enum Constant {
 pub suberror LexerError String derive(Show)
 
 ///|
-pub fn Context::tokenize(self : Self) -> Unit raise {
+pub fn ParserContext::tokenize(self : Self) -> Unit raise {
   let tokens = self.alltoks
   let tokinfos = self.tokinfos
   let mut lineno = 1
@@ -1293,7 +1293,7 @@ test "tokenize test" {
     Identifier("a123"),
     EOF,
   ]
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1333,7 +1333,7 @@ test "tokenize comment test" {
     Comma,
     EOF,
   ]
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1352,19 +1352,19 @@ test "tokenize comment test" {
 ///|
 test "tokenize error test" {
   let code = "\"hello"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed string literal",
   )
   let code = "'c"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed char literal",
   )
   let code = "''"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for empty char literal",
@@ -1372,13 +1372,13 @@ test "tokenize error test" {
   let code =
     #|"hello
     #|
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed string literal",
   )
   let code = "中"
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for non-ASCII character",
@@ -1434,7 +1434,7 @@ test "tokenize numbers test" {
     Constant(UInt(0U)), // 0U
     EOF,
   ]
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1456,7 +1456,7 @@ test "tokenize numbers test" {
 test "tokenize hex float test" {
   let code =
     #|0x1.921fb54442d18p+2 0x1.158e460913dp+63 0x1.0p+1 0x1.5p-1 0x0.8p+3
-  let ctx = Context::create(code)
+  let ctx = ParserContext::create(code)
   ctx.tokenize()
 
   // 检查tokens的数量 (5个十六进制浮点数 + EOF = 6个tokens)
