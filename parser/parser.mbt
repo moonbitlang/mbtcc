@@ -328,7 +328,7 @@ test "PostifxExpr Parsing Negative Test" {
 
 ///|
 pub struct UnaryExpr {
-  prifix : Array[UnaryPrefix]
+  prefix : Array[UnaryPrefix]
   body : UnaryExprBody
 } derive(Show, Eq)
 
@@ -339,7 +339,7 @@ fn UnaryExpr::parse(
 ) -> (UnaryExpr, ArrayView[Token]) raise {
   let (prefixes, rest_toks) = UnaryPrefix::parse(toks, ctx)
   let (body, rest_toks) = UnaryExprBody::parse(rest_toks, ctx)
-  let unary_expr = UnaryExpr::{ prifix: prefixes, body }
+  let unary_expr = UnaryExpr::{ prefix: prefixes, body }
   (unary_expr, rest_toks)
 }
 

@@ -1,5 +1,6 @@
 {
   "import" : [
-    "Kaida-Amethyst/mbtcc/color"
+    "Kaida-Amethyst/mbtcc/color",
+    "Kaida-Amethyst/MoonLLVM/IR"
   ]
 }

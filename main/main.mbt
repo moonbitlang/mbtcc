@@ -6,7 +6,15 @@ fn main {
     #|
     #|  -code <code>    : Compile the given code string.
     #|  -file <file>    : Compile the code from the specified file.
+    #|  --print-toks    : Print the tokens after lexing.
+    #|  --stop-after=lex : Stop after lexing phase.
+    #|  --stop-after=parse : Stop after parsing phase.
+    #|  --help         : Show this help message.
   if args.length() == 1 {
+    println(help_info)
+    return
+  }
+  if args.contains("--help") {
     println(help_info)
     return
   }
@@ -59,7 +67,6 @@ fn main {
   if args.contains("--stop-after=lex") {
     return
   }
-  println("Tokenization Passed")
   ctx.parse() catch {
     @parser.ParseError((idx, msg)) => {
       let msg = ctx.get_error_msg(idx, msg)
@@ -68,5 +75,15 @@ fn main {
     }
     _ => ()
   }
-  println("Parsing Passed")
+  if args.contains("--stop-after=parse") {
+    return
+  }
+  let codegen = @parser.CodeGenContext::from_parser(ctx)
+  codegen.run() catch {
+    err => {
+      println("Code generation error: \{err}")
+      return
+    }
+  }
+  codegen.dump()
 }
