@@ -13,7 +13,34 @@ pub enum Type {
 } derive(Show, Eq)
 
 fn CodeGenContext::convert_type_to_llvm(self: Self, ty: Type) -> &LLVMType {
-  ...
+  match ty {
+    Void => self.llvm_ctx.getVoidTy() as &LLVMType
+    Int(1) => self.llvm_ctx.getInt1Ty()
+    Int(8) => self.llvm_ctx.getInt8Ty()
+    Int(16) => self.llvm_ctx.getInt16Ty()
+    Int(32) => self.llvm_ctx.getInt32Ty()
+    Int(64) => self.llvm_ctx.getInt64Ty()
+    Int(_) => self.llvm_ctx.getInt32Ty()  // Default to i32 for unsupported widths
+    UInt(1) => self.llvm_ctx.getInt1Ty()
+    UInt(8) => self.llvm_ctx.getInt8Ty()
+    UInt(16) => self.llvm_ctx.getInt16Ty()
+    UInt(32) => self.llvm_ctx.getInt32Ty()
+    UInt(64) => self.llvm_ctx.getInt64Ty()
+    UInt(_) => self.llvm_ctx.getInt32Ty() // Default to i32 for unsupported widths
+    FP(32) => self.llvm_ctx.getFloatTy()
+    FP(64) => self.llvm_ctx.getDoubleTy()
+    FP(_) => self.llvm_ctx.getDoubleTy() // Default to double for unsupported widths
+    Ptr(_) => self.llvm_ctx.getPtrTy()
+    Struct(_) => { 
+      ...
+    }
+    Union(_) => { 
+      ...
+    }
+    Enum(_) => {
+      ...
+    }
+  }
 }
 
 pub suberror CodeGenError {
@@ -38,7 +65,107 @@ pub fn CodeGenContext::from_parser(ctx: ParserContext) -> CodeGenContext {
 }
 
 pub fn CodeGenContext::analysis_declspecs(self: Self, declspecs: Array[DeclSpec]) -> Type {
-  ...
+  let mut is_signed = true
+  let mut base_type : Type? = None
+  let mut is_long = false
+  let mut is_short = false
+  let mut is_unsigned = false
+  
+  for declspec in declspecs {
+    match declspec {
+      TypeSpec(type_spec) => {
+        match type_spec {
+          Void => base_type = Some(Void)
+          Char => base_type = Some(Int(8))
+          Short => is_short = true
+          Int => base_type = Some(Int(32))
+          Long => is_long = true
+          Float => base_type = Some(FP(32))
+          Double => base_type = Some(FP(64))
+          Signed => is_signed = true
+          Unsigned => {
+            is_signed = false
+            is_unsigned = true
+          }
+          Bool => base_type = Some(Int(1))
+          Complex => {
+            ...
+          }
+          Atomic(_) => {
+            ...
+          }
+          StructSpec(_) => {
+            ...
+          }
+          UnionSpec(_) => {
+            ...
+          }
+          EnumSpec(_) => base_type = Some(Enum([]))
+          TypedefName(_) => {
+            ...
+          }
+        }
+      }
+      StorageClassSpec(_) => {
+        // Storage class doesn't affect type
+        ()
+      }
+      TypeQualifier(_) => {
+        // Type qualifiers don't affect basic type representation
+        ()
+      }
+      FunctionSpec(_) => {
+        // Function specs don't affect type
+        ()
+      }
+      AlignmentSpec(_) => {
+        // Alignment specs don't affect type
+        ()
+      }
+    }
+  }
+  
+  // Determine final type based on parsed information
+  match base_type {
+    Some(ty) => {
+      match ty {
+        Int(width) => {
+          let final_width = if is_long {
+            64
+          } else if is_short {
+            16
+          } else {
+            width
+          }
+          if is_unsigned {
+            UInt(final_width)
+          } else {
+            Int(final_width)
+          }
+        }
+        FP(width) => {
+          if is_long && width == 64 {
+            FP(128)  // long double (though we map to 64 for simplicity)
+          } else {
+            FP(width)
+          }
+        }
+        _ => ty
+      }
+    }
+    None => {
+      // Default type when no explicit type is given
+      if is_long {
+        if is_unsigned { UInt(64) } else { Int(64) }
+      } else if is_short {
+        if is_unsigned { UInt(16) } else { Int(16) }
+      } else if is_unsigned {
+        UInt(32)
+      } else {
+        Int(32)  // Default to int
+      }
+    }
+  }
 }
 
 pub fn CodeGenContext::run(self: Self) -> Unit raise {
@@ -57,18 +184,121 @@ pub fn CodeGenContext::emit_external_decl(self: Self, decl: ExternalDeclaration)
 fn CodeGenContext::analysis_param_declarator(
   self: Self, decl: Declarator, basic_type: Type
 ) -> (Type, String) raise CodeGenError {
-  ...
+  let param_name = decl.get_ident()
+  
+  // Handle pointer declarators
+  let mut param_type = match decl.pointer {
+    Some(_pointer) => {
+      // For now, just create a pointer to the basic type
+      // TODO: Handle multiple levels of pointers
+      Ptr(basic_type)
+    }
+    None => basic_type
+  }
+  
+  // Handle direct declarator modifications
+  param_type = match decl.directDeclarator {
+    Identifier(_) => param_type
+    Parenthesized(inner_decl) => {
+      // Recursively handle parenthesized declarator
+      let (inner_type, _) = self.analysis_param_declarator(inner_decl, basic_type)
+      inner_type
+    }
+    Array(_, _, size_expr) => {
+      // Array parameter - in C, array parameters are treated as pointers
+      Ptr(param_type)
+    }
+    StaticArray(_, _, _) => {
+      // Static array - also treated as pointer in parameters
+      Ptr(param_type)
+    }
+    VallengthArray(_, _) => {
+      // Variable length array - also treated as pointer
+      Ptr(param_type)
+    }
+    FunctionDecl(_, _) => {
+      // Function pointer parameter
+      // TODO: Implement proper function pointer type
+      Ptr(basic_type)  // Placeholder
+    }
+    FunctionPtr(_, _) => {
+      // Function pointer with identifier list
+      Ptr(basic_type)  // Placeholder
+    }
+    BitField(_, _) => {
+      // Bit fields are not valid in parameter declarations
+      raise CodeGenError::UnSupportFeature("Bit fields are not allowed in parameter declarations.")
+    }
+  }
+  
+  (param_type, param_name)
 }
 
 fn CodeGenContext::analysis_typename(self: Self, type_name: TypeName) -> Type raise CodeGenError {
-  ...
+  // Convert TypeSpecOrQualifier to DeclSpec for reuse of analysis_declspecs
+  let declspecs : Array[DeclSpec] = []
+  
+  for spec in type_name.specifiers {
+    match spec {
+      TypeSpec(type_spec) => declspecs.push(DeclSpec::TypeSpec(type_spec))
+      TypeQualifier(type_qual) => declspecs.push(DeclSpec::TypeQualifier(type_qual))
+    }
+  }
+  
+  // Get base type from specifiers
+  let mut base_type = self.analysis_declspecs(declspecs)
+  
+  // Handle abstract declarator modifications
+  match type_name.abstract_declarator {
+    Some(abstract_decl) => {
+      base_type = self.analysis_abstract_declarator(abstract_decl, base_type)
+    }
+    None => ()
+  }
+  
+  base_type
+}
+
+fn CodeGenContext::analysis_abstract_declarator(self: Self, abstract_decl: AbstractDeclarator, base_type: Type) -> Type raise CodeGenError {
+  let mut result_type = base_type
+  
+  // Handle pointer in abstract declarator
+  match abstract_decl.pointer {
+    Some(_pointer) => {
+      result_type = Ptr(result_type)
+    }
+    None => ()
+  }
+  
+  // Handle direct abstract declarator
+  match abstract_decl.directAbstractDeclarator {
+    Some(direct_abstract_decl) => {
+      result_type = self.analysis_direct_abstract_declarator(direct_abstract_decl, result_type)
+    }
+    None => ()
+  }
+  
+  result_type
+}
+
+fn CodeGenContext::analysis_direct_abstract_declarator(self: Self, direct_abstract_decl: DirectAbstractDeclarator, base_type: Type) -> Type raise CodeGenError {
+  match direct_abstract_decl {
+    FuncDecl(inner_opt, _param_type_list) => {
+      ...
+    }
+    ArrayDecl(inner_opt, is_static~, _type_quals, _size_expr) => {
+      ...
+    }
+    InCompleteArray(inner_opt) => {
+      ...
+    }
+    FuncPtr(inner_opt, _abstract_decl) => {
+      ...
+    }
+  }
 }
 
 pub fn CodeGenContext::emit_declaration(self: Self, decl: Declaration) -> Unit {
-  ...
-}
-
-pub fn CodeGenContext::emit_cast(self: Self, from_type~: Type, to_type~: Type, value: &LLVMValue) -> &LLVMValue raise {
   ...
 }
 
@@ -76,7 +306,7 @@ struct FuncCodeGenContext {
   global_ctx: CodeGenContext
   func_def : FunctionDefinition
   func_value : @IR.Function
-  var_env : Env[&LLVMValue]
+  var_env : Env[(Type, &LLVMValue)]
   builder: @IR.IRBuilder
 }
 
@@ -167,7 +397,7 @@ fn FuncCodeGenContext::emit_statement(self: Self, stmt: Statement) -> Unit raise
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
     SelectionStatement(sel_stmt) => { ... }
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
-    JumpStatement(jump_stmt) => { ... }
+    JumpStatement(jump_stmt) => self.emit_jump_statement(jump_stmt)
     CompoundStatement(comp_stmt) => self.emit_compound_statement(comp_stmt)
   }
 }
@@ -199,7 +429,7 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
       let left_type = self.global_ctx.convert_type_to_llvm(lty)
       let left_val = self.builder.createLoad(left_type, left)
       let right = if lty != rty {
-        self.global_ctx.emit_cast(from_type=rty, to_type=lty, right) catch {
+        self.emit_cast(from_type=rty, to_type=lty, right) catch {
           err => raise CodeGenError::LLVMError(err)
         }
       } else {
@@ -207,7 +437,8 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
       }
       let val = match op {
         Assign => {
-          self.builder.createStore(right, left)
+          ignore(self.builder.createStore(right, left))
+          right
         }
         AddAssign => {
           let result = match lty {
@@ -215,7 +446,8 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
             FP(_) => self.builder.createFAdd(left_val, right)
             _ => raise CodeGenError::UnSupportFeature("Unsupported type for AddAssign.")
           }
-          self.builder.createStore(result, left)
+          ignore(self.builder.createStore(result, left))
+          result
         }
         SubAssign => {
           let result = match lty {
@@ -306,13 +538,18 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
   }
 }
 
+pub fn FuncCodeGenContext::emit_cast(self: Self, from_type~: Type, to_type~: Type, value: &LLVMValue) -> &LLVMValue raise {
+  ...
+}
+
+
 fn FuncCodeGenContext::emit_conditional_expr(self: Self, cond_expr: ConditionalExpr) -> (Type, &LLVMValue) raise {
   let { expr, select } = cond_expr
 
   let (cond_type, cond_val) = self.emit_logical_or_expr(expr)
   if select is Some(select) {
     let cond_val = if not(cond_type is Int(1) || cond_type is UInt(1)) {
-      self.global_ctx.emit_cast(from_type=cond_type, to_type=Int(1), cond_val) catch {
+      self.emit_cast(from_type=cond_type, to_type=Int(1), cond_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -322,7 +559,7 @@ fn FuncCodeGenContext::emit_conditional_expr(self: Self, cond_expr: ConditionalE
     let (then_ty, then_val) = self.emit_expr(then_expr)
     let (else_ty, else_val) = self.emit_conditional_expr(else_expr)
     let then_val = if then_ty != else_ty {
-      self.global_ctx.emit_cast(from_type=then_ty, to_type=else_ty, then_val) catch {
+      self.emit_cast(from_type=then_ty, to_type=else_ty, then_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -341,7 +578,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(self: Self, log_or_expr: LogicalOrEx
   for i in 1 ..< (logical_and_exprs.length()) {
     let (ty, val) = self.emit_logical_and_expr(logical_and_exprs[i])
     let first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -357,7 +594,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(self: Self, log_and_expr: LogicalAn
   for i in 1 ..< (inclusive_or_exprs.length()) {
     let (ty, val) = self.emit_inclusive_or_expr(inclusive_or_exprs[i])
     let first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -373,7 +610,7 @@ fn FuncCodeGenContext::emit_inclusive_or_expr(self: Self, incl_or_expr: Inclusiv
   for i in 1 ..< (exclusive_or_exprs.length()) {
     let (ty, val) = self.emit_exclusive_or_expr(exclusive_or_exprs[i])
     let first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -389,7 +626,7 @@ fn FuncCodeGenContext::emit_exclusive_or_expr(self: Self, excl_or_expr: Exclusiv
   for i in 1 ..< (and_exprs.length()) {
     let (ty, val) = self.emit_and_expr(and_exprs[i])
     let first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -405,7 +642,7 @@ fn FuncCodeGenContext::emit_and_expr(self: Self, and_expr: AndExpr) -> (Type, &L
   for i in 1 ..< (equality_exprs.length()) {
     let (ty, val) = self.emit_equality_expr(equality_exprs[i])
     let first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -423,7 +660,7 @@ fn FuncCodeGenContext::emit_equality_expr(self: Self, eq_expr: EqualityExpr) -> 
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_relational_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -448,7 +685,7 @@ fn FuncCodeGenContext::emit_relational_expr(self: Self, rel_expr: RelationalExpr
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_shift_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -475,7 +712,7 @@ fn FuncCodeGenContext::emit_shift_expr(self: Self, shift_expr: ShiftExpr) -> (Ty
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_addsub_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -500,7 +737,7 @@ fn FuncCodeGenContext::emit_addsub_expr(self: Self, add_expr: AddSubExpr) -> (Ty
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_mult_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -533,7 +770,7 @@ fn FuncCodeGenContext::emit_mult_expr(self: Self, mult_expr: MultExpr) -> (Type,
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_cast_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.global_ctx.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     } else {
@@ -570,7 +807,7 @@ fn FuncCodeGenContext::emit_cast_expr(self: Self, cast_expr: CastExpr) -> (Type,
     Cast(type_name, expr) => {
       let ty = self.global_ctx.analysis_typename(type_name)
       let (expr_type, expr_val) = self.emit_cast_expr(expr)
-      let casted_val = self.global_ctx.emit_cast(from_type=expr_type, to_type=ty, expr_val) catch {
+      let casted_val = self.emit_cast(from_type=expr_type, to_type=ty, expr_val) catch {
         err => raise CodeGenError::LLVMError(err)
       }
       (ty, casted_val)
@@ -579,15 +816,311 @@ fn FuncCodeGenContext::emit_cast_expr(self: Self, cast_expr: CastExpr) -> (Type,
 }
 
 fn FuncCodeGenContext::emit_unary_expr(self: Self, unary_expr: UnaryExpr) -> (Type, &LLVMValue) raise {
-  ...
+  // First, evaluate the body of the unary expression
+  let (expr_type_init, expr_value_init) = self.emit_unary_expr_body(unary_expr.body)
+  let mut expr_type = expr_type_init
+  let mut expr_value = expr_value_init
+  
+  // Apply prefix operators in reverse order (rightmost first)
+  let prefix_len = unary_expr.prefix.length()
+  for i in 0 ..< prefix_len {
+    let prefix_op = unary_expr.prefix[prefix_len - 1 - i]
+    match prefix_op {
+      PlusPlus => {
+        // Pre-increment: load, add 1, store, return new value
+        match expr_type {
+          Int(width) | UInt(width) => {
+            // expr_value should be an address for pre-increment
+            let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
+            let current_val = self.builder.createLoad(llvm_type, expr_value)
+            let one = match expr_type {
+              Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
+              UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)  // Fallback
+            }
+            let new_val = self.builder.createAdd(current_val, one)
+            ignore(self.builder.createStore(new_val, expr_value))
+            expr_value = new_val
+          }
+          _ => raise CodeGenError::UnSupportFeature("Pre-increment not supported for type \{expr_type}")
+        }
+      }
+      
+      MinusMinus => {
+        // Pre-decrement: load, subtract 1, store, return new value
+        match expr_type {
+          Int(width) | UInt(width) => {
+            let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
+            let current_val = self.builder.createLoad(llvm_type, expr_value)
+            let one = match expr_type {
+              Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
+              UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)  // Fallback
+            }
+            let new_val = self.builder.createSub(current_val, one)
+            ignore(self.builder.createStore(new_val, expr_value))
+            expr_value = new_val
+          }
+          _ => raise CodeGenError::UnSupportFeature("Pre-decrement not supported for type \{expr_type}")
+        }
+      }
+      
+      Sizeof => {
+        // Sizeof operator: return size in bytes as compile-time constant
+        let size_bytes = match expr_type {
+          Int(1) | UInt(1) => 1
+          Int(8) | UInt(8) => 1
+          Int(16) | UInt(16) => 2
+          Int(32) | UInt(32) => 4
+          Int(64) | UInt(64) => 8
+          FP(32) => 4
+          FP(64) => 8
+          Ptr(_) => 8  // Assume 64-bit pointers
+          _ => 4  // Default size
+        }
+        expr_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
+        expr_type = Int(32)
+      }
+    }
+  }
+  
+  (expr_type, expr_value)
+}
+
+fn FuncCodeGenContext::emit_unary_expr_body(self: Self, unary_body: UnaryExprBody) -> (Type, &LLVMValue) raise {
+  match unary_body {
+    PostFix(postfix_expr) => self.emit_postfix_expr(postfix_expr)
+    
+    UnaryOp(op, cast_expr) => {
+      let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
+      
+      match op {
+        AddressOf => {
+          // Address-of operator: get address of lvalue
+          // operand_value should already be an address for this to work
+          (Ptr(operand_type), operand_value)
+        }
+        
+        Dereference => {
+          // Dereference operator: load from pointer
+          match operand_type {
+            Ptr(pointed_type) => {
+              let llvm_type = self.global_ctx.convert_type_to_llvm(pointed_type)
+              let loaded_value = self.builder.createLoad(llvm_type, operand_value)
+              (pointed_type, loaded_value)
+            }
+            _ => raise CodeGenError::UnSupportFeature("Cannot dereference non-pointer type \{operand_type}")
+          }
+        }
+        
+        Positive => {
+          // Unary plus: no-op, just return the operand
+          (operand_type, operand_value)
+        }
+        
+        Negative => {
+          // Unary minus: negate the operand
+          match operand_type {
+            Int(_) | UInt(_) => {
+              let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+              let negated = self.builder.createSub(zero, operand_value)
+              (operand_type, negated)
+            }
+            FP(_) => {
+              ...
+            }
+            _ => raise CodeGenError::UnSupportFeature("Unary minus not supported for type \{operand_type}")
+          }
+        }
+        
+        BitwiseNot => {
+          // Bitwise NOT: XOR with all 1s
+          match operand_type {
+            Int(width) | UInt(width) => {
+              let all_ones = match width {
+                1 => self.global_ctx.llvm_ctx.getConstTrue()
+                8 => self.global_ctx.llvm_ctx.getConstInt8(-1)
+                16 => self.global_ctx.llvm_ctx.getConstInt16(-1)
+                32 => self.global_ctx.llvm_ctx.getConstInt32(-1)
+                64 => self.global_ctx.llvm_ctx.getConstInt64(-1L)
+                _ => self.global_ctx.llvm_ctx.getConstInt32(-1)  // Fallback
+              }
+              let result = self.builder.createXor(operand_value, all_ones)
+              (operand_type, result)
+            }
+            _ => raise CodeGenError::UnSupportFeature("Bitwise NOT not supported for type \{operand_type}")
+          }
+        }
+        
+        LogicalNot => {
+          // Logical NOT: compare with zero
+          let zero = match operand_type {
+            Int(_) | UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
+            FP(_) => self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
+            Ptr(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue  // Null pointer
+            _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue  // Fallback
+          }
+          let is_zero = self.builder.createICmpEQ(operand_value, zero)
+          (Int(1), is_zero)
+        }
+      }
+    }
+    
+    SizeofTypeName(type_name) => {
+      // Sizeof type: get size of specified type
+      let expr_type = self.global_ctx.analysis_typename(type_name)
+      let size_bytes = match expr_type {
+        Int(1) | UInt(1) => 1
+        Int(8) | UInt(8) => 1
+        Int(16) | UInt(16) => 2
+        Int(32) | UInt(32) => 4
+        Int(64) | UInt(64) => 8
+        FP(32) => 4
+        FP(64) => 8
+        Ptr(_) => 8  // Assume 64-bit pointers
+        _ => ...  // Default size
+      }
+      let size_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
+      (Int(32), size_value)
+    }
+    
+    AlignOfTypeName(type_name) => {
+      ...
+    }
+  }
 }
 
 fn FuncCodeGenContext::emit_postfix_expr(self: Self, post_expr: PostFixExpr) -> (Type, &LLVMValue) raise {
-  ...
+  // First, evaluate the head of the postfix expression
+  let (expr_type_init, expr_value_init) = match post_expr.head {
+    Left(prim_expr) => self.emit_prim_expr(prim_expr)
+    Right((type_name, init_list)) => {
+      ...
+    }
+  }
+  
+  let expr_type = expr_type_init
+  let mut expr_value = expr_value_init
+  
+  // Apply postfix operators in order (left to right)
+  for suffix in post_expr.suffixes {
+    match suffix {
+      Indexing(index_expr) => {
+        // Array indexing: base[index]
+        let (index_type, index_value) = self.emit_expr(index_expr)
+        
+        match expr_type {
+          Ptr(_) => {
+            ...
+          }
+          _ => raise CodeGenError::UnSupportFeature("Array indexing not supported for type \{expr_type}")
+        }
+      }
+      
+      Call(arg_exprs) => {
+        ...
+      }
+      
+      DotAccess(_) => {
+        ...
+      }
+      
+      ArrowAccess(_) => {
+        ...
+      }
+      
+      PlusPlus => {
+        // Post-increment: return old value, increment stored value
+        match expr_type {
+          Int(_) | UInt(_) => {
+            // expr_value should be an address for post-increment
+            let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
+            let old_val = self.builder.createLoad(llvm_type, expr_value)
+            let one = self.global_ctx.llvm_ctx.getConstInt32(1)
+            let new_val = self.builder.createAdd(old_val, one)
+            ignore(self.builder.createStore(new_val, expr_value))
+            expr_value = old_val  // Return old value
+          }
+          _ => raise CodeGenError::UnSupportFeature("Post-increment not supported for type \{expr_type}")
+        }
+      }
+      
+      MinusMinus => {
+        // Post-decrement: return old value, decrement stored value
+        match expr_type {
+          Int(_) | UInt(_) => {
+            let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
+            let old_val = self.builder.createLoad(llvm_type, expr_value)
+            let one = self.global_ctx.llvm_ctx.getConstInt32(1)
+            let new_val = self.builder.createSub(old_val, one)
+            ignore(self.builder.createStore(new_val, expr_value))
+            expr_value = old_val  // Return old value
+          }
+          _ => raise CodeGenError::UnSupportFeature("Post-decrement not supported for type \{expr_type}")
+        }
+      }
+    }
+  }
+  
+  (expr_type, expr_value)
 }
 
 fn FuncCodeGenContext::emit_prim_expr(self: Self, prim_expr: PrimExpr) -> (Type, &LLVMValue) raise {
-  ...
+  match prim_expr {
+    Identifier(name) => {
+      // Look up variable in environment
+      match self.var_env.get(name) {
+        Some((ty, value)) => {
+          (ty, value)
+        }
+        None => {
+          raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
+        }
+      }
+    }
+    
+    Constant(constant) => {
+      match constant {
+        Int(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt32(value)
+          (Int(32), llvm_value)
+        }
+        Long(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt64(value)
+          (Int(64), llvm_value)
+        }
+        UInt(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt32(value.reinterpret_as_int())
+          (UInt(32), llvm_value)
+        }
+        ULong(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt64(value.reinterpret_as_int64())
+          (UInt(64), llvm_value)
+        }
+        Double(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstDouble(value)
+          (FP(64), llvm_value)
+        }
+        Char(char_value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt8(char_value.to_int())
+          (Int(8), llvm_value)
+        }
+      }
+    }
+    
+    StringLiteral(str_value) => {
+      ...
+    }
+    
+    ParenExpr(expr) => {
+      // Parenthesized expression - just evaluate the inner expression
+      self.emit_expr(expr)
+    }
+    
+    BuiltinOffsetof(type_name, unary_expr) => {
+      ...
+    }
+  }
 }
 
 fn FuncCodeGenContext::emit_unary_expr_as_lvalue(self: Self, unary_expr: UnaryExpr) -> (Type, &LLVMValue) raise {
@@ -619,6 +1152,10 @@ fn FuncCodeGenContext::emit_do_while(self: Self, stmt: Statement, cond_expr: Exp
 }
 
 fn FuncCodeGenContext::emit_for(self: Self, for_cond: ForCondition, stmt: Statement) -> Unit raise {
+  ...
+}
+
+fn FuncCodeGenContext::emit_jump_statement(self: Self, jump_stmt: JumpStatement) -> Unit raise {
   ...
 }
 
