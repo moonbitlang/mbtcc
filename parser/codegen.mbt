@@ -329,11 +329,11 @@ pub fn CodeGenContext::emit_function_definition(self: Self, func_def: FunctionDe
   let llvm_func = self.llvm_mod.addFunction(func_type, func_name) catch {
     err => raise CodeGenError::LLVMError(err)
   }
-  let var_env : Env[&LLVMValue] = Env::new()
+  let var_env : Env[(Type, &LLVMValue)] = Env::new()
   for i in 0 ..< params.length() {
-    let (param_name, _) = params[i]
+    let (param_name, param_type) = params[i]
     let llvm_param = llvm_func.getArg(i).unwrap()
-    var_env.set(param_name, llvm_param)
+    var_env.set(param_name, (param_type, llvm_param))
   }
   let builder = self.llvm_ctx.createBuilder()
   let func_codegen = FuncCodeGenContext::{ global_ctx: self, func_def, func_value: llvm_func, var_env, builder }
@@ -395,7 +395,7 @@ fn FuncCodeGenContext::emit_statement(self: Self, stmt: Statement) -> Unit raise
     Empty => ()
     LabeledStatement(label) => { ... }
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
-    SelectionStatement(sel_stmt) => { ... }
+    SelectionStatement(sel_stmt) => self.emit_selection_statement(sel_stmt)
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
     JumpStatement(jump_stmt) => self.emit_jump_statement(jump_stmt)
     CompoundStatement(comp_stmt) => self.emit_compound_statement(comp_stmt)
@@ -429,9 +429,7 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
       let left_type = self.global_ctx.convert_type_to_llvm(lty)
       let left_val = self.builder.createLoad(left_type, left)
       let right = if lty != rty {
-        self.emit_cast(from_type=rty, to_type=lty, right) catch {
-          err => raise CodeGenError::LLVMError(err)
-        }
+        self.emit_cast(from_type=rty, to_type=lty, right)
       } else {
         right
       }
@@ -538,8 +536,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
   }
 }
 
-pub fn FuncCodeGenContext::emit_cast(self: Self, from_type~: Type, to_type~: Type, value: &LLVMValue) -> &LLVMValue raise {
-  ...
+pub fn FuncCodeGenContext::emit_cast(self: Self, from_type~: Type, to_type~: Type, value: &LLVMValue) -> &LLVMValue {
+  // For now, just return the original value
+  // TODO: Implement proper type casting
+  value
 }
 
 
@@ -548,23 +548,19 @@ fn FuncCodeGenContext::emit_conditional_expr(self: Self, cond_expr: ConditionalE
 
   let (cond_type, cond_val) = self.emit_logical_or_expr(expr)
   if select is Some(select) {
-    let cond_val = if not(cond_type is Int(1) || cond_type is UInt(1)) {
-      self.emit_cast(from_type=cond_type, to_type=Int(1), cond_val) catch {
-        err => raise CodeGenError::LLVMError(err)
+          let cond_val = if not(cond_type is Int(1) || cond_type is UInt(1)) {
+        self.emit_cast(from_type=cond_type, to_type=Int(1), cond_val)
+      } else {
+        cond_val
       }
-    } else {
-      cond_val
-    }
     let (then_expr, else_expr) = select
     let (then_ty, then_val) = self.emit_expr(then_expr)
     let (else_ty, else_val) = self.emit_conditional_expr(else_expr)
-    let then_val = if then_ty != else_ty {
-      self.emit_cast(from_type=then_ty, to_type=else_ty, then_val) catch {
-        err => raise CodeGenError::LLVMError(err)
+          let then_val = if then_ty != else_ty {
+        self.emit_cast(from_type=then_ty, to_type=else_ty, then_val)
+      } else {
+        then_val
       }
-    } else {
-      then_val
-    }
     let val = self.builder.createSelect(cond_val, then_val, else_val)
     (else_ty, val)
   } else {
@@ -578,9 +574,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(self: Self, log_or_expr: LogicalOrEx
   for i in 1 ..< (logical_and_exprs.length()) {
     let (ty, val) = self.emit_logical_and_expr(logical_and_exprs[i])
     let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -594,9 +588,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(self: Self, log_and_expr: LogicalAn
   for i in 1 ..< (inclusive_or_exprs.length()) {
     let (ty, val) = self.emit_inclusive_or_expr(inclusive_or_exprs[i])
     let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -610,9 +602,7 @@ fn FuncCodeGenContext::emit_inclusive_or_expr(self: Self, incl_or_expr: Inclusiv
   for i in 1 ..< (exclusive_or_exprs.length()) {
     let (ty, val) = self.emit_exclusive_or_expr(exclusive_or_exprs[i])
     let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -626,9 +616,7 @@ fn FuncCodeGenContext::emit_exclusive_or_expr(self: Self, excl_or_expr: Exclusiv
   for i in 1 ..< (and_exprs.length()) {
     let (ty, val) = self.emit_and_expr(and_exprs[i])
     let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -642,9 +630,7 @@ fn FuncCodeGenContext::emit_and_expr(self: Self, and_expr: AndExpr) -> (Type, &L
   for i in 1 ..< (equality_exprs.length()) {
     let (ty, val) = self.emit_equality_expr(equality_exprs[i])
     let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -660,9 +646,7 @@ fn FuncCodeGenContext::emit_equality_expr(self: Self, eq_expr: EqualityExpr) -> 
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_relational_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -685,9 +669,7 @@ fn FuncCodeGenContext::emit_relational_expr(self: Self, rel_expr: RelationalExpr
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_shift_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -712,9 +694,7 @@ fn FuncCodeGenContext::emit_shift_expr(self: Self, shift_expr: ShiftExpr) -> (Ty
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_addsub_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -737,9 +717,7 @@ fn FuncCodeGenContext::emit_addsub_expr(self: Self, add_expr: AddSubExpr) -> (Ty
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_mult_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -770,9 +748,7 @@ fn FuncCodeGenContext::emit_mult_expr(self: Self, mult_expr: MultExpr) -> (Type,
   for i in 1 ..< (exprs.length()) {
     let (ty, val) = self.emit_cast_expr(exprs[i])
     first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
@@ -807,9 +783,7 @@ fn FuncCodeGenContext::emit_cast_expr(self: Self, cast_expr: CastExpr) -> (Type,
     Cast(type_name, expr) => {
       let ty = self.global_ctx.analysis_typename(type_name)
       let (expr_type, expr_val) = self.emit_cast_expr(expr)
-      let casted_val = self.emit_cast(from_type=expr_type, to_type=ty, expr_val) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      let casted_val = self.emit_cast(from_type=expr_type, to_type=ty, expr_val)
       (ty, casted_val)
     }
   }
@@ -1018,7 +992,10 @@ fn FuncCodeGenContext::emit_postfix_expr(self: Self, post_expr: PostFixExpr) -> 
       }
       
       Call(arg_exprs) => {
-        ...
+        // Function call: func(args)
+        // For now, just skip function calls and return a placeholder
+        // TODO: Implement proper function call handling
+        ()
       }
       
       DotAccess(_) => {
@@ -1156,7 +1133,68 @@ fn FuncCodeGenContext::emit_for(self: Self, for_cond: ForCondition, stmt: Statem
 }
 
 fn FuncCodeGenContext::emit_jump_statement(self: Self, jump_stmt: JumpStatement) -> Unit raise {
-  ...
+  match jump_stmt {
+    Return(expr_opt) => {
+      match expr_opt {
+        Some(expr) => {
+          let (expr_type, expr_val) = self.emit_expr(expr)
+          ignore(self.builder.createRet(expr_val))
+        }
+        None => {
+          ignore(self.builder.createRetVoid())
+        }
+      }
+    }
+    _ => {
+      // For now, skip other jump statements
+      ()
+    }
+  }
+}
+
+fn FuncCodeGenContext::emit_selection_statement(self: Self, sel_stmt: SelectionStatement) -> Unit raise {
+  match sel_stmt {
+    If(cond_expr, then_stmt, else_stmt_opt) => {
+      let (cond_type, cond_val) = self.emit_expr(cond_expr)
+      
+      // Convert condition to boolean if needed
+      let bool_cond = if cond_type != Int(1) {
+        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+        self.builder.createICmpNE(cond_val, zero)
+      } else {
+        cond_val
+      }
+      
+      let then_bb = self.func_value.addBasicBlock(name="then")
+      let else_bb = self.func_value.addBasicBlock(name="else")
+      let merge_bb = self.func_value.addBasicBlock(name="merge")
+      
+      // Create conditional branch
+      ignore(self.builder.createCondBr(bool_cond, then_bb, else_bb))
+      
+      // Emit then block
+      self.builder.setInsertPoint(then_bb)
+      self.emit_statement(then_stmt)
+      // Always add a branch to merge block for now
+      ignore(self.builder.createBr(merge_bb))
+      
+      // Emit else block
+      self.builder.setInsertPoint(else_bb)
+      match else_stmt_opt {
+        Some(else_stmt) => self.emit_statement(else_stmt)
+        None => ()
+      }
+      // Always add a branch to merge block for now
+      ignore(self.builder.createBr(merge_bb))
+      
+      // Continue with merge block
+      self.builder.setInsertPoint(merge_bb)
+    }
+    Switch(_, _) => {
+      // For now, skip switch statements
+      ()
+    }
+  }
 }
 
 fn FuncCodeGenContext::emit_declaration(self: Self, decl: Declaration) -> Unit raise {
