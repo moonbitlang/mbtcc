@@ -1276,7 +1276,12 @@ fn FuncCodeGenContext::emit_prim_expr(
     Identifier(name) =>
       // Look up variable in environment
       match self.var_env.get(name) {
-        Some((ty, value)) => (ty, value)
+        Some((ty, alloca_value)) => {
+          // Load the value from the alloca address
+          let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
+          let loaded_value = self.builder.createLoad(llvm_type, alloca_value)
+          (ty, loaded_value)
+        }
         None =>
           raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
       }
@@ -1467,5 +1472,50 @@ fn FuncCodeGenContext::emit_decl(
   declspecs : Array[DeclSpec],
   inits : Array[InitDeclarator],
 ) -> Unit raise {
-  ...
+  // Get the base type from declaration specifiers
+  let base_type = self.global_ctx.analysis_declspecs(declspecs)
+
+  // Process each declarator with initializer
+  for init_decl in inits {
+    let { declarator, initializer } = init_decl
+    let var_name = declarator.get_ident()
+
+    // For now, we only support simple declarators (no pointers, arrays, etc.)
+    let var_type = match declarator.pointer {
+      Some(_) => Ptr(base_type)
+      None => base_type
+    }
+
+    // Allocate space for the variable
+    let llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
+    let alloca = self.builder.createAlloca(llvm_type, name=var_name)
+
+    // Store the variable in the environment
+    self.var_env.set(var_name, (var_type, alloca))
+
+    // Handle initialization if present
+    match initializer {
+      Some(init) =>
+        // For now, only handle simple expression initializers
+        match init {
+          AssignExpr(assign_expr) => {
+            let (init_type, init_val) = self.emit_assign_expr(assign_expr)
+            let init_val = if init_type != var_type {
+              self.emit_cast(from_type=init_type, to_type=var_type, init_val)
+            } else {
+              init_val
+            }
+            ignore(self.builder.createStore(init_val, alloca))
+          }
+          InitList(_) =>
+            // Skip complex initializer lists for now
+            raise CodeGenError::UnSupportFeature(
+              "InitList initializers not supported yet",
+            )
+        }
+      None =>
+        // No initialization - variable is uninitialized
+        ()
+    }
+  }
 }

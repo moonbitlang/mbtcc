@@ -1,0 +1,19 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/color"
+
+// Values
+fn taint(String, Color) -> String
+
+// Errors
+
+// Types and methods
+pub(all) enum Color {
+  Red
+  Yellow
+  Magenta
+}
+
+// Type aliases
+
+// Traits
+

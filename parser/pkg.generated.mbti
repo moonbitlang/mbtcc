@@ -1,0 +1,727 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/parser"
+
+import(
+  "Kaida-Amethyst/MoonLLVM/IR"
+)
+
+// Values
+
+// Errors
+pub suberror CodeGenError {
+  UnSupportFeature(String)
+  LLVMError(Error)
+}
+impl Show for CodeGenError
+
+pub suberror FunctionDefinitionParseError {
+  DeclSpecsParseError(Error)
+  DeclaratorParseError(Error)
+  NotFunctionDefinitionError(Error)
+  KRDeclarationParseError(Error)
+  CompoundStatementParseError(Error)
+}
+
+pub suberror LexerError String
+impl Show for LexerError
+
+pub suberror ParseError (Int, String)
+impl Eq for ParseError
+impl Show for ParseError
+
+// Types and methods
+pub struct AbstractDeclarator {
+  pointer : Pointer?
+  directAbstractDeclarator : DirectAbstractDeclarator?
+}
+impl Eq for AbstractDeclarator
+impl Show for AbstractDeclarator
+
+pub struct AddSubExpr {
+  exprs : Array[MultExpr]
+  ops : Array[AddSubOp]
+}
+impl Eq for AddSubExpr
+impl Show for AddSubExpr
+
+pub enum AddSubOp {
+  Add
+  Sub
+}
+impl Eq for AddSubOp
+impl Show for AddSubOp
+
+pub enum AlignmentSpec {
+  AlignasExpr(ConditionalExpr)
+  AlignofType(TypeName)
+}
+impl Eq for AlignmentSpec
+impl Show for AlignmentSpec
+
+pub struct AndExpr {
+  exprs : Array[EqualityExpr]
+}
+impl Eq for AndExpr
+impl Show for AndExpr
+
+pub enum AssignExpr {
+  Conditional(ConditionalExpr)
+  Assign(UnaryExpr, AssignOp, AssignExpr)
+}
+impl Eq for AssignExpr
+impl Show for AssignExpr
+
+pub enum AssignOp {
+  Assign
+  AddAssign
+  SubAssign
+  MultAssign
+  DivAssign
+  ModAssign
+  AndAssign
+  OrAssign
+  LeftShiftAssign
+  RightShiftAssign
+  BitwiseAndAssign
+  BitwiseXorAssign
+  BitwiseOrAssign
+}
+impl Eq for AssignOp
+impl Show for AssignOp
+
+pub enum BlockItem {
+  Statement(Statement)
+  Declaration(Declaration)
+}
+impl Eq for BlockItem
+impl Show for BlockItem
+
+pub enum CastExpr {
+  UnaryExpr(UnaryExpr)
+  Cast(TypeName, CastExpr)
+}
+impl Eq for CastExpr
+impl Show for CastExpr
+
+pub struct CodeGenContext {
+  external_decls : Array[ExternalDeclaration]
+  llvm_ctx : @IR.Context
+  llvm_mod : @IR.Module
+}
+fn CodeGenContext::analysis_declspecs(Self, Array[DeclSpec]) -> Type
+fn CodeGenContext::dump(Self) -> Unit
+fn CodeGenContext::emit_declaration(Self, Declaration) -> Unit
+fn CodeGenContext::emit_external_decl(Self, ExternalDeclaration) -> Unit raise
+fn CodeGenContext::emit_function_definition(Self, FunctionDefinition) -> Unit raise
+fn CodeGenContext::from_parser(ParserContext) -> Self
+fn CodeGenContext::run(Self) -> Unit raise
+
+pub struct CompilationUnit {
+  externalDecls : Array[ExternalDeclaration]
+}
+impl Eq for CompilationUnit
+impl Show for CompilationUnit
+
+pub struct CompoundStatement {
+  items : Array[BlockItem]
+}
+impl Eq for CompoundStatement
+impl Show for CompoundStatement
+
+pub struct ConditionalExpr {
+  expr : LogicalOrExpr
+  select : (Expr, ConditionalExpr)?
+}
+impl Eq for ConditionalExpr
+impl Show for ConditionalExpr
+
+pub enum Constant {
+  Int(Int)
+  Long(Int64)
+  UInt(UInt)
+  ULong(UInt64)
+  Double(Double)
+  Char(Char)
+}
+impl Eq for Constant
+impl Show for Constant
+
+pub enum DeclSpec {
+  StorageClassSpec(StorageClassSpec)
+  TypeSpec(TypeSpec)
+  TypeQualifier(TypeQualifier)
+  FunctionSpec(FunctionSpec)
+  AlignmentSpec(AlignmentSpec)
+}
+impl Eq for DeclSpec
+impl Show for DeclSpec
+
+pub enum Declaration {
+  Decl(Array[DeclSpec], Array[InitDeclarator])
+}
+impl Eq for Declaration
+impl Show for Declaration
+
+pub struct Declarator {
+  pointer : Pointer?
+  directDeclarator : DirectDeclarator
+  gccDeclExt : Array[Expr]
+}
+impl Eq for Declarator
+impl Show for Declarator
+
+pub enum Designator {
+  ConstExpr(ConditionalExpr)
+  DotAccess(String)
+}
+impl Eq for Designator
+impl Show for Designator
+
+pub enum DirectAbstractDeclarator {
+  FuncDecl(DirectAbstractDeclarator?, ParameterTypeList)
+  ArrayDecl(DirectAbstractDeclarator?, is_static~ : Bool, Array[TypeQualifier], AssignExpr?)
+  InCompleteArray(DirectAbstractDeclarator?)
+  FuncPtr(DirectAbstractDeclarator?, AbstractDeclarator)
+}
+impl Eq for DirectAbstractDeclarator
+impl Show for DirectAbstractDeclarator
+
+pub enum DirectDeclarator {
+  Identifier(String)
+  Parenthesized(Declarator)
+  Array(DirectDeclarator, TypeQualifierList, AssignExpr?)
+  StaticArray(DirectDeclarator, Array[TypeQualifier], AssignExpr)
+  VallengthArray(DirectDeclarator, Array[TypeQualifier])
+  FunctionDecl(DirectDeclarator, ParameterTypeList)
+  FunctionPtr(DirectDeclarator, Array[String])
+  BitField(String, Int)
+}
+impl Eq for DirectDeclarator
+impl Show for DirectDeclarator
+
+pub(all) enum Either[L, R] {
+  Left(L)
+  Right(R)
+}
+fn[L, R] Either::expect_left(Self[L, R], String) -> L
+fn[L, R] Either::expect_right(Self[L, R], String) -> R
+fn[L, R] Either::is_left(Self[L, R]) -> Bool
+fn[L, R] Either::is_right(Self[L, R]) -> Bool
+fn[L, R] Either::left(Self[L, R]) -> L?
+fn[L, R] Either::left_unwrap(Self[L, R]) -> L
+fn[L, R] Either::right(Self[L, R]) -> R?
+fn[L, R] Either::right_unwrap(Self[L, R]) -> R
+impl[L : Eq, R : Eq] Eq for Either[L, R]
+impl[L : Show, R : Show] Show for Either[L, R]
+
+pub struct EnumSpec {
+  name : String?
+  enumerators : Array[Enumerator]
+}
+impl Eq for EnumSpec
+impl Show for EnumSpec
+
+type Enumerator
+impl Eq for Enumerator
+impl Show for Enumerator
+
+pub struct EqualityExpr {
+  exprs : Array[RelationalExpr]
+  ops : Array[EqualityOp]
+}
+impl Eq for EqualityExpr
+impl Show for EqualityExpr
+
+pub enum EqualityOp {
+  EQ
+  NE
+}
+impl Eq for EqualityOp
+impl Show for EqualityOp
+
+pub struct ExclusiveOrExpr {
+  exprs : Array[AndExpr]
+}
+impl Eq for ExclusiveOrExpr
+impl Show for ExclusiveOrExpr
+
+pub struct Expr {
+  exprs : Array[AssignExpr]
+}
+impl Eq for Expr
+impl Show for Expr
+
+pub enum ExternalDeclaration {
+  FunctionDefinition(FunctionDefinition)
+  Declaration(Declaration)
+}
+impl Eq for ExternalDeclaration
+impl Show for ExternalDeclaration
+
+pub struct ForCondition {
+  for_init : ForInit
+  cond : Array[AssignExpr]
+  inc : Array[AssignExpr]
+}
+impl Eq for ForCondition
+impl Show for ForCondition
+
+pub enum ForInit {
+  Declaration(Declaration)
+  InitExpr(Expr)
+  Empty
+}
+impl Eq for ForInit
+impl Show for ForInit
+
+type FuncCodeGenContext
+fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value
+
+pub struct FunctionDefinition {
+  declSpecs : Array[DeclSpec]
+  declarator : Declarator
+  kr_declarations : Array[Declaration]
+  body : CompoundStatement
+}
+impl Eq for FunctionDefinition
+impl Show for FunctionDefinition
+
+pub enum FunctionSpec {
+  Inline
+  Noreturn
+  Attributes(Array[AssignExpr])
+}
+impl Eq for FunctionSpec
+impl Show for FunctionSpec
+
+pub struct InclusiveOrExpr {
+  exprs : Array[ExclusiveOrExpr]
+}
+impl Eq for InclusiveOrExpr
+impl Show for InclusiveOrExpr
+
+pub struct InitDeclarator {
+  declarator : Declarator
+  initializer : Initializer?
+}
+impl Eq for InitDeclarator
+impl Show for InitDeclarator
+
+pub enum Initializer {
+  AssignExpr(AssignExpr)
+  InitList(Array[(Array[Designator], Initializer)])
+}
+impl Eq for Initializer
+impl Show for Initializer
+
+pub struct InitializerList(Array[(Array[Designator], Initializer)])
+fn InitializerList::inner(Self) -> Array[(Array[Designator], Initializer)]
+impl Eq for InitializerList
+impl Show for InitializerList
+
+pub enum IterationStatement {
+  While(Expr, Statement)
+  DoWhile(Statement, Expr)
+  For(ForCondition, Statement)
+}
+impl Eq for IterationStatement
+impl Show for IterationStatement
+
+pub enum JumpStatement {
+  Goto(String)
+  Continue
+  Break
+  Return(Expr?)
+}
+impl Eq for JumpStatement
+impl Show for JumpStatement
+
+pub enum LabeledStatement {
+  Label(String, Statement)
+  Case(ConditionalExpr, Statement)
+  Default(Statement)
+}
+impl Eq for LabeledStatement
+impl Show for LabeledStatement
+
+pub struct LogicalAndExpr {
+  exprs : Array[InclusiveOrExpr]
+}
+impl Eq for LogicalAndExpr
+impl Show for LogicalAndExpr
+
+pub struct LogicalOrExpr {
+  exprs : Array[LogicalAndExpr]
+}
+impl Eq for LogicalOrExpr
+impl Show for LogicalOrExpr
+
+pub struct MultExpr {
+  exprs : Array[CastExpr]
+  ops : Array[MultOp]
+}
+impl Eq for MultExpr
+impl Show for MultExpr
+
+pub enum MultOp {
+  Mult
+  Div
+  Mod
+}
+impl Eq for MultOp
+impl Show for MultOp
+
+pub enum ParamDeclarator {
+  Declarator(Declarator)
+  AbstractDeclarator(AbstractDeclarator)
+}
+impl Eq for ParamDeclarator
+impl Show for ParamDeclarator
+
+pub struct ParameterDecl {
+  decl_specs : Array[DeclSpec]
+  declarator : ParamDeclarator?
+}
+impl Eq for ParameterDecl
+impl Show for ParameterDecl
+
+pub struct ParameterTypeList {
+  params : Array[ParameterDecl]
+  variadic : Bool
+}
+impl Eq for ParameterTypeList
+impl Show for ParameterTypeList
+
+type ParserContext
+fn ParserContext::create(String, source_file? : String) -> Self
+fn ParserContext::get_error_msg(Self, Int, String) -> String
+fn ParserContext::get_warning_msg(Self, Int, String) -> String
+fn ParserContext::parse(Self) -> Unit raise
+fn ParserContext::print_ast(Self) -> Unit
+fn ParserContext::print_toks(Self) -> Unit
+fn ParserContext::tokenize(Self) -> Unit raise
+
+type Pointer
+impl Eq for Pointer
+impl Show for Pointer
+
+pub struct PostFixExpr {
+  head : Either[PrimExpr, (TypeName, InitializerList)]
+  suffixes : Array[PostFixSuffix]
+}
+impl Eq for PostFixExpr
+impl Show for PostFixExpr
+
+pub enum PostFixSuffix {
+  Indexing(Expr)
+  Call(Array[AssignExpr])
+  DotAccess(String)
+  ArrowAccess(String)
+  PlusPlus
+  MinusMinus
+}
+impl Eq for PostFixSuffix
+impl Show for PostFixSuffix
+
+pub enum PrimExpr {
+  Identifier(String)
+  Constant(Constant)
+  StringLiteral(String)
+  ParenExpr(Expr)
+  BuiltinOffsetof(TypeName, UnaryExpr)
+}
+impl Eq for PrimExpr
+impl Show for PrimExpr
+
+pub struct RelationalExpr {
+  exprs : Array[ShiftExpr]
+  ops : Array[RelationalOp]
+}
+impl Eq for RelationalExpr
+impl Show for RelationalExpr
+
+pub enum RelationalOp {
+  LT
+  GT
+  LE
+  GE
+}
+impl Eq for RelationalOp
+impl Show for RelationalOp
+
+pub enum SelectionStatement {
+  If(Expr, Statement, Statement?)
+  Switch(Expr, Statement)
+}
+impl Eq for SelectionStatement
+impl Show for SelectionStatement
+
+pub struct ShiftExpr {
+  exprs : Array[AddSubExpr]
+  ops : Array[ShiftOp]
+}
+impl Eq for ShiftExpr
+impl Show for ShiftExpr
+
+pub enum ShiftOp {
+  Shl
+  Shr
+}
+impl Eq for ShiftOp
+impl Show for ShiftOp
+
+pub enum Statement {
+  Empty
+  LabeledStatement(LabeledStatement)
+  CompoundStatement(CompoundStatement)
+  ExpressionStatement(Expr)
+  SelectionStatement(SelectionStatement)
+  IterationStatement(IterationStatement)
+  JumpStatement(JumpStatement)
+}
+impl Eq for Statement
+impl Show for Statement
+
+pub enum StorageClassSpec {
+  Auto
+  Register
+  Static
+  ThreadLocal
+  Extern
+  Typedef
+}
+impl Eq for StorageClassSpec
+impl Show for StorageClassSpec
+
+pub enum StructDeclaration {
+  Normal(Array[TypeSpecOrQualifier], Array[StructDeclarator])
+}
+impl Eq for StructDeclaration
+impl Show for StructDeclaration
+
+pub enum StructDeclarator {
+  Declarator(Declarator)
+  Field(Declarator?, ConditionalExpr)
+}
+impl Eq for StructDeclarator
+impl Show for StructDeclarator
+
+pub struct StructSpec {
+  name : String?
+  decls : Array[StructDeclaration]
+}
+impl Eq for StructSpec
+impl Show for StructSpec
+
+pub enum Token {
+  Void
+  Char
+  Short
+  Int
+  Long
+  Float
+  Double
+  Signed
+  Unsigned
+  Bool
+  Complex
+  Imaginary
+  Auto
+  Register
+  Static
+  Extern
+  Typedef
+  Thread
+  ThreadLocal
+  If
+  Else
+  Switch
+  Case
+  Default
+  For
+  While
+  Do
+  Goto
+  Break
+  Continue
+  Return
+  Const
+  Volatile
+  Restrict
+  Atomic
+  Inline
+  Noreturn
+  Struct
+  Union
+  Enum
+  Sizeof
+  Typeof
+  Alignas
+  Alignof
+  StaticAssert
+  Generic
+  Attribute
+  BuiltinOffsetof
+  LParen
+  RParen
+  LBracket
+  RBracket
+  LBrace
+  RBrace
+  Plus
+  Minus
+  Slash
+  Star
+  Mod
+  PlusPlus
+  MinusMinus
+  EQ
+  NE
+  LT
+  LE
+  GT
+  GE
+  Assign
+  StarAssign
+  DivAssign
+  ModAssign
+  PlusAssign
+  MinusAssign
+  LeftShiftAssign
+  RightShiftAssign
+  AndAssign
+  OrAssign
+  BitAndAssign
+  BitXorAssign
+  BitOrAssign
+  And
+  Or
+  Not
+  Xor
+  Tilde
+  DoubleAnd
+  DoubleOr
+  Shl
+  Shr
+  Comma
+  Dot
+  Arrow
+  Colon
+  Semi
+  Ellipsis
+  Question
+  Identifier(String)
+  Constant(Constant)
+  StringLiteral(String)
+  EOF
+}
+impl Eq for Token
+impl Show for Token
+
+pub enum Type {
+  Void
+  Int(Int)
+  UInt(Int)
+  FP(Int)
+  Ptr(Type)
+  Struct(Array[Type])
+  Union(Array[Type])
+  Enum(Array[(String, Int64)])
+}
+impl Eq for Type
+impl Show for Type
+
+pub struct TypeName {
+  specifiers : Array[TypeSpecOrQualifier]
+  abstract_declarator : AbstractDeclarator?
+}
+impl Eq for TypeName
+impl Show for TypeName
+
+pub enum TypeQualifier {
+  Const
+  Volatile
+  Restrict
+  Atomic
+}
+impl Eq for TypeQualifier
+impl Show for TypeQualifier
+
+type TypeQualifierList
+impl Eq for TypeQualifierList
+impl Show for TypeQualifierList
+
+pub enum TypeSpec {
+  Void
+  Char
+  Short
+  Int
+  Long
+  Float
+  Double
+  Signed
+  Unsigned
+  Bool
+  Complex
+  Atomic(TypeName)
+  StructSpec(StructSpec)
+  UnionSpec(UnionSpec)
+  EnumSpec(EnumSpec)
+  TypedefName(String)
+}
+impl Eq for TypeSpec
+impl Show for TypeSpec
+
+pub enum TypeSpecOrQualifier {
+  TypeSpec(TypeSpec)
+  TypeQualifier(TypeQualifier)
+}
+impl Eq for TypeSpecOrQualifier
+impl Show for TypeSpecOrQualifier
+
+pub struct UnaryExpr {
+  prefix : Array[UnaryPrefix]
+  body : UnaryExprBody
+}
+impl Eq for UnaryExpr
+impl Show for UnaryExpr
+
+pub enum UnaryExprBody {
+  PostFix(PostFixExpr)
+  UnaryOp(UnaryOperator, CastExpr)
+  SizeofTypeName(TypeName)
+  AlignOfTypeName(TypeName)
+}
+impl Eq for UnaryExprBody
+impl Show for UnaryExprBody
+
+pub enum UnaryOperator {
+  AddressOf
+  Dereference
+  Positive
+  Negative
+  LogicalNot
+  BitwiseNot
+}
+impl Eq for UnaryOperator
+impl Show for UnaryOperator
+
+pub enum UnaryPrefix {
+  PlusPlus
+  MinusMinus
+  Sizeof
+}
+impl Eq for UnaryPrefix
+impl Show for UnaryPrefix
+
+pub struct UnionSpec {
+  name : String?
+  decls : Array[StructDeclaration]
+}
+impl Eq for UnionSpec
+impl Show for UnionSpec
+
+// Type aliases
+
+// Traits
+
