@@ -88,5 +88,10 @@ fn main {
       return
     }
   }
-  codegen.dump()
+  //if args.contains("--print-llvm") {
+  //  codegen.dump()
+  //}
+  if !args.contains("--no-print-llvm") { // temporary
+    codegen.dump()
+  }
 }
