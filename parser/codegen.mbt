@@ -1,18 +1,23 @@
+///|
 traitalias @IR.Type as LLVMType
+
+///|
 traitalias @IR.Value as LLVMValue
 
+///|
 pub enum Type {
   Void
-  Int(Int)  // Bitwidth, 1, 8, 16, 32, 64
+  Int(Int) // Bitwidth, 1, 8, 16, 32, 64
   UInt(Int)
-  FP(Int)   // Bitwidth, 32, 64
+  FP(Int) // Bitwidth, 32, 64
   Ptr(Type)
   Struct(Array[Type])
   Union(Array[Type])
   Enum(Array[(String, Int64)])
 } derive(Show, Eq)
 
-fn CodeGenContext::convert_type_to_llvm(self: Self, ty: Type) -> &LLVMType {
+///|
+fn CodeGenContext::convert_type_to_llvm(self : Self, ty : Type) -> &LLVMType {
   match ty {
     Void => self.llvm_ctx.getVoidTy() as &LLVMType
     Int(1) => self.llvm_ctx.getInt1Ty()
@@ -20,7 +25,7 @@ fn CodeGenContext::convert_type_to_llvm(self: Self, ty: Type) -> &LLVMType {
     Int(16) => self.llvm_ctx.getInt16Ty()
     Int(32) => self.llvm_ctx.getInt32Ty()
     Int(64) => self.llvm_ctx.getInt64Ty()
-    Int(_) => self.llvm_ctx.getInt32Ty()  // Default to i32 for unsupported widths
+    Int(_) => self.llvm_ctx.getInt32Ty() // Default to i32 for unsupported widths
     UInt(1) => self.llvm_ctx.getInt1Ty()
     UInt(8) => self.llvm_ctx.getInt8Ty()
     UInt(16) => self.llvm_ctx.getInt16Ty()
@@ -31,49 +36,50 @@ fn CodeGenContext::convert_type_to_llvm(self: Self, ty: Type) -> &LLVMType {
     FP(64) => self.llvm_ctx.getDoubleTy()
     FP(_) => self.llvm_ctx.getDoubleTy() // Default to double for unsupported widths
     Ptr(_) => self.llvm_ctx.getPtrTy()
-    Struct(_) => { 
-      ...
-    }
-    Union(_) => { 
-      ...
-    }
-    Enum(_) => {
-      ...
-    }
+    Struct(_) => ...
+    Union(_) => ...
+    Enum(_) => ...
   }
 }
 
+///|
 pub suberror CodeGenError {
   UnSupportFeature(String)
   LLVMError(Error)
 } derive(Show)
 
+///|
 pub struct CodeGenContext {
   external_decls : Array[ExternalDeclaration]
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
 }
 
-pub fn CodeGenContext::dump(self: Self) -> Unit {
+///|
+pub fn CodeGenContext::dump(self : Self) -> Unit {
   self.llvm_mod.dump()
 }
 
-pub fn CodeGenContext::from_parser(ctx: ParserContext) -> CodeGenContext {
+///|
+pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule("demo")
   CodeGenContext::{ external_decls: ctx.external_decls, llvm_ctx, llvm_mod }
 }
 
-pub fn CodeGenContext::analysis_declspecs(self: Self, declspecs: Array[DeclSpec]) -> Type {
+///|
+pub fn CodeGenContext::analysis_declspecs(
+  self : Self,
+  declspecs : Array[DeclSpec],
+) -> Type {
   let mut is_signed = true
   let mut base_type : Type? = None
   let mut is_long = false
   let mut is_short = false
   let mut is_unsigned = false
-  
   for declspec in declspecs {
     match declspec {
-      TypeSpec(type_spec) => {
+      TypeSpec(type_spec) =>
         match type_spec {
           Void => base_type = Some(Void)
           Char => base_type = Some(Int(8))
@@ -88,46 +94,31 @@ pub fn CodeGenContext::analysis_declspecs(self: Self, declspecs: Array[DeclSpec]
             is_unsigned = true
           }
           Bool => base_type = Some(Int(1))
-          Complex => {
-            ...
-          }
-          Atomic(_) => {
-            ...
-          }
-          StructSpec(_) => {
-            ...
-          }
-          UnionSpec(_) => {
-            ...
-          }
+          Complex => ...
+          Atomic(_) => ...
+          StructSpec(_) => ...
+          UnionSpec(_) => ...
           EnumSpec(_) => base_type = Some(Enum([]))
-          TypedefName(_) => {
-            ...
-          }
+          TypedefName(_) => ...
         }
-      }
-      StorageClassSpec(_) => {
+      StorageClassSpec(_) =>
         // Storage class doesn't affect type
         ()
-      }
-      TypeQualifier(_) => {
+      TypeQualifier(_) =>
         // Type qualifiers don't affect basic type representation
         ()
-      }
-      FunctionSpec(_) => {
+      FunctionSpec(_) =>
         // Function specs don't affect type
         ()
-      }
-      AlignmentSpec(_) => {
+      AlignmentSpec(_) =>
         // Alignment specs don't affect type
         ()
-      }
     }
   }
-  
+
   // Determine final type based on parsed information
   match base_type {
-    Some(ty) => {
+    Some(ty) =>
       match ty {
         Int(width) => {
           let final_width = if is_long {
@@ -143,180 +134,205 @@ pub fn CodeGenContext::analysis_declspecs(self: Self, declspecs: Array[DeclSpec]
             Int(final_width)
           }
         }
-        FP(width) => {
+        FP(width) =>
           if is_long && width == 64 {
-            FP(128)  // long double (though we map to 64 for simplicity)
+            FP(128) // long double (though we map to 64 for simplicity)
           } else {
             FP(width)
           }
-        }
         _ => ty
       }
-    }
-    None => {
+    None =>
       // Default type when no explicit type is given
       if is_long {
-        if is_unsigned { UInt(64) } else { Int(64) }
+        if is_unsigned {
+          UInt(64)
+        } else {
+          Int(64)
+        }
       } else if is_short {
-        if is_unsigned { UInt(16) } else { Int(16) }
+        if is_unsigned {
+          UInt(16)
+        } else {
+          Int(16)
+        }
       } else if is_unsigned {
         UInt(32)
       } else {
-        Int(32)  // Default to int
+        Int(32) // Default to int
       }
-    }
   }
 }
 
-pub fn CodeGenContext::run(self: Self) -> Unit raise {
+///|
+pub fn CodeGenContext::run(self : Self) -> Unit raise {
   for decl in self.external_decls {
     self.emit_external_decl(decl)
   }
 }
 
-pub fn CodeGenContext::emit_external_decl(self: Self, decl: ExternalDeclaration) -> Unit raise {
+///|
+pub fn CodeGenContext::emit_external_decl(
+  self : Self,
+  decl : ExternalDeclaration,
+) -> Unit raise {
   match decl {
     FunctionDefinition(func_def) => self.emit_function_definition(func_def)
     Declaration(decl) => self.emit_declaration(decl)
   }
 }
 
+///|
 fn CodeGenContext::analysis_param_declarator(
-  self: Self, decl: Declarator, basic_type: Type
+  self : Self,
+  decl : Declarator,
+  basic_type : Type,
 ) -> (Type, String) raise CodeGenError {
   let param_name = decl.get_ident()
-  
+
   // Handle pointer declarators
   let mut param_type = match decl.pointer {
-    Some(_pointer) => {
+    Some(_pointer) =>
       // For now, just create a pointer to the basic type
       // TODO: Handle multiple levels of pointers
       Ptr(basic_type)
-    }
     None => basic_type
   }
-  
+
   // Handle direct declarator modifications
   param_type = match decl.directDeclarator {
     Identifier(_) => param_type
     Parenthesized(inner_decl) => {
       // Recursively handle parenthesized declarator
-      let (inner_type, _) = self.analysis_param_declarator(inner_decl, basic_type)
+      let (inner_type, _) = self.analysis_param_declarator(
+        inner_decl, basic_type,
+      )
       inner_type
     }
-    Array(_, _, size_expr) => {
+    Array(_, _, size_expr) =>
       // Array parameter - in C, array parameters are treated as pointers
       Ptr(param_type)
-    }
-    StaticArray(_, _, _) => {
+    StaticArray(_, _, _) =>
       // Static array - also treated as pointer in parameters
       Ptr(param_type)
-    }
-    VallengthArray(_, _) => {
+    VallengthArray(_, _) =>
       // Variable length array - also treated as pointer
       Ptr(param_type)
-    }
-    FunctionDecl(_, _) => {
+    FunctionDecl(_, _) =>
       // Function pointer parameter
       // TODO: Implement proper function pointer type
-      Ptr(basic_type)  // Placeholder
-    }
-    FunctionPtr(_, _) => {
+      Ptr(basic_type) // Placeholder
+    FunctionPtr(_, _) =>
       // Function pointer with identifier list
-      Ptr(basic_type)  // Placeholder
-    }
-    BitField(_, _) => {
+      Ptr(basic_type) // Placeholder
+    BitField(_, _) =>
       // Bit fields are not valid in parameter declarations
-      raise CodeGenError::UnSupportFeature("Bit fields are not allowed in parameter declarations.")
-    }
+      raise CodeGenError::UnSupportFeature(
+        "Bit fields are not allowed in parameter declarations.",
+      )
   }
-  
   (param_type, param_name)
 }
 
-fn CodeGenContext::analysis_typename(self: Self, type_name: TypeName) -> Type raise CodeGenError {
+///|
+fn CodeGenContext::analysis_typename(
+  self : Self,
+  type_name : TypeName,
+) -> Type raise CodeGenError {
   // Convert TypeSpecOrQualifier to DeclSpec for reuse of analysis_declspecs
   let declspecs : Array[DeclSpec] = []
-  
   for spec in type_name.specifiers {
     match spec {
       TypeSpec(type_spec) => declspecs.push(DeclSpec::TypeSpec(type_spec))
-      TypeQualifier(type_qual) => declspecs.push(DeclSpec::TypeQualifier(type_qual))
+      TypeQualifier(type_qual) =>
+        declspecs.push(DeclSpec::TypeQualifier(type_qual))
     }
   }
-  
+
   // Get base type from specifiers
   let mut base_type = self.analysis_declspecs(declspecs)
-  
+
   // Handle abstract declarator modifications
   match type_name.abstract_declarator {
-    Some(abstract_decl) => {
+    Some(abstract_decl) =>
       base_type = self.analysis_abstract_declarator(abstract_decl, base_type)
-    }
     None => ()
   }
-  
   base_type
 }
 
-fn CodeGenContext::analysis_abstract_declarator(self: Self, abstract_decl: AbstractDeclarator, base_type: Type) -> Type raise CodeGenError {
+///|
+fn CodeGenContext::analysis_abstract_declarator(
+  self : Self,
+  abstract_decl : AbstractDeclarator,
+  base_type : Type,
+) -> Type raise CodeGenError {
   let mut result_type = base_type
-  
+
   // Handle pointer in abstract declarator
   match abstract_decl.pointer {
-    Some(_pointer) => {
-      result_type = Ptr(result_type)
-    }
+    Some(_pointer) => result_type = Ptr(result_type)
     None => ()
   }
-  
+
   // Handle direct abstract declarator
   match abstract_decl.directAbstractDeclarator {
-    Some(direct_abstract_decl) => {
-      result_type = self.analysis_direct_abstract_declarator(direct_abstract_decl, result_type)
-    }
+    Some(direct_abstract_decl) =>
+      result_type = self.analysis_direct_abstract_declarator(
+        direct_abstract_decl, result_type,
+      )
     None => ()
   }
-  
   result_type
 }
 
-fn CodeGenContext::analysis_direct_abstract_declarator(self: Self, direct_abstract_decl: DirectAbstractDeclarator, base_type: Type) -> Type raise CodeGenError {
+///|
+fn CodeGenContext::analysis_direct_abstract_declarator(
+  self : Self,
+  direct_abstract_decl : DirectAbstractDeclarator,
+  base_type : Type,
+) -> Type raise CodeGenError {
   match direct_abstract_decl {
-    FuncDecl(inner_opt, _param_type_list) => {
-      ...
-    }
-    ArrayDecl(inner_opt, is_static~, _type_quals, _size_expr) => {
-      ...
-    }
-    InCompleteArray(inner_opt) => {
-      ...
-    }
-    FuncPtr(inner_opt, _abstract_decl) => {
-      ...
-    }
+    FuncDecl(inner_opt, _param_type_list) => ...
+    ArrayDecl(inner_opt, is_static~, _type_quals, _size_expr) => ...
+    InCompleteArray(inner_opt) => ...
+    FuncPtr(inner_opt, _abstract_decl) => ...
   }
 }
 
-pub fn CodeGenContext::emit_declaration(self: Self, decl: Declaration) -> Unit {
+///|
+pub fn CodeGenContext::emit_declaration(
+  self : Self,
+  decl : Declaration,
+) -> Unit {
   ...
 }
 
+///|
 struct FuncCodeGenContext {
-  global_ctx: CodeGenContext
+  global_ctx : CodeGenContext
   func_def : FunctionDefinition
   func_value : @IR.Function
   var_env : Env[(Type, &LLVMValue)]
-  builder: @IR.IRBuilder
+  builder : @IR.IRBuilder
 }
 
-pub fn CodeGenContext::emit_function_definition(self: Self, func_def: FunctionDefinition) -> Unit raise {
+///|
+pub fn CodeGenContext::emit_function_definition(
+  self : Self,
+  func_def : FunctionDefinition,
+) -> Unit raise {
   if !func_def.kr_declarations.is_empty() {
-    raise CodeGenError::UnSupportFeature("K&R style function definitions are not supported.")
+    raise CodeGenError::UnSupportFeature(
+      "K&R style function definitions are not supported.",
+    )
   }
   let basic_type = self.analysis_declspecs(func_def.declSpecs)
-  let (ret_type, func_name, params) = self.analysis_func_declarator(func_def.declarator, basic_type)
-  let param_types: Array[&LLVMType] = Array::new()
+  let (ret_type, func_name, params) = self.analysis_func_declarator(
+    func_def.declarator,
+    basic_type,
+  )
+  let param_types : Array[&LLVMType] = Array::new()
   for param in params {
     let (_, param_type) = param
     let llvm_param_type = self.convert_type_to_llvm(param_type)
@@ -330,18 +346,27 @@ pub fn CodeGenContext::emit_function_definition(self: Self, func_def: FunctionDe
     err => raise CodeGenError::LLVMError(err)
   }
   let var_env : Env[(Type, &LLVMValue)] = Env::new()
-  for i in 0 ..< params.length() {
+  for i in 0..<params.length() {
     let (param_name, param_type) = params[i]
     let llvm_param = llvm_func.getArg(i).unwrap()
     var_env.set(param_name, (param_type, llvm_param))
   }
   let builder = self.llvm_ctx.createBuilder()
-  let func_codegen = FuncCodeGenContext::{ global_ctx: self, func_def, func_value: llvm_func, var_env, builder }
+  let func_codegen = FuncCodeGenContext::{
+    global_ctx: self,
+    func_def,
+    func_value: llvm_func,
+    var_env,
+    builder,
+  }
   func_codegen.emit_function_body()
 }
 
+///|
 fn CodeGenContext::analysis_func_declarator(
-  self: Self, decl: Declarator, basic_type: Type
+  self : Self,
+  decl : Declarator,
+  basic_type : Type,
 ) -> (Type, String, Array[(String, Type)]) raise CodeGenError {
   let ret_type = match decl.pointer {
     Some(_) => Ptr(basic_type)
@@ -352,35 +377,104 @@ fn CodeGenContext::analysis_func_declarator(
       let func_params : Array[(String, Type)] = []
       let { params, variadic } = param_type_list
       if variadic {
-        raise CodeGenError::UnSupportFeature("Variadic functions are not supported.")
+        raise CodeGenError::UnSupportFeature(
+          "Variadic functions are not supported.",
+        )
       }
       for param in params {
-        let {decl_specs, declarator } = param
+        let { decl_specs, declarator } = param
         guard declarator is Some(declarator) else {
-          raise CodeGenError::UnSupportFeature("Parameter without declarator is not supported.")
+          raise CodeGenError::UnSupportFeature(
+            "Parameter without declarator is not supported.",
+          )
         }
         guard declarator is Declarator(declarator) else {
-          raise CodeGenError::UnSupportFeature("Only simple parameter declarators are supported.")
+          raise CodeGenError::UnSupportFeature(
+            "Only simple parameter declarators are supported.",
+          )
         }
         let param_type = self.analysis_declspecs(decl_specs)
-        let (param_type, param_name) = self.analysis_param_declarator(declarator, param_type)
+        let (param_type, param_name) = self.analysis_param_declarator(
+          declarator, param_type,
+        )
         func_params.push((param_name, param_type))
       }
       (func_name, func_params)
     }
-    _ => raise UnSupportFeature("Only function declarators are supported.")
+    // Handle FunctionPtr case - for functions like main() with empty parameter list
+    FunctionPtr(Identifier(func_name), params_list) => {
+      let func_params : Array[(String, Type)] = []
+      // If params_list is empty, it's a function with no parameters
+      // Otherwise, it's a K&R style function with parameter names
+      if !params_list.is_empty() {
+        raise CodeGenError::UnSupportFeature(
+          "K&R style function parameter lists are not supported.",
+        )
+      }
+      (func_name, func_params)
+    }
+    FunctionDecl(nested_decl, param_type_list) => {
+      // Handle nested function declarators
+      let func_name = nested_decl.get_ident()
+      let func_params : Array[(String, Type)] = []
+      let { params, variadic } = param_type_list
+      if variadic {
+        raise CodeGenError::UnSupportFeature(
+          "Variadic functions are not supported.",
+        )
+      }
+      for param in params {
+        let { decl_specs, declarator } = param
+        guard declarator is Some(declarator) else {
+          raise CodeGenError::UnSupportFeature(
+            "Parameter without declarator is not supported.",
+          )
+        }
+        guard declarator is Declarator(declarator) else {
+          raise CodeGenError::UnSupportFeature(
+            "Only simple parameter declarators are supported.",
+          )
+        }
+        let param_type = self.analysis_declspecs(decl_specs)
+        let (param_type, param_name) = self.analysis_param_declarator(
+          declarator, param_type,
+        )
+        func_params.push((param_name, param_type))
+      }
+      (func_name, func_params)
+    }
+    FunctionPtr(nested_decl, params_list) => {
+      // Handle nested function pointers
+      let func_name = nested_decl.get_ident()
+      let func_params : Array[(String, Type)] = []
+      if !params_list.is_empty() {
+        raise CodeGenError::UnSupportFeature(
+          "K&R style function parameter lists are not supported.",
+        )
+      }
+      (func_name, func_params)
+    }
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only function declarators are supported.",
+      )
   }
   (ret_type, func_name, params)
 }
 
-fn FuncCodeGenContext::emit_function_body(self: Self) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_function_body(self : Self) -> Unit raise {
   let compound_statement = self.func_def.body
   let entry_bb = self.func_value.addBasicBlock(name="entry")
   self.builder.setInsertPoint(entry_bb)
   self.emit_compound_statement(compound_statement)
 }
 
-fn FuncCodeGenContext::emit_compound_statement(self: Self, comp_stmt: CompoundStatement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_compound_statement(
+  self : Self,
+  comp_stmt : CompoundStatement,
+) -> Unit raise {
   let { items } = comp_stmt
   for item in items {
     match item {
@@ -390,10 +484,14 @@ fn FuncCodeGenContext::emit_compound_statement(self: Self, comp_stmt: CompoundSt
   }
 }
 
-fn FuncCodeGenContext::emit_statement(self: Self, stmt: Statement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_statement(
+  self : Self,
+  stmt : Statement,
+) -> Unit raise {
   match stmt {
     Empty => ()
-    LabeledStatement(label) => { ... }
+    LabeledStatement(label) => ...
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
     SelectionStatement(sel_stmt) => self.emit_selection_statement(sel_stmt)
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
@@ -402,25 +500,39 @@ fn FuncCodeGenContext::emit_statement(self: Self, stmt: Statement) -> Unit raise
   }
 }
 
-fn FuncCodeGenContext::emit_expr(self: Self, expr: Expr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_expr(
+  self : Self,
+  expr : Expr,
+) -> (Type, &LLVMValue) raise {
   let { exprs } = expr
   let first_assign_expr = exprs[0]
   let (ty, val) = self.emit_assign_expr(first_assign_expr)
   for i in 1..<exprs.length() {
     let assign_expr = exprs[i]
     let _ = self.emit_assign_expr(assign_expr)
+
   }
   (ty, val)
 }
 
-fn FuncCodeGenContext::emit_expr_stat(self: Self, expr_stmt: Expr) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_expr_stat(
+  self : Self,
+  expr_stmt : Expr,
+) -> Unit raise {
   let { exprs } = expr_stmt
   for assign_expr in exprs {
     let _ = self.emit_assign_expr(assign_expr)
+
   }
 }
 
-fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_assign_expr(
+  self : Self,
+  assign_expr : AssignExpr,
+) -> (Type, &LLVMValue) raise {
   match assign_expr {
     Conditional(cond) => self.emit_conditional_expr(cond)
     Assign(left, op, expr) => {
@@ -442,7 +554,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAdd(left_val, right)
             FP(_) => self.builder.createFAdd(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for AddAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for AddAssign.",
+              )
           }
           ignore(self.builder.createStore(result, left))
           result
@@ -451,7 +566,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createSub(left_val, right)
             FP(_) => self.builder.createFSub(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for SubAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for SubAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
@@ -459,7 +577,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createMul(left_val, right)
             FP(_) => self.builder.createFMul(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for MultAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for MultAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
@@ -468,7 +589,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
             Int(_) => self.builder.createSDiv(left_val, right)
             UInt(_) => self.builder.createUDiv(left_val, right)
             FP(_) => self.builder.createFDiv(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for DivAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for DivAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
@@ -476,49 +600,70 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
           let result = match lty {
             Int(_) => self.builder.createSRem(left_val, right)
             UInt(_) => self.builder.createURem(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for ModAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for ModAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         AndAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAnd(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for AndAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for AndAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         OrAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createOr(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for OrAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for OrAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         BitwiseAndAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAnd(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for BitAndAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for BitAndAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         BitwiseOrAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createOr(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for BitOrAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for BitOrAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         BitwiseXorAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createXor(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for BitXorAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for BitXorAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
         LeftShiftAssign => {
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createShl(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for LeftShiftAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for LeftShiftAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
@@ -526,7 +671,10 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
           let result = match lty {
             Int(_) => self.builder.createAShr(left_val, right)
             UInt(_) => self.builder.createLShr(left_val, right)
-            _ => raise CodeGenError::UnSupportFeature("Unsupported type for RightShiftAssign.")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unsupported type for RightShiftAssign.",
+              )
           }
           self.builder.createStore(result, left)
         }
@@ -536,31 +684,39 @@ fn FuncCodeGenContext::emit_assign_expr(self: Self, assign_expr: AssignExpr) -> 
   }
 }
 
-pub fn FuncCodeGenContext::emit_cast(self: Self, from_type~: Type, to_type~: Type, value: &LLVMValue) -> &LLVMValue {
+///|
+pub fn FuncCodeGenContext::emit_cast(
+  self : Self,
+  from_type~ : Type,
+  to_type~ : Type,
+  value : &LLVMValue,
+) -> &LLVMValue {
   // For now, just return the original value
   // TODO: Implement proper type casting
   value
 }
 
-
-fn FuncCodeGenContext::emit_conditional_expr(self: Self, cond_expr: ConditionalExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_conditional_expr(
+  self : Self,
+  cond_expr : ConditionalExpr,
+) -> (Type, &LLVMValue) raise {
   let { expr, select } = cond_expr
-
   let (cond_type, cond_val) = self.emit_logical_or_expr(expr)
   if select is Some(select) {
-          let cond_val = if not(cond_type is Int(1) || cond_type is UInt(1)) {
-        self.emit_cast(from_type=cond_type, to_type=Int(1), cond_val)
-      } else {
-        cond_val
-      }
+    let cond_val = if not(cond_type is Int(1) || cond_type is UInt(1)) {
+      self.emit_cast(from_type=cond_type, to_type=Int(1), cond_val)
+    } else {
+      cond_val
+    }
     let (then_expr, else_expr) = select
     let (then_ty, then_val) = self.emit_expr(then_expr)
     let (else_ty, else_val) = self.emit_conditional_expr(else_expr)
-          let then_val = if then_ty != else_ty {
-        self.emit_cast(from_type=then_ty, to_type=else_ty, then_val)
-      } else {
-        then_val
-      }
+    let then_val = if then_ty != else_ty {
+      self.emit_cast(from_type=then_ty, to_type=else_ty, then_val)
+    } else {
+      then_val
+    }
     let val = self.builder.createSelect(cond_val, then_val, else_val)
     (else_ty, val)
   } else {
@@ -568,82 +724,111 @@ fn FuncCodeGenContext::emit_conditional_expr(self: Self, cond_expr: ConditionalE
   }
 }
 
-fn FuncCodeGenContext::emit_logical_or_expr(self: Self, log_or_expr: LogicalOrExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_logical_or_expr(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs: logical_and_exprs } = log_or_expr
   let (first_ty, first_val) = self.emit_logical_and_expr(logical_and_exprs[0])
-  for i in 1 ..< (logical_and_exprs.length()) {
+  for i in 1..<logical_and_exprs.length() {
     let (ty, val) = self.emit_logical_and_expr(logical_and_exprs[i])
     let first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
+
   }
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_logical_and_expr(self: Self, log_and_expr: LogicalAndExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_logical_and_expr(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs: inclusive_or_exprs } = log_and_expr
   let (first_ty, first_val) = self.emit_inclusive_or_expr(inclusive_or_exprs[0])
-  for i in 1 ..< (inclusive_or_exprs.length()) {
+  for i in 1..<inclusive_or_exprs.length() {
     let (ty, val) = self.emit_inclusive_or_expr(inclusive_or_exprs[i])
     let first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
+
   }
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_inclusive_or_expr(self: Self, incl_or_expr: InclusiveOrExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_inclusive_or_expr(
+  self : Self,
+  incl_or_expr : InclusiveOrExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs: exclusive_or_exprs } = incl_or_expr
   let (first_ty, first_val) = self.emit_exclusive_or_expr(exclusive_or_exprs[0])
-  for i in 1 ..< (exclusive_or_exprs.length()) {
+  for i in 1..<exclusive_or_exprs.length() {
     let (ty, val) = self.emit_exclusive_or_expr(exclusive_or_exprs[i])
     let first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
+
   }
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_exclusive_or_expr(self: Self, excl_or_expr: ExclusiveOrExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_exclusive_or_expr(
+  self : Self,
+  excl_or_expr : ExclusiveOrExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs: and_exprs } = excl_or_expr
   let (first_ty, first_val) = self.emit_and_expr(and_exprs[0])
-  for i in 1 ..< (and_exprs.length()) {
+  for i in 1..<and_exprs.length() {
     let (ty, val) = self.emit_and_expr(and_exprs[i])
     let first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
+
   }
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_and_expr(self: Self, and_expr: AndExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_and_expr(
+  self : Self,
+  and_expr : AndExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs: equality_exprs } = and_expr
   let (first_ty, first_val) = self.emit_equality_expr(equality_exprs[0])
-  for i in 1 ..< (equality_exprs.length()) {
+  for i in 1..<equality_exprs.length() {
     let (ty, val) = self.emit_equality_expr(equality_exprs[i])
     let first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
+
   }
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_equality_expr(self: Self, eq_expr: EqualityExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_equality_expr(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs, ops } = eq_expr
   let (first_ty, first_val) = self.emit_relational_expr(exprs[0])
   let mut first_ty = first_ty
   let mut first_val = first_val
-  for i in 1 ..< (exprs.length()) {
+  for i in 1..<exprs.length() {
     let (ty, val) = self.emit_relational_expr(exprs[i])
     first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
@@ -661,12 +846,16 @@ fn FuncCodeGenContext::emit_equality_expr(self: Self, eq_expr: EqualityExpr) -> 
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_relational_expr(self: Self, rel_expr: RelationalExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_relational_expr(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs, ops } = rel_expr
   let (first_ty, first_val) = self.emit_shift_expr(exprs[0])
   let mut first_ty = first_ty
   let mut first_val = first_val
-  for i in 1 ..< (exprs.length()) {
+  for i in 1..<exprs.length() {
     let (ty, val) = self.emit_shift_expr(exprs[i])
     first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
@@ -686,12 +875,16 @@ fn FuncCodeGenContext::emit_relational_expr(self: Self, rel_expr: RelationalExpr
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_shift_expr(self: Self, shift_expr: ShiftExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_shift_expr(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs, ops } = shift_expr
   let (first_ty, first_val) = self.emit_addsub_expr(exprs[0])
   let mut first_ty = first_ty
   let mut first_val = first_val
-  for i in 1 ..< (exprs.length()) {
+  for i in 1..<exprs.length() {
     let (ty, val) = self.emit_addsub_expr(exprs[i])
     first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
@@ -709,12 +902,16 @@ fn FuncCodeGenContext::emit_shift_expr(self: Self, shift_expr: ShiftExpr) -> (Ty
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_addsub_expr(self: Self, add_expr: AddSubExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_addsub_expr(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs, ops } = add_expr
   let (first_ty, first_val) = self.emit_mult_expr(exprs[0])
   let mut first_ty = first_ty
   let mut first_val = first_val
-  for i in 1 ..< (exprs.length()) {
+  for i in 1..<exprs.length() {
     let (ty, val) = self.emit_mult_expr(exprs[i])
     first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
@@ -723,16 +920,24 @@ fn FuncCodeGenContext::emit_addsub_expr(self: Self, add_expr: AddSubExpr) -> (Ty
     }
     let op = ops[i - 1]
     let result = match op {
-      Add => match first_ty {
-        Int(_) | UInt(_) => self.builder.createAdd(first_val, val)
-        FP(_) => self.builder.createFAdd(first_val, val)
-        _ => raise CodeGenError::UnSupportFeature("Unsupported type for Plus operation.")
-      }
-      Sub => match first_ty {
-        Int(_) | UInt(_) => self.builder.createSub(first_val, val)
-        FP(_) => self.builder.createFSub(first_val, val)
-        _ => raise CodeGenError::UnSupportFeature("Unsupported type for Minus operation.")
-      }
+      Add =>
+        match first_ty {
+          Int(_) | UInt(_) => self.builder.createAdd(first_val, val)
+          FP(_) => self.builder.createFAdd(first_val, val)
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported type for Plus operation.",
+            )
+        }
+      Sub =>
+        match first_ty {
+          Int(_) | UInt(_) => self.builder.createSub(first_val, val)
+          FP(_) => self.builder.createFSub(first_val, val)
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported type for Minus operation.",
+            )
+        }
     }
     first_val = result
     first_ty = ty
@@ -740,12 +945,16 @@ fn FuncCodeGenContext::emit_addsub_expr(self: Self, add_expr: AddSubExpr) -> (Ty
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_mult_expr(self: Self, mult_expr: MultExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_mult_expr(
+  self : Self,
+  mult_expr : MultExpr,
+) -> (Type, &LLVMValue) raise {
   let { exprs, ops } = mult_expr
   let (first_ty, first_val) = self.emit_cast_expr(exprs[0])
   let mut first_ty = first_ty
   let mut first_val = first_val
-  for i in 1 ..< (exprs.length()) {
+  for i in 1..<exprs.length() {
     let (ty, val) = self.emit_cast_expr(exprs[i])
     first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
@@ -754,22 +963,34 @@ fn FuncCodeGenContext::emit_mult_expr(self: Self, mult_expr: MultExpr) -> (Type,
     }
     let op = ops[i - 1]
     let result = match op {
-      Mult => match first_ty {
-        Int(_) | UInt(_) => self.builder.createMul(first_val, val)
-        FP(_) => self.builder.createFMul(first_val, val)
-        _ => raise CodeGenError::UnSupportFeature("Unsupported type for Multiplication operation.")
-      }
-      Div => match first_ty {
-        Int(_) => self.builder.createSDiv(first_val, val)
-        UInt(_) => self.builder.createUDiv(first_val, val)
-        FP(_) => self.builder.createFDiv(first_val, val)
-        _ => raise CodeGenError::UnSupportFeature("Unsupported type for Division operation.")
-      }
-      Mod => match first_ty {
-        Int(_) => self.builder.createSRem(first_val, val)
-        UInt(_) => self.builder.createURem(first_val, val)
-        _ => raise CodeGenError::UnSupportFeature("Unsupported type for Modulus operation.")
-      }
+      Mult =>
+        match first_ty {
+          Int(_) | UInt(_) => self.builder.createMul(first_val, val)
+          FP(_) => self.builder.createFMul(first_val, val)
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported type for Multiplication operation.",
+            )
+        }
+      Div =>
+        match first_ty {
+          Int(_) => self.builder.createSDiv(first_val, val)
+          UInt(_) => self.builder.createUDiv(first_val, val)
+          FP(_) => self.builder.createFDiv(first_val, val)
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported type for Division operation.",
+            )
+        }
+      Mod =>
+        match first_ty {
+          Int(_) => self.builder.createSRem(first_val, val)
+          UInt(_) => self.builder.createURem(first_val, val)
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported type for Modulus operation.",
+            )
+        }
     }
     first_val = result
     first_ty = ty
@@ -777,7 +998,11 @@ fn FuncCodeGenContext::emit_mult_expr(self: Self, mult_expr: MultExpr) -> (Type,
   (first_ty, first_val)
 }
 
-fn FuncCodeGenContext::emit_cast_expr(self: Self, cast_expr: CastExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_cast_expr(
+  self : Self,
+  cast_expr : CastExpr,
+) -> (Type, &LLVMValue) raise {
   match cast_expr {
     UnaryExpr(unary_expr) => self.emit_unary_expr(unary_expr)
     Cast(type_name, expr) => {
@@ -789,18 +1014,24 @@ fn FuncCodeGenContext::emit_cast_expr(self: Self, cast_expr: CastExpr) -> (Type,
   }
 }
 
-fn FuncCodeGenContext::emit_unary_expr(self: Self, unary_expr: UnaryExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_unary_expr(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> (Type, &LLVMValue) raise {
   // First, evaluate the body of the unary expression
-  let (expr_type_init, expr_value_init) = self.emit_unary_expr_body(unary_expr.body)
+  let (expr_type_init, expr_value_init) = self.emit_unary_expr_body(
+    unary_expr.body,
+  )
   let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
-  
+
   // Apply prefix operators in reverse order (rightmost first)
   let prefix_len = unary_expr.prefix.length()
-  for i in 0 ..< prefix_len {
+  for i in 0..<prefix_len {
     let prefix_op = unary_expr.prefix[prefix_len - 1 - i]
     match prefix_op {
-      PlusPlus => {
+      PlusPlus =>
         // Pre-increment: load, add 1, store, return new value
         match expr_type {
           Int(width) | UInt(width) => {
@@ -810,17 +1041,18 @@ fn FuncCodeGenContext::emit_unary_expr(self: Self, unary_expr: UnaryExpr) -> (Ty
             let one = match expr_type {
               Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
               UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              _ => self.global_ctx.llvm_ctx.getConstInt32(1)  // Fallback
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1) // Fallback
             }
             let new_val = self.builder.createAdd(current_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = new_val
           }
-          _ => raise CodeGenError::UnSupportFeature("Pre-increment not supported for type \{expr_type}")
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Pre-increment not supported for type \{expr_type}",
+            )
         }
-      }
-      
-      MinusMinus => {
+      MinusMinus =>
         // Pre-decrement: load, subtract 1, store, return new value
         match expr_type {
           Int(width) | UInt(width) => {
@@ -829,16 +1061,17 @@ fn FuncCodeGenContext::emit_unary_expr(self: Self, unary_expr: UnaryExpr) -> (Ty
             let one = match expr_type {
               Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
               UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              _ => self.global_ctx.llvm_ctx.getConstInt32(1)  // Fallback
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1) // Fallback
             }
             let new_val = self.builder.createSub(current_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = new_val
           }
-          _ => raise CodeGenError::UnSupportFeature("Pre-decrement not supported for type \{expr_type}")
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Pre-decrement not supported for type \{expr_type}",
+            )
         }
-      }
-      
       Sizeof => {
         // Sizeof operator: return size in bytes as compile-time constant
         let size_bytes = match expr_type {
@@ -849,50 +1082,50 @@ fn FuncCodeGenContext::emit_unary_expr(self: Self, unary_expr: UnaryExpr) -> (Ty
           Int(64) | UInt(64) => 8
           FP(32) => 4
           FP(64) => 8
-          Ptr(_) => 8  // Assume 64-bit pointers
-          _ => 4  // Default size
+          Ptr(_) => 8 // Assume 64-bit pointers
+          _ => 4 // Default size
         }
         expr_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
         expr_type = Int(32)
       }
     }
   }
-  
   (expr_type, expr_value)
 }
 
-fn FuncCodeGenContext::emit_unary_expr_body(self: Self, unary_body: UnaryExprBody) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_unary_expr_body(
+  self : Self,
+  unary_body : UnaryExprBody,
+) -> (Type, &LLVMValue) raise {
   match unary_body {
     PostFix(postfix_expr) => self.emit_postfix_expr(postfix_expr)
-    
     UnaryOp(op, cast_expr) => {
       let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
-      
       match op {
-        AddressOf => {
+        AddressOf =>
           // Address-of operator: get address of lvalue
           // operand_value should already be an address for this to work
           (Ptr(operand_type), operand_value)
-        }
-        
-        Dereference => {
+        Dereference =>
           // Dereference operator: load from pointer
           match operand_type {
             Ptr(pointed_type) => {
               let llvm_type = self.global_ctx.convert_type_to_llvm(pointed_type)
-              let loaded_value = self.builder.createLoad(llvm_type, operand_value)
+              let loaded_value = self.builder.createLoad(
+                llvm_type, operand_value,
+              )
               (pointed_type, loaded_value)
             }
-            _ => raise CodeGenError::UnSupportFeature("Cannot dereference non-pointer type \{operand_type}")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Cannot dereference non-pointer type \{operand_type}",
+              )
           }
-        }
-        
-        Positive => {
+        Positive =>
           // Unary plus: no-op, just return the operand
           (operand_type, operand_value)
-        }
-        
-        Negative => {
+        Negative =>
           // Unary minus: negate the operand
           match operand_type {
             Int(_) | UInt(_) => {
@@ -900,14 +1133,13 @@ fn FuncCodeGenContext::emit_unary_expr_body(self: Self, unary_body: UnaryExprBod
               let negated = self.builder.createSub(zero, operand_value)
               (operand_type, negated)
             }
-            FP(_) => {
-              ...
-            }
-            _ => raise CodeGenError::UnSupportFeature("Unary minus not supported for type \{operand_type}")
+            FP(_) => ...
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Unary minus not supported for type \{operand_type}",
+              )
           }
-        }
-        
-        BitwiseNot => {
+        BitwiseNot =>
           // Bitwise NOT: XOR with all 1s
           match operand_type {
             Int(width) | UInt(width) => {
@@ -917,29 +1149,30 @@ fn FuncCodeGenContext::emit_unary_expr_body(self: Self, unary_body: UnaryExprBod
                 16 => self.global_ctx.llvm_ctx.getConstInt16(-1)
                 32 => self.global_ctx.llvm_ctx.getConstInt32(-1)
                 64 => self.global_ctx.llvm_ctx.getConstInt64(-1L)
-                _ => self.global_ctx.llvm_ctx.getConstInt32(-1)  // Fallback
+                _ => self.global_ctx.llvm_ctx.getConstInt32(-1) // Fallback
               }
               let result = self.builder.createXor(operand_value, all_ones)
               (operand_type, result)
             }
-            _ => raise CodeGenError::UnSupportFeature("Bitwise NOT not supported for type \{operand_type}")
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Bitwise NOT not supported for type \{operand_type}",
+              )
           }
-        }
-        
         LogicalNot => {
           // Logical NOT: compare with zero
           let zero = match operand_type {
-            Int(_) | UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
+            Int(_) | UInt(_) =>
+              self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
             FP(_) => self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
-            Ptr(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue  // Null pointer
-            _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue  // Fallback
+            Ptr(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Null pointer
+            _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Fallback
           }
           let is_zero = self.builder.createICmpEQ(operand_value, zero)
           (Int(1), is_zero)
         }
       }
     }
-    
     SizeofTypeName(type_name) => {
       // Sizeof type: get size of specified type
       let expr_type = self.global_ctx.analysis_typename(type_name)
@@ -951,62 +1184,52 @@ fn FuncCodeGenContext::emit_unary_expr_body(self: Self, unary_body: UnaryExprBod
         Int(64) | UInt(64) => 8
         FP(32) => 4
         FP(64) => 8
-        Ptr(_) => 8  // Assume 64-bit pointers
-        _ => ...  // Default size
-      }
+        Ptr(_) => 8
+        ...
+      } // Assume 64-bit pointers
+      // Default size
       let size_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
       (Int(32), size_value)
     }
-    
-    AlignOfTypeName(type_name) => {
-      ...
-    }
+    AlignOfTypeName(type_name) => ...
   }
 }
 
-fn FuncCodeGenContext::emit_postfix_expr(self: Self, post_expr: PostFixExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_postfix_expr(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> (Type, &LLVMValue) raise {
   // First, evaluate the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
     Left(prim_expr) => self.emit_prim_expr(prim_expr)
-    Right((type_name, init_list)) => {
-      ...
-    }
+    Right((type_name, init_list)) => ...
   }
-  
   let expr_type = expr_type_init
   let mut expr_value = expr_value_init
-  
+
   // Apply postfix operators in order (left to right)
   for suffix in post_expr.suffixes {
     match suffix {
       Indexing(index_expr) => {
         // Array indexing: base[index]
         let (index_type, index_value) = self.emit_expr(index_expr)
-        
         match expr_type {
-          Ptr(_) => {
-            ...
-          }
-          _ => raise CodeGenError::UnSupportFeature("Array indexing not supported for type \{expr_type}")
+          Ptr(_) => ...
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Array indexing not supported for type \{expr_type}",
+            )
         }
       }
-      
-      Call(arg_exprs) => {
+      Call(arg_exprs) =>
         // Function call: func(args)
         // For now, just skip function calls and return a placeholder
         // TODO: Implement proper function call handling
         ()
-      }
-      
-      DotAccess(_) => {
-        ...
-      }
-      
-      ArrowAccess(_) => {
-        ...
-      }
-      
-      PlusPlus => {
+      DotAccess(_) => ...
+      ArrowAccess(_) => ...
+      PlusPlus =>
         // Post-increment: return old value, increment stored value
         match expr_type {
           Int(_) | UInt(_) => {
@@ -1016,13 +1239,14 @@ fn FuncCodeGenContext::emit_postfix_expr(self: Self, post_expr: PostFixExpr) -> 
             let one = self.global_ctx.llvm_ctx.getConstInt32(1)
             let new_val = self.builder.createAdd(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
-            expr_value = old_val  // Return old value
+            expr_value = old_val // Return old value
           }
-          _ => raise CodeGenError::UnSupportFeature("Post-increment not supported for type \{expr_type}")
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Post-increment not supported for type \{expr_type}",
+            )
         }
-      }
-      
-      MinusMinus => {
+      MinusMinus =>
         // Post-decrement: return old value, decrement stored value
         match expr_type {
           Int(_) | UInt(_) => {
@@ -1031,32 +1255,32 @@ fn FuncCodeGenContext::emit_postfix_expr(self: Self, post_expr: PostFixExpr) -> 
             let one = self.global_ctx.llvm_ctx.getConstInt32(1)
             let new_val = self.builder.createSub(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
-            expr_value = old_val  // Return old value
+            expr_value = old_val // Return old value
           }
-          _ => raise CodeGenError::UnSupportFeature("Post-decrement not supported for type \{expr_type}")
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Post-decrement not supported for type \{expr_type}",
+            )
         }
-      }
     }
   }
-  
   (expr_type, expr_value)
 }
 
-fn FuncCodeGenContext::emit_prim_expr(self: Self, prim_expr: PrimExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_prim_expr(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> (Type, &LLVMValue) raise {
   match prim_expr {
-    Identifier(name) => {
+    Identifier(name) =>
       // Look up variable in environment
       match self.var_env.get(name) {
-        Some((ty, value)) => {
-          (ty, value)
-        }
-        None => {
+        Some((ty, value)) => (ty, value)
+        None =>
           raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
-        }
       }
-    }
-    
-    Constant(constant) => {
+    Constant(constant) =>
       match constant {
         Int(value) => {
           let llvm_value = self.global_ctx.llvm_ctx.getConstInt32(value)
@@ -1067,11 +1291,15 @@ fn FuncCodeGenContext::emit_prim_expr(self: Self, prim_expr: PrimExpr) -> (Type,
           (Int(64), llvm_value)
         }
         UInt(value) => {
-          let llvm_value = self.global_ctx.llvm_ctx.getConstInt32(value.reinterpret_as_int())
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt32(
+            value.reinterpret_as_int(),
+          )
           (UInt(32), llvm_value)
         }
         ULong(value) => {
-          let llvm_value = self.global_ctx.llvm_ctx.getConstInt64(value.reinterpret_as_int64())
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt64(
+            value.reinterpret_as_int64(),
+          )
           (UInt(64), llvm_value)
         }
         Double(value) => {
@@ -1079,84 +1307,112 @@ fn FuncCodeGenContext::emit_prim_expr(self: Self, prim_expr: PrimExpr) -> (Type,
           (FP(64), llvm_value)
         }
         Char(char_value) => {
-          let llvm_value = self.global_ctx.llvm_ctx.getConstInt8(char_value.to_int())
+          let llvm_value = self.global_ctx.llvm_ctx.getConstInt8(
+            char_value.to_int(),
+          )
           (Int(8), llvm_value)
         }
       }
-    }
-    
-    StringLiteral(str_value) => {
-      ...
-    }
-    
-    ParenExpr(expr) => {
+    StringLiteral(str_value) => ...
+    ParenExpr(expr) =>
       // Parenthesized expression - just evaluate the inner expression
       self.emit_expr(expr)
-    }
-    
-    BuiltinOffsetof(type_name, unary_expr) => {
-      ...
-    }
+    BuiltinOffsetof(type_name, unary_expr) => ...
   }
 }
 
-fn FuncCodeGenContext::emit_unary_expr_as_lvalue(self: Self, unary_expr: UnaryExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_unary_expr_as_lvalue(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> (Type, &LLVMValue) raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(self: Self, post_expr: PostFixExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> (Type, &LLVMValue) raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_prim_expr_as_lvalue(self: Self, prim_expr: PrimExpr) -> (Type, &LLVMValue) raise {
+///|
+fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> (Type, &LLVMValue) raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_iteration_statement(self: Self, iter_stmt: IterationStatement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_iteration_statement(
+  self : Self,
+  iter_stmt : IterationStatement,
+) -> Unit raise {
   match iter_stmt {
-    While(cond, stmt) => {...}
-    DoWhile(stmt, cond_expr) => {...}
-    For(for_cond, stmt) => {...}
+    While(cond, stmt) => ...
+    DoWhile(stmt, cond_expr) => ...
+    For(for_cond, stmt) => ...
   }
 }
 
-fn FuncCodeGenContext::emit_while(self: Self, cond: Expr, stmt: Statement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_while(
+  self : Self,
+  cond : Expr,
+  stmt : Statement,
+) -> Unit raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_do_while(self: Self, stmt: Statement, cond_expr: Expr) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_do_while(
+  self : Self,
+  stmt : Statement,
+  cond_expr : Expr,
+) -> Unit raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_for(self: Self, for_cond: ForCondition, stmt: Statement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_for(
+  self : Self,
+  for_cond : ForCondition,
+  stmt : Statement,
+) -> Unit raise {
   ...
 }
 
-fn FuncCodeGenContext::emit_jump_statement(self: Self, jump_stmt: JumpStatement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_jump_statement(
+  self : Self,
+  jump_stmt : JumpStatement,
+) -> Unit raise {
   match jump_stmt {
-    Return(expr_opt) => {
+    Return(expr_opt) =>
       match expr_opt {
         Some(expr) => {
           let (expr_type, expr_val) = self.emit_expr(expr)
           ignore(self.builder.createRet(expr_val))
         }
-        None => {
-          ignore(self.builder.createRetVoid())
-        }
+        None => ignore(self.builder.createRetVoid())
       }
-    }
-    _ => {
+    _ =>
       // For now, skip other jump statements
       ()
-    }
   }
 }
 
-fn FuncCodeGenContext::emit_selection_statement(self: Self, sel_stmt: SelectionStatement) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_selection_statement(
+  self : Self,
+  sel_stmt : SelectionStatement,
+) -> Unit raise {
   match sel_stmt {
     If(cond_expr, then_stmt, else_stmt_opt) => {
       let (cond_type, cond_val) = self.emit_expr(cond_expr)
-      
+
       // Convert condition to boolean if needed
       let bool_cond = if cond_type != Int(1) {
         let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
@@ -1164,20 +1420,19 @@ fn FuncCodeGenContext::emit_selection_statement(self: Self, sel_stmt: SelectionS
       } else {
         cond_val
       }
-      
       let then_bb = self.func_value.addBasicBlock(name="then")
       let else_bb = self.func_value.addBasicBlock(name="else")
       let merge_bb = self.func_value.addBasicBlock(name="merge")
-      
+
       // Create conditional branch
       ignore(self.builder.createCondBr(bool_cond, then_bb, else_bb))
-      
+
       // Emit then block
       self.builder.setInsertPoint(then_bb)
       self.emit_statement(then_stmt)
       // Always add a branch to merge block for now
       ignore(self.builder.createBr(merge_bb))
-      
+
       // Emit else block
       self.builder.setInsertPoint(else_bb)
       match else_stmt_opt {
@@ -1186,23 +1441,31 @@ fn FuncCodeGenContext::emit_selection_statement(self: Self, sel_stmt: SelectionS
       }
       // Always add a branch to merge block for now
       ignore(self.builder.createBr(merge_bb))
-      
+
       // Continue with merge block
       self.builder.setInsertPoint(merge_bb)
     }
-    Switch(_, _) => {
+    Switch(_, _) =>
       // For now, skip switch statements
       ()
-    }
   }
 }
 
-fn FuncCodeGenContext::emit_declaration(self: Self, decl: Declaration) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_declaration(
+  self : Self,
+  decl : Declaration,
+) -> Unit raise {
   match decl {
     Decl(declspecs, inits) => self.emit_decl(declspecs, inits)
   }
 }
 
-fn FuncCodeGenContext::emit_decl(self: Self, declspecs: Array[DeclSpec], inits: Array[InitDeclarator]) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_decl(
+  self : Self,
+  declspecs : Array[DeclSpec],
+  inits : Array[InitDeclarator],
+) -> Unit raise {
   ...
 }
