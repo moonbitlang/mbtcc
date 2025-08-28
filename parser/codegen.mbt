@@ -1019,10 +1019,40 @@ fn FuncCodeGenContext::emit_unary_expr(
   self : Self,
   unary_expr : UnaryExpr,
 ) -> (Type, &LLVMValue) raise {
-  // First, evaluate the body of the unary expression
-  let (expr_type_init, expr_value_init) = self.emit_unary_expr_body(
-    unary_expr.body,
-  )
+  // Check if we have prefix increment/decrement operators
+  let has_increment_decrement = unary_expr.prefix
+    .iter()
+    .any(fn(op) { op == PlusPlus || op == MinusMinus })
+  let (expr_type_init, expr_value_init) = if has_increment_decrement {
+    // For ++/-- operators, we need the lvalue (address) of the body
+    match unary_expr.body {
+      PostFix(postfix_expr) => self.emit_postfix_expr_as_lvalue(postfix_expr)
+      UnaryOp(op, cast_expr) =>
+        match op {
+          Dereference => {
+            let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
+            match operand_type {
+              Ptr(pointed_type) => (pointed_type, operand_value)
+              _ =>
+                raise CodeGenError::UnSupportFeature(
+                  "Cannot dereference non-pointer type \{operand_type}",
+                )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Only variables and dereferences can be incremented/decremented",
+            )
+        }
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Only variables and dereferences can be incremented/decremented",
+        )
+    }
+  } else {
+    // For other operators, evaluate normally as rvalue
+    self.emit_unary_expr_body(unary_expr.body)
+  }
   let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
 
@@ -1034,8 +1064,8 @@ fn FuncCodeGenContext::emit_unary_expr(
       PlusPlus =>
         // Pre-increment: load, add 1, store, return new value
         match expr_type {
-          Int(width) | UInt(width) => {
-            // expr_value should be an address for pre-increment
+          Int(_) | UInt(_) => {
+            // expr_value is an address for pre-increment
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let current_val = self.builder.createLoad(llvm_type, expr_value)
             let one = match expr_type {
@@ -1055,7 +1085,7 @@ fn FuncCodeGenContext::emit_unary_expr(
       MinusMinus =>
         // Pre-decrement: load, subtract 1, store, return new value
         match expr_type {
-          Int(width) | UInt(width) => {
+          Int(_) | UInt(_) => {
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let current_val = self.builder.createLoad(llvm_type, expr_value)
             let one = match expr_type {
@@ -1200,9 +1230,26 @@ fn FuncCodeGenContext::emit_postfix_expr(
   self : Self,
   post_expr : PostFixExpr,
 ) -> (Type, &LLVMValue) raise {
-  // First, evaluate the head of the postfix expression
+  // Check if we have postfix increment/decrement operators
+  let has_increment_decrement = post_expr.suffixes
+    .iter()
+    .any(fn(suffix) {
+      match suffix {
+        PlusPlus | MinusMinus => true
+        _ => false
+      }
+    })
+
+  // Evaluate the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
-    Left(prim_expr) => self.emit_prim_expr(prim_expr)
+    Left(prim_expr) =>
+      if has_increment_decrement {
+        // For ++/-- operators, we need the lvalue (address) of the head
+        self.emit_prim_expr_as_lvalue(prim_expr)
+      } else {
+        // For other operators, evaluate normally as rvalue
+        self.emit_prim_expr(prim_expr)
+      }
     Right((type_name, init_list)) => ...
   }
   let expr_type = expr_type_init
@@ -1233,7 +1280,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // Post-increment: return old value, increment stored value
         match expr_type {
           Int(_) | UInt(_) => {
-            // expr_value should be an address for post-increment
+            // expr_value is an address for post-increment (from lvalue evaluation)
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let old_val = self.builder.createLoad(llvm_type, expr_value)
             let one = self.global_ctx.llvm_ctx.getConstInt32(1)
@@ -1331,7 +1378,33 @@ fn FuncCodeGenContext::emit_unary_expr_as_lvalue(
   self : Self,
   unary_expr : UnaryExpr,
 ) -> (Type, &LLVMValue) raise {
-  ...
+  // For lvalue, we need to handle only the body of the unary expression
+  // since prefix operators modify the value, not the address
+  match unary_expr.body {
+    PostFix(postfix_expr) => self.emit_postfix_expr_as_lvalue(postfix_expr)
+    UnaryOp(op, cast_expr) =>
+      match op {
+        Dereference => {
+          // *ptr - the result of dereferencing is an lvalue (address)
+          let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
+          match operand_type {
+            Ptr(pointed_type) => (pointed_type, operand_value)
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Cannot dereference non-pointer type \{operand_type}",
+              )
+          }
+        }
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Unary operator \{op} does not produce an lvalue",
+          )
+      }
+    SizeofTypeName(_) | AlignOfTypeName(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "sizeof/alignof do not produce lvalues",
+      )
+  }
 }
 
 ///|
@@ -1339,7 +1412,44 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
   self : Self,
   post_expr : PostFixExpr,
 ) -> (Type, &LLVMValue) raise {
-  ...
+  // Start with the head of the postfix expression
+  let (expr_type_init, expr_value_init) = match post_expr.head {
+    Left(prim_expr) => self.emit_prim_expr_as_lvalue(prim_expr)
+    Right((type_name, init_list)) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals as lvalues not supported",
+      )
+  }
+  let expr_type = expr_type_init
+  let expr_value = expr_value_init
+
+  // Apply postfix operators in order (left to right)
+  for suffix in post_expr.suffixes {
+    match suffix {
+      Indexing(index_expr) =>
+        // Array indexing: base[index] - skip for now
+        raise CodeGenError::UnSupportFeature(
+          "Array indexing not implemented yet",
+        )
+      DotAccess(field_name) =>
+        raise CodeGenError::UnSupportFeature(
+          "Struct field access not implemented",
+        )
+      ArrowAccess(field_name) =>
+        raise CodeGenError::UnSupportFeature(
+          "Pointer field access not implemented",
+        )
+      Call(_) =>
+        raise CodeGenError::UnSupportFeature(
+          "Function calls do not produce lvalues",
+        )
+      PlusPlus | MinusMinus =>
+        raise CodeGenError::UnSupportFeature(
+          "Postfix increment/decrement do not produce lvalues",
+        )
+    }
+  }
+  (expr_type, expr_value)
 }
 
 ///|
@@ -1347,7 +1457,25 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
   self : Self,
   prim_expr : PrimExpr,
 ) -> (Type, &LLVMValue) raise {
-  ...
+  match prim_expr {
+    Identifier(name) =>
+      // Look up variable in environment and return its address (alloca)
+      match self.var_env.get(name) {
+        Some((ty, alloca_value)) => (ty, alloca_value) // Return address, not loaded value
+        None =>
+          raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
+      }
+    ParenExpr(expr) =>
+      // Parenthesized expression - evaluate as lvalue
+      // This requires implementing lvalue version of expr emission
+      raise CodeGenError::UnSupportFeature(
+        "Parenthesized lvalues not implemented",
+      )
+    Constant(_) | StringLiteral(_) | BuiltinOffsetof(_, _) =>
+      raise CodeGenError::UnSupportFeature(
+        "Constants and literals are not lvalues",
+      )
+  }
 }
 
 ///|
