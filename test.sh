@@ -30,6 +30,7 @@ passing_tests=(
   "simple_call.c"
   "simple_ptr.c"
   "simple_ptr2.c"
+  "simple_if.c"
 )
 
 # Clean up and create the temporary directory

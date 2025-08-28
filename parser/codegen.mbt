@@ -355,12 +355,21 @@ pub fn CodeGenContext::emit_function_definition(
   // Add function to global function environment
   self.function_env.set(func_name, llvm_func)
   let var_env : Env[(Type, &LLVMValue)] = Env::new()
+  let builder = self.llvm_ctx.createBuilder()
+
+  // Create entry block first for allocas
+  let entry_bb = llvm_func.addBasicBlock(name="entry")
+  builder.setInsertPoint(entry_bb)
+
+  // For parameters, create allocas and store parameter values for consistency
   for i in 0..<params.length() {
     let (param_name, param_type) = params[i]
     let llvm_param = llvm_func.getArg(i).unwrap()
-    var_env.set(param_name, (param_type, llvm_param))
+    let llvm_type = self.convert_type_to_llvm(param_type)
+    let alloca = builder.createAlloca(llvm_type, name=param_name)
+    ignore(builder.createStore(llvm_param, alloca))
+    var_env.set(param_name, (param_type, alloca))
   }
-  let builder = self.llvm_ctx.createBuilder()
   let func_codegen = FuncCodeGenContext::{
     global_ctx: self,
     func_def,
@@ -474,8 +483,7 @@ fn CodeGenContext::analysis_func_declarator(
 ///|
 fn FuncCodeGenContext::emit_function_body(self : Self) -> Unit raise {
   let compound_statement = self.func_def.body
-  let entry_bb = self.func_value.addBasicBlock(name="entry")
-  self.builder.setInsertPoint(entry_bb)
+  // Entry block and insert point are already set up
   self.emit_compound_statement(compound_statement)
 }
 

@@ -103,11 +103,7 @@ pub enum CastExpr {
 impl Eq for CastExpr
 impl Show for CastExpr
 
-pub struct CodeGenContext {
-  external_decls : Array[ExternalDeclaration]
-  llvm_ctx : @IR.Context
-  llvm_mod : @IR.Module
-}
+type CodeGenContext
 fn CodeGenContext::analysis_declspecs(Self, Array[DeclSpec]) -> Type
 fn CodeGenContext::dump(Self) -> Unit
 fn CodeGenContext::emit_declaration(Self, Declaration) -> Unit
@@ -140,6 +136,7 @@ pub enum Constant {
   Long(Int64)
   UInt(UInt)
   ULong(UInt64)
+  Float(Float)
   Double(Double)
   Char(Char)
 }
@@ -275,7 +272,7 @@ impl Eq for ForInit
 impl Show for ForInit
 
 type FuncCodeGenContext
-fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value
+fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value raise
 
 pub struct FunctionDefinition {
   declSpecs : Array[DeclSpec]
