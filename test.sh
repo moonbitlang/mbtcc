@@ -25,6 +25,7 @@ TMP_DIR="tmp"
 passing_tests=(
   "ret42.c"
   "simple_add.c"
+  "simple_addf.c"
   "simple_unary.c"
   "simple_call.c"
   "simple_ptr.c"

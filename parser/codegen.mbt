@@ -809,6 +809,28 @@ pub fn FuncCodeGenContext::emit_cast(
         value
       }
 
+    // Float to float conversion (float <-> double)
+    (FP(from_width), FP(to_width)) =>
+      if from_width < to_width {
+        // Extend float to double
+        let fp_type : &@IR.FPType = match to_width {
+          32 => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+          64 => self.global_ctx.llvm_ctx.getDoubleTy() as &@IR.FPType
+          _ => self.global_ctx.llvm_ctx.getDoubleTy() as &@IR.FPType
+        }
+        self.builder.createFPExt(value, fp_type)
+      } else if from_width > to_width {
+        // Truncate double to float
+        let fp_type : &@IR.FPType = match to_width {
+          32 => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+          64 => self.global_ctx.llvm_ctx.getDoubleTy() as &@IR.FPType
+          _ => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+        }
+        self.builder.createFPTrunc(value, fp_type)
+      } else {
+        value
+      }
+
     // For other cases, use bitcast as fallback
     _ => {
       let to_llvm_type = self.global_ctx.convert_type_to_llvm(to_type)
@@ -1548,6 +1570,12 @@ fn FuncCodeGenContext::emit_prim_expr(
             value.reinterpret_as_int64(),
           )
           (UInt(64), llvm_value)
+        }
+        Float(value) => {
+          let llvm_value = self.global_ctx.llvm_ctx.getConstFloat(
+            value.to_double(),
+          )
+          (FP(32), llvm_value)
         }
         Double(value) => {
           let llvm_value = self.global_ctx.llvm_ctx.getConstDouble(value)

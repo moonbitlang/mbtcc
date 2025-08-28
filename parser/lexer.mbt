@@ -135,6 +135,7 @@ pub enum Constant {
   Long(Int64)
   UInt(UInt)
   ULong(UInt64)
+  Float(Float)
   Double(Double)
   Char(Char)
 } derive(Show, Eq)
@@ -838,12 +839,15 @@ fn lex_hex_number(code : @string.View) -> (Token, @string.View, Int) raise {
   // 十六进制浮点数必须有小数点或指数
   if has_dot || has_p_exp {
     // 这是十六进制浮点数
-    let (_, rest, suffix_len) = parse_float_suffix(rest)
+    let (suffix, rest, suffix_len) = parse_float_suffix(rest)
     char_count += suffix_len
 
     // 解析十六进制浮点数
     let num = parse_hex_float(hex_str)
-    let token = Token::Constant(Constant::Double(num))
+    let token = match suffix.to_lower() {
+      "f" => Token::Constant(Constant::Float(num.to_float()))
+      _ => Token::Constant(Constant::Double(num))
+    }
     (token, rest, char_count)
   } else {
     // 这是十六进制整数
@@ -999,7 +1003,7 @@ fn lex_decimal_number(code : @string.View) -> (Token, @string.View, Int) raise {
   let num_str = String::from_array(digits)
   if has_dot || has_exp {
     // 浮点数
-    let (_, rest, suffix_len) = parse_float_suffix(rest)
+    let (suffix, rest, suffix_len) = parse_float_suffix(rest)
     char_count += suffix_len
     let num = @strconv.parse_double(num_str) catch {
       err => {
@@ -1007,7 +1011,10 @@ fn lex_decimal_number(code : @string.View) -> (Token, @string.View, Int) raise {
         raise err
       }
     }
-    let token = Token::Constant(Constant::Double(num))
+    let token = match suffix.to_lower() {
+      "f" => Token::Constant(Constant::Float(num.to_float()))
+      _ => Token::Constant(Constant::Double(num))
+    }
     (token, rest, char_count)
   } else {
     // 整数
@@ -1415,7 +1422,7 @@ test "tokenize numbers test" {
 
     // 浮点数
     Constant(Double(3.14)),
-    Constant(Double(2.5)),
+    Constant(Float(2.5)),
     Constant(Double(1.0)),
     Constant(Double(6.02e23)),
     Constant(Double(1.5e-10)),
