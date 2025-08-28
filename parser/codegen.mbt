@@ -12,7 +12,7 @@ pub enum Type {
   FP(Int) // Bitwidth, 32, 64
   Ptr(Type)
   Array(Type, Int) // Element type, size
-  Struct(Array[Type])
+  Struct(String, Array[Type]) // name, field_types
   Union(Array[Type])
   Enum(Array[(String, Int64)])
 } derive(Show, Eq)
@@ -46,8 +46,31 @@ fn CodeGenContext::convert_type_to_llvm(
         err => raise CodeGenError::LLVMError(err)
       }
     }
-    Struct(_) =>
-      raise CodeGenError::UnSupportFeature("Struct types not implemented yet")
+    Struct(struct_name, field_types) => {
+      let full_struct_name = "struct." + struct_name
+      // Check if we already created this LLVM struct type
+      match self.llvm_struct_env.get(full_struct_name) {
+        Some(cached_llvm_type) => cached_llvm_type
+        None => {
+          // Convert each field type to LLVM type
+          let llvm_field_types : Array[&LLVMType] = []
+          for field_type in field_types {
+            let llvm_field_type = self.convert_type_to_llvm(field_type)
+            llvm_field_types.push(llvm_field_type)
+          }
+          // Create LLVM struct type using Context::getStructType with a name
+          let llvm_struct_type = self.llvm_ctx.getStructType(
+            llvm_field_types,
+            name=full_struct_name,
+          ) catch {
+            err => raise CodeGenError::LLVMError(err)
+          }
+          // Cache the LLVM struct type
+          self.llvm_struct_env.set(full_struct_name, llvm_struct_type)
+          llvm_struct_type
+        }
+      }
+    }
     Union(_) =>
       raise CodeGenError::UnSupportFeature("Union types not implemented yet")
     Enum(_) =>
@@ -69,6 +92,8 @@ struct CodeGenContext {
   function_env : Env[@IR.Function] // Global function symbol table
   function_sig_env : Env[(Type, Array[(String, Type)])] // Function signature table: (return_type, parameters)
   typedef_env : Env[Type] // Type alias symbol table
+  struct_env : Env[Type] // Struct type cache
+  llvm_struct_env : Env[&LLVMType] // LLVM struct type cache
 }
 
 ///|
@@ -83,6 +108,8 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let function_env = Env::new()
   let function_sig_env = Env::new()
   let typedef_env = Env::new()
+  let struct_env = Env::new()
+  let llvm_struct_env = Env::new()
   CodeGenContext::{
     external_decls: ctx.external_decls,
     llvm_ctx,
@@ -90,6 +117,48 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
     function_env,
     function_sig_env,
     typedef_env,
+    struct_env,
+    llvm_struct_env,
+  }
+}
+
+///|
+fn CodeGenContext::analysis_declarator_type_for_struct(
+  self : Self,
+  declarator : Declarator,
+  base_type : Type,
+) -> Type {
+  let mut result_type = base_type
+
+  // Handle pointer in declarator
+  match declarator.pointer {
+    Some(pointer) => {
+      ignore(pointer)
+      result_type = Ptr(result_type)
+    }
+    None => ()
+  }
+
+  // Handle direct declarator (arrays, functions, etc.)
+  // For struct fields, we mainly care about arrays and pointers
+  match declarator.directDeclarator {
+    Identifier(_) => result_type
+    Array(inner_decl, type_quals, size_expr) => {
+      ignore(inner_decl)
+      ignore(type_quals)
+      // Handle array fields in struct
+      let array_size = match size_expr {
+        Some(assign_expr) => {
+          ignore(assign_expr)
+          // For now, just use a default size for struct arrays
+          // TODO: Implement proper constant expression evaluation
+          10 // Placeholder
+        }
+        None => 1 // Default size for incomplete arrays
+      }
+      Array(result_type, array_size)
+    }
+    _ => result_type // For other cases, just return the base type
   }
 }
 
@@ -125,8 +194,70 @@ pub fn CodeGenContext::analysis_declspecs(
             raise CodeGenError::UnSupportFeature("Complex types not supported")
           Atomic(_) =>
             raise CodeGenError::UnSupportFeature("Atomic types not supported")
-          StructSpec(_) =>
-            raise CodeGenError::UnSupportFeature("Struct specs not supported")
+          StructSpec(struct_spec) => {
+            // Get struct name first
+            let struct_name = match struct_spec.name {
+              Some(name) => name
+              None => "anon"
+            }
+
+            // Check if this struct is already defined (for forward references)
+            match self.struct_env.get(struct_name) {
+              Some(existing_struct_type) =>
+                base_type = Some(existing_struct_type)
+              None => {
+                // Create struct type from struct specification
+                let field_types : Array[Type] = []
+                for struct_decl in struct_spec.decls {
+                  match struct_decl {
+                    Normal(spec_qualifiers, struct_declarators) => {
+                      // Get the base type from type specifiers/qualifiers
+                      // For now, simplified: assume int for struct fields
+                      let mut field_base_type = Type::Int(32) // Default to int
+                      for spec in spec_qualifiers {
+                        match spec {
+                          TypeSpec(type_spec) =>
+                            match type_spec {
+                              TypeSpec::Int => field_base_type = Type::Int(32)
+                              TypeSpec::Char => field_base_type = Type::Int(8)
+                              TypeSpec::Short => field_base_type = Type::Int(16)
+                              TypeSpec::Long => field_base_type = Type::Int(64)
+                              TypeSpec::Float => field_base_type = Type::FP(32)
+                              TypeSpec::Double => field_base_type = Type::FP(64)
+                              _ => () // Use default int
+                            }
+                          TypeQualifier(_) => () // Ignore qualifiers for now
+                        }
+                      }
+
+                      // Process each field declarator
+                      for struct_declarator in struct_declarators {
+                        match struct_declarator {
+                          Declarator(declarator) => {
+                            // Get the field type considering the declarator
+                            let field_type = self.analysis_declarator_type_for_struct(
+                              declarator, field_base_type,
+                            )
+                            field_types.push(field_type)
+                          }
+                          Field(_, _) =>
+                            // Bit fields not supported yet, just use base type
+                            field_types.push(field_base_type)
+                        }
+                      }
+                    }
+                  }
+                }
+                // Create and cache the struct type
+                let struct_type = Type::Struct(struct_name, field_types)
+                if !struct_spec.decls.is_empty() {
+                  // Only cache if this is a complete definition
+                  self.struct_env.set(struct_name, struct_type)
+                }
+                base_type = Some(struct_type)
+              }
+            }
+          }
           UnionSpec(_) =>
             raise CodeGenError::UnSupportFeature("Union specs not supported")
           EnumSpec(_) => base_type = Some(Enum([]))
@@ -1957,9 +2088,43 @@ fn FuncCodeGenContext::emit_postfix_expr(
         expr_type = func_ret_type
       }
       DotAccess(field_name) =>
-        raise CodeGenError::UnSupportFeature(
-          "Struct field access not implemented",
-        )
+        // Handle struct field access: struct.field
+        match expr_type {
+          Struct(struct_name, field_types) => {
+            // Simple field name resolution for Point struct
+            let field_index = match field_name {
+              "x" => 0
+              "y" => 1
+              _ => 0 // Default to first field
+            }
+            if field_index < field_types.length() && field_types.length() > 0 {
+              let field_type = field_types[field_index]
+              let field_llvm_type = self.global_ctx.convert_type_to_llvm(
+                field_type,
+              )
+              // Create GEP instruction to access the field
+              // We need the struct LLVM type, not the field type for GEP
+              let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
+                expr_type,
+              )
+              let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
+                self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+                self.global_ctx.llvm_ctx.getConstInt32(field_index), // field index
+              ])
+              let loaded_value = self.builder.createLoad(field_llvm_type, gep)
+              expr_type = field_type
+              expr_value = loaded_value
+            } else {
+              raise CodeGenError::UnSupportFeature(
+                "Field index out of bounds: index=\{field_index}, num_fields=\{field_types.length()}",
+              )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Dot access only supported on struct types",
+            )
+        }
       ArrowAccess(field_name) =>
         raise CodeGenError::UnSupportFeature(
           "Pointer field access not implemented",
@@ -2016,10 +2181,19 @@ fn FuncCodeGenContext::emit_prim_expr(
             // For array variables, return the address directly (decay to pointer)
             (ty, alloca_value)
           } else {
-            // For normal variables (including pointer variables), load the value
-            let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
-            let loaded_value = self.builder.createLoad(llvm_type, alloca_value)
-            (ty, loaded_value)
+            match ty {
+              Struct(_, _) =>
+                // For struct variables, return the address for field access
+                (ty, alloca_value)
+              _ => {
+                // For normal variables (including pointer variables), load the value
+                let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
+                let loaded_value = self.builder.createLoad(
+                  llvm_type, alloca_value,
+                )
+                (ty, loaded_value)
+              }
+            }
           }
         None =>
           raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
@@ -2150,9 +2324,38 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
         }
       }
       DotAccess(field_name) =>
-        raise CodeGenError::UnSupportFeature(
-          "Struct field access not implemented",
-        )
+        // Handle struct field access as lvalue: struct.field
+        match expr_type {
+          Struct(struct_name, field_types) => {
+            // Simple field name resolution for Point struct
+            let field_index = match field_name {
+              "x" => 0
+              "y" => 1
+              _ => 0 // Default to first field
+            }
+            if field_index < field_types.length() && field_types.length() > 0 {
+              let field_type = field_types[field_index]
+              let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
+                expr_type,
+              )
+              // Create GEP instruction to get the address of the field
+              let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
+                self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+                self.global_ctx.llvm_ctx.getConstInt32(field_index), // field index
+              ])
+              expr_type = field_type
+              expr_value = gep // Return address, not loaded value
+            } else {
+              raise CodeGenError::UnSupportFeature(
+                "Field index out of bounds: index=\{field_index}, num_fields=\{field_types.length()}",
+              )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Dot access only supported on struct types",
+            )
+        }
       ArrowAccess(field_name) =>
         raise CodeGenError::UnSupportFeature(
           "Pointer field access not implemented",

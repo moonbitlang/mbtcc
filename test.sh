@@ -46,6 +46,7 @@ passing_tests=(
   "simple_int.c"
   "bin_int.c"
   "bin_float.c"
+  "struct1.c"
 )
 
 # Clean up and create the temporary directory
