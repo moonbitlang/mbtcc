@@ -621,6 +621,7 @@ pub enum Type {
   UInt(Int)
   FP(Int)
   Ptr(Type)
+  Array(Type, Int)
   Struct(Array[Type])
   Union(Array[Type])
   Enum(Array[(String, Int64)])

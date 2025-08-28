@@ -36,6 +36,7 @@ passing_tests=(
   "simple_dowhile.c"
   "simple_for.c"
   "simple_arr.c"
+  "simple_arr2.c"
 )
 
 # Clean up and create the temporary directory

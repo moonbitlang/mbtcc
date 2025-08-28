@@ -1969,6 +1969,269 @@ fn FuncCodeGenContext::analysis_declarator_type(
 }
 
 ///|
+
+///|
+fn FuncCodeGenContext::evaluate_constant_expr(
+  self : Self,
+  assign_expr : AssignExpr,
+) -> Int raise CodeGenError {
+  // Simple constant expression evaluator for array sizes
+  match assign_expr {
+    Conditional(cond_expr) => self.evaluate_constant_conditional(cond_expr)
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple constant expressions supported for array sizes",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_conditional(
+  self : Self,
+  cond_expr : ConditionalExpr,
+) -> Int raise CodeGenError {
+  let { expr, select } = cond_expr
+  if select is Some(_) {
+    raise CodeGenError::UnSupportFeature(
+      "Conditional expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_logical_or(expr)
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_logical_or(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_logical_and(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_logical_and(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_inclusive_or(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_inclusive_or(
+  self : Self,
+  incl_or_expr : InclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = incl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_exclusive_or(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_exclusive_or(
+  self : Self,
+  excl_or_expr : ExclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = excl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_and(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_and(
+  self : Self,
+  and_expr : AndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_equality(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_equality(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = eq_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex equality expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_relational(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_relational(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = rel_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex relational expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_shift(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_shift(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = shift_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex shift expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_addsub(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_addsub(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = add_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex arithmetic expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_mult(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_mult(
+  self : Self,
+  mult_expr : MultExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = mult_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex multiplication expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_cast(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_cast(
+  self : Self,
+  cast_expr : CastExpr,
+) -> Int raise CodeGenError {
+  match cast_expr {
+    UnaryExpr(unary_expr) => self.evaluate_constant_unary(unary_expr)
+    Cast(_, _) =>
+      raise CodeGenError::UnSupportFeature(
+        "Cast expressions not supported in array sizes",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_unary(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> Int raise CodeGenError {
+  if !unary_expr.prefix.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Unary prefix operators not supported in array sizes",
+    )
+  }
+  self.evaluate_constant_unary_body(unary_expr.body)
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_unary_body(
+  self : Self,
+  unary_body : UnaryExprBody,
+) -> Int raise CodeGenError {
+  match unary_body {
+    PostFix(postfix_expr) => self.evaluate_constant_postfix(postfix_expr)
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple postfix expressions supported in array sizes",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_postfix(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> Int raise CodeGenError {
+  if !post_expr.suffixes.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Postfix operators not supported in array sizes",
+    )
+  }
+  match post_expr.head {
+    Left(prim_expr) => self.evaluate_constant_primary(prim_expr)
+    Right(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals not supported in array sizes",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_constant_primary(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> Int raise CodeGenError {
+  match prim_expr {
+    Constant(constant) =>
+      match constant {
+        Int(value) => value
+        Long(value) => value.to_int()
+        UInt(value) => value.reinterpret_as_int()
+        ULong(value) => value.reinterpret_as_int64().to_int()
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Only integer constants supported in array sizes",
+          )
+      }
+    ParenExpr(expr) => {
+      if expr.exprs.length() != 1 {
+        raise CodeGenError::UnSupportFeature(
+          "Complex parenthesized expressions not supported in array sizes",
+        )
+      }
+      self.evaluate_constant_expr(expr.exprs[0])
+    }
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only integer constants supported in array sizes",
+      )
+  }
+}
+
+///|
 fn FuncCodeGenContext::analysis_direct_declarator_type(
   self : Self,
   direct_declarator : DirectDeclarator,
@@ -1983,10 +2246,8 @@ fn FuncCodeGenContext::analysis_direct_declarator_type(
       )
       let array_size = match size_expr {
         Some(assign_expr) =>
-          // For now, only support constant array sizes
-          // TODO: Evaluate assign_expr to get the actual size
-          // For simple_arr.c, we know it's size 5
-          5 // Hardcoded for now
+          // Evaluate constant array size expression
+          self.evaluate_constant_expr(assign_expr)
         None =>
           raise CodeGenError::UnSupportFeature(
             "Variable length arrays are not supported",
@@ -2075,11 +2336,64 @@ fn FuncCodeGenContext::emit_decl(
             }
             ignore(self.builder.createStore(init_val, alloca))
           }
-          InitList(_) =>
-            // Skip complex initializer lists for now
-            raise CodeGenError::UnSupportFeature(
-              "InitList initializers not supported yet",
-            )
+          InitList(init_pairs) =>
+            // Handle array initialization lists like {1, 2, 3, 4, 5}
+            match var_type {
+              Array(elem_type, size) => {
+                // Initialize array elements one by one
+                let elem_llvm_type = self.global_ctx.convert_type_to_llvm(
+                  elem_type,
+                )
+                let mut index = 0
+                for pair in init_pairs {
+                  let (designators, initializer) = pair
+                  // For simple array initialization, ignore designators for now
+                  if index >= size {
+                    break // Don't initialize beyond array bounds
+                  }
+
+                  // Get the value to initialize with
+                  let init_val = match initializer {
+                    AssignExpr(assign_expr) => {
+                      let (init_type, init_val) = self.emit_assign_expr(
+                        assign_expr,
+                      )
+                      if init_type != elem_type {
+                        self.emit_cast(
+                          from_type=init_type,
+                          to_type=elem_type,
+                          init_val,
+                        )
+                      } else {
+                        init_val
+                      }
+                    }
+                    InitList(_) =>
+                      raise CodeGenError::UnSupportFeature(
+                        "Nested InitList not supported yet",
+                      )
+                  }
+
+                  // Calculate the GEP to the array element
+                  let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
+                  let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+                    var_type,
+                  )
+                  let gep = self.builder.createGEP(alloca, array_llvm_type, [
+                    self.global_ctx.llvm_ctx.getConstInt32(0), // First index for array base
+                    index_val, // Second index for array element
+                  ])
+
+                  // Store the value
+                  ignore(self.builder.createStore(init_val, gep))
+                  index = index + 1
+                }
+              }
+              _ =>
+                raise CodeGenError::UnSupportFeature(
+                  "InitList only supported for array types currently",
+                )
+            }
         }
       None =>
         // No initialization - variable is uninitialized
