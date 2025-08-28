@@ -1,3 +1,4 @@
+void println_int(int);
 
 int sum(int n) {
     int s = 0;
@@ -9,5 +10,6 @@ int sum(int n) {
 }
 
 int main() {
-  return sum(10); // Expected: 55
+  println_int(sum(10)); // Expected: 55
+  return 0;
 }

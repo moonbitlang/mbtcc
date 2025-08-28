@@ -1,7 +1,8 @@
-
+void println_int(int);
 
 int main() {
   int a = 1;
   int b = 3;
-  return a + b;
+  println_int(a + b);
+  return 0;
 }

@@ -1,3 +1,4 @@
+void println_int(int);
 
 int foo(int a, int b) {
   int res;
@@ -16,5 +17,6 @@ int foo(int a, int b) {
 int main() {
   int x = foo(150, 30);
   int y = foo(250, 10);
-  return x + y;
+  println_int(x + y);
+  return 0;
 }

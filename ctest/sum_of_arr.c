@@ -1,3 +1,4 @@
+void println_int(int);
 
 int sum(int* arr, int len) {
   int total = 0;
@@ -10,5 +11,6 @@ int sum(int* arr, int len) {
 int main() {
   int arr[5] = {1, 2, 3, 4, 5};
   int result = sum(arr, 5);
-  return result; // Should return 15
+  println_int(result); // Should print 15
+  return 0;
 }

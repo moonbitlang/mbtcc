@@ -1,3 +1,4 @@
+void println_int(int);
 
 int main() {
   int a = 5;
@@ -11,5 +12,6 @@ int main() {
 
   int d = 5;
   --d;
-  return a + b + c + d;
+  println_int(a + b + c + d);
+  return 0;
 }

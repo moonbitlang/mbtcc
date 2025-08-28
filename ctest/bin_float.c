@@ -1,3 +1,4 @@
+void println_int(int);
 
 int is_eqf(float a, float b) {
   int ia = *(int*)&a;
@@ -31,5 +32,6 @@ int main() {
   // cast
   passed += is_eqf(a * c, 6.75);
   passed += is_eqd(x * z, 6.75f);
-  return passed;
+  println_int(passed);
+  return 0;
 }

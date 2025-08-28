@@ -1,5 +1,6 @@
-
+void println_int(int);
 
 int main() {
-  return 42;
+  println_int(42);
+  return 0;
 }

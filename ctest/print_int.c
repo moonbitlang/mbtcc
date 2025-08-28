@@ -1,5 +1,5 @@
 
-void println_int(int x);
+void println_int(int);
 
 int main() {
   int x = 10;

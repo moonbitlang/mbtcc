@@ -1,3 +1,5 @@
+void println_int(int);
+
 int main() {
   int a = 5, b = 11;
   int result = a + b - a * b / a % b;
@@ -9,5 +11,6 @@ int main() {
   if (a != b) {
     result = result + 1;
   }
-  return result;
+  println_int(result);
+  return 0;
 }

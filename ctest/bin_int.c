@@ -1,3 +1,4 @@
+void println_int(int);
 
 int is_eq(int actual, int expected) {
   if (expected == actual) {
@@ -97,5 +98,6 @@ int main() {
   passed += is_equll(ulla | ullb, 15);
   passed += is_equll(ulla ^ ullb, 14);
 
-  return passed;
+  println_int(passed);
+  return 0;
 }

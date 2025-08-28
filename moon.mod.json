@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "deps": {
     "moonbitlang/x": "0.4.31",
-    "Kaida-Amethyst/MoonLLVM": "0.1.1"
+    "Kaida-Amethyst/MoonLLVM": {
+      "path" : "../Aether/"
+    }
   },
   "readme": "README.md",
   "repository": "",

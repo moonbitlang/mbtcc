@@ -42,7 +42,7 @@ fn CodeGenContext::convert_type_to_llvm(
     Ptr(_) => self.llvm_ctx.getPtrTy()
     Array(elem_type, size) => {
       let element_llvm_type = self.convert_type_to_llvm(elem_type)
-      self.llvm_ctx.getArrayType(element_llvm_type, size.reinterpret_as_uint()) catch {
+      self.llvm_ctx.getArrayType(element_llvm_type, size) catch {
         err => raise CodeGenError::LLVMError(err)
       }
     }
@@ -1933,7 +1933,7 @@ fn FuncCodeGenContext::emit_prim_expr(
         }
         Float(value) => {
           let llvm_value = self.global_ctx.llvm_ctx.getConstFloat(
-            value.to_double(),
+            value,
           )
           (FP(32), llvm_value)
         }

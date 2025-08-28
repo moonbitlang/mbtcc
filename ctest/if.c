@@ -1,3 +1,4 @@
+void println_int(int);
 
 int max(int a, int b) {
   int res;
@@ -11,5 +12,6 @@ int max(int a, int b) {
 
 int main () {
   int res = max(3, 5);
-  return res;
+  println_int(res);
+  return 0;
 }
