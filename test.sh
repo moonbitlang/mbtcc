@@ -40,6 +40,7 @@ passing_tests=(
   "sum_of_arr.c"
   "typedef.c"
   "simple_int.c"
+  "bin_int.c"
 )
 
 # Clean up and create the temporary directory

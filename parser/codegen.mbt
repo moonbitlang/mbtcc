@@ -64,6 +64,7 @@ struct CodeGenContext {
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
   function_env : Env[@IR.Function] // Global function symbol table
+  function_sig_env : Env[(Type, Array[(String, Type)])] // Function signature table: (return_type, parameters)
   typedef_env : Env[Type] // Type alias symbol table
 }
 
@@ -77,12 +78,14 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule("demo")
   let function_env = Env::new()
+  let function_sig_env = Env::new()
   let typedef_env = Env::new()
   CodeGenContext::{
     external_decls: ctx.external_decls,
     llvm_ctx,
     llvm_mod,
     function_env,
+    function_sig_env,
     typedef_env,
   }
 }
@@ -429,6 +432,8 @@ pub fn CodeGenContext::emit_function_definition(
   }
   // Add function to global function environment
   self.function_env.set(func_name, llvm_func)
+  // Store function signature for type checking during calls
+  self.function_sig_env.set(func_name, (ret_type, params))
   let var_env : Env[(Type, &LLVMValue, Bool)] = Env::new()
   let builder = self.llvm_ctx.createBuilder()
 
@@ -1679,26 +1684,46 @@ fn FuncCodeGenContext::emit_postfix_expr(
             )
         }
 
-        // Evaluate arguments
-        let arg_values : Array[&LLVMValue] = []
-        let arg_types : Array[Type] = []
-        for arg_expr in arg_exprs {
-          let (arg_type, arg_value) = self.emit_assign_expr(arg_expr)
-          arg_values.push(arg_value)
-          arg_types.push(arg_type)
+        // Get function signature for type checking
+        let (func_ret_type, func_params) = match
+          self.global_ctx.function_sig_env.get(func_name) {
+          Some(sig) => sig
+          None =>
+            raise CodeGenError::UnSupportFeature(
+              "Function signature not found: \{func_name}",
+            )
         }
 
-        // TODO: For now, we don't have function signature information to do proper type checking
-        // This is a simplification - in a real compiler, we'd check against the function's parameter types
-        // and convert arguments as needed
+        // Evaluate arguments and convert to match parameter types
+        let arg_values : Array[&LLVMValue] = []
+        for i, arg_expr in arg_exprs.iter2() {
+          let (arg_type, arg_value) = self.emit_assign_expr(arg_expr)
+
+          // Convert argument type to match expected parameter type if needed
+          let converted_value = if i < func_params.length() {
+            let (_, expected_param_type) = func_params[i]
+            if arg_type != expected_param_type {
+              self.emit_cast(
+                from_type=arg_type,
+                to_type=expected_param_type,
+                arg_value,
+              )
+            } else {
+              arg_value
+            }
+          } else {
+            // For variadic functions or incorrect call, use as-is
+            arg_value
+          }
+          arg_values.push(converted_value)
+        }
 
         // Create the function call
         let call_result = self.builder.createCall(func, arg_values)
 
-        // Determine return type - for now assume int
-        // TODO: Get actual return type from function signature
+        // Use the actual return type from function signature
         expr_value = call_result
-        expr_type = Int(32) // Assume int return type for now
+        expr_type = func_ret_type
       }
       DotAccess(_) => ...
       ArrowAccess(_) => ...
