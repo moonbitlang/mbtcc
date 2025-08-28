@@ -33,6 +33,7 @@ passing_tests=(
   "ptr1.c"
   "ptr2.c"
   "if.c"
+  "if2.c"
   "fib.c"
   "while.c"
   "dowhile.c"

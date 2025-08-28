@@ -468,6 +468,7 @@ struct FuncCodeGenContext {
   var_env : Env[(Type, &LLVMValue, Bool)] // Type, alloca, is_array
   builder : @IR.IRBuilder
   return_type : Type // Function return type for type checking
+  mut block_counter : Int // Counter for generating unique basic block names
 }
 
 ///|
@@ -525,6 +526,7 @@ pub fn CodeGenContext::emit_function_definition(
     var_env,
     builder,
     return_type: ret_type,
+    block_counter: 0,
   }
   func_codegen.emit_function_body()
 }
@@ -627,6 +629,21 @@ fn CodeGenContext::analysis_func_declarator(
       )
   }
   (ret_type, func_name, params)
+}
+
+///|
+fn FuncCodeGenContext::get_next_block_id(self : Self) -> Int {
+  let id = self.block_counter
+  self.block_counter = self.block_counter + 1
+  id
+}
+
+///|
+fn FuncCodeGenContext::current_block_has_terminator(self : Self) -> Bool {
+  // For now, we'll assume blocks don't have terminators
+  // In a more complete implementation, we'd check if the current block
+  // already has a terminating instruction
+  false
 }
 
 ///|
@@ -1111,17 +1128,66 @@ fn FuncCodeGenContext::emit_logical_or_expr(
   log_or_expr : LogicalOrExpr,
 ) -> (Type, &LLVMValue) raise {
   let { exprs: logical_and_exprs } = log_or_expr
+
+  // If there's only one expression, evaluate it directly
+  if logical_and_exprs.length() == 1 {
+    return self.emit_logical_and_expr(logical_and_exprs[0])
+  }
+
+  // For multiple expressions, implement short-circuit evaluation
+  // Create result variable and basic blocks
+  let result_alloca = self.builder.createAlloca(
+    self.global_ctx.llvm_ctx.getInt1Ty(),
+    name="or_result",
+  )
+  let continue_bb = self.func_value.addBasicBlock(name="or.continue")
+  let end_bb = self.func_value.addBasicBlock(name="or.end")
+
+  // Evaluate first expression
   let (first_ty, first_val) = self.emit_logical_and_expr(logical_and_exprs[0])
+  let bool_val = if first_ty != Int(1) && first_ty != UInt(1) {
+    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+    self.builder.createICmpNE(first_val, zero)
+  } else {
+    first_val
+  }
+
+  // Store the result and check if we should short-circuit
+  ignore(self.builder.createStore(bool_val, result_alloca))
+  ignore(self.builder.createCondBr(bool_val, end_bb, continue_bb))
+
+  // Continue block for remaining expressions
+  let mut current_bb = continue_bb
   for i in 1..<logical_and_exprs.length() {
+    self.builder.setInsertPoint(current_bb)
     let (ty, val) = self.emit_logical_and_expr(logical_and_exprs[i])
-    let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
+    let bool_val = if ty != Int(1) && ty != UInt(1) {
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      self.builder.createICmpNE(val, zero)
     } else {
-      first_val
+      val
     }
 
+    // Store the result
+    ignore(self.builder.createStore(bool_val, result_alloca))
+    if i == logical_and_exprs.length() - 1 {
+      // Last expression, just jump to end
+      ignore(self.builder.createBr(end_bb))
+    } else {
+      // Create next continue block
+      let next_bb = self.func_value.addBasicBlock(name="or.continue.\{i}")
+      ignore(self.builder.createCondBr(bool_val, end_bb, next_bb))
+      current_bb = next_bb
+    }
   }
-  (first_ty, first_val)
+
+  // End block - load the final result
+  self.builder.setInsertPoint(end_bb)
+  let result = self.builder.createLoad(
+    self.global_ctx.llvm_ctx.getInt1Ty(),
+    result_alloca,
+  )
+  (Int(1), result)
 }
 
 ///|
@@ -1130,17 +1196,66 @@ fn FuncCodeGenContext::emit_logical_and_expr(
   log_and_expr : LogicalAndExpr,
 ) -> (Type, &LLVMValue) raise {
   let { exprs: inclusive_or_exprs } = log_and_expr
+
+  // If there's only one expression, evaluate it directly
+  if inclusive_or_exprs.length() == 1 {
+    return self.emit_inclusive_or_expr(inclusive_or_exprs[0])
+  }
+
+  // For multiple expressions, implement short-circuit evaluation
+  // Create result variable and basic blocks
+  let result_alloca = self.builder.createAlloca(
+    self.global_ctx.llvm_ctx.getInt1Ty(),
+    name="and_result",
+  )
+  let continue_bb = self.func_value.addBasicBlock(name="and.continue")
+  let end_bb = self.func_value.addBasicBlock(name="and.end")
+
+  // Evaluate first expression
   let (first_ty, first_val) = self.emit_inclusive_or_expr(inclusive_or_exprs[0])
+  let bool_val = if first_ty != Int(1) && first_ty != UInt(1) {
+    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+    self.builder.createICmpNE(first_val, zero)
+  } else {
+    first_val
+  }
+
+  // Store the result and check if we should short-circuit
+  ignore(self.builder.createStore(bool_val, result_alloca))
+  ignore(self.builder.createCondBr(bool_val, continue_bb, end_bb))
+
+  // Continue block for remaining expressions
+  let mut current_bb = continue_bb
   for i in 1..<inclusive_or_exprs.length() {
+    self.builder.setInsertPoint(current_bb)
     let (ty, val) = self.emit_inclusive_or_expr(inclusive_or_exprs[i])
-    let first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
+    let bool_val = if ty != Int(1) && ty != UInt(1) {
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      self.builder.createICmpNE(val, zero)
     } else {
-      first_val
+      val
     }
 
+    // Store the result
+    ignore(self.builder.createStore(bool_val, result_alloca))
+    if i == inclusive_or_exprs.length() - 1 {
+      // Last expression, just jump to end
+      ignore(self.builder.createBr(end_bb))
+    } else {
+      // Create next continue block
+      let next_bb = self.func_value.addBasicBlock(name="and.continue.\{i}")
+      ignore(self.builder.createCondBr(bool_val, next_bb, end_bb))
+      current_bb = next_bb
+    }
   }
-  (first_ty, first_val)
+
+  // End block - load the final result
+  self.builder.setInsertPoint(end_bb)
+  let result = self.builder.createLoad(
+    self.global_ctx.llvm_ctx.getInt1Ty(),
+    result_alloca,
+  )
+  (Int(1), result)
 }
 
 ///|
@@ -2256,9 +2371,12 @@ fn FuncCodeGenContext::emit_selection_statement(
       } else {
         cond_val
       }
-      let then_bb = self.func_value.addBasicBlock(name="then")
-      let else_bb = self.func_value.addBasicBlock(name="else")
-      let merge_bb = self.func_value.addBasicBlock(name="merge")
+
+      // Generate unique names for basic blocks
+      let block_id = self.get_next_block_id()
+      let then_bb = self.func_value.addBasicBlock(name="if.then.\{block_id}")
+      let else_bb = self.func_value.addBasicBlock(name="if.else.\{block_id}")
+      let merge_bb = self.func_value.addBasicBlock(name="if.merge.\{block_id}")
 
       // Create conditional branch
       ignore(self.builder.createCondBr(bool_cond, then_bb, else_bb))
@@ -2266,8 +2384,10 @@ fn FuncCodeGenContext::emit_selection_statement(
       // Emit then block
       self.builder.setInsertPoint(then_bb)
       self.emit_statement(then_stmt)
-      // Always add a branch to merge block for now
-      ignore(self.builder.createBr(merge_bb))
+      // Only add a branch to merge if the block doesn't already have a terminator
+      if !self.current_block_has_terminator() {
+        ignore(self.builder.createBr(merge_bb))
+      }
 
       // Emit else block
       self.builder.setInsertPoint(else_bb)
@@ -2275,8 +2395,10 @@ fn FuncCodeGenContext::emit_selection_statement(
         Some(else_stmt) => self.emit_statement(else_stmt)
         None => ()
       }
-      // Always add a branch to merge block for now
-      ignore(self.builder.createBr(merge_bb))
+      // Only add a branch to merge if the block doesn't already have a terminator
+      if !self.current_block_has_terminator() {
+        ignore(self.builder.createBr(merge_bb))
+      }
 
       // Continue with merge block
       self.builder.setInsertPoint(merge_bb)
