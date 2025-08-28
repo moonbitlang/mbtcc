@@ -721,10 +721,103 @@ pub fn FuncCodeGenContext::emit_cast(
   from_type~ : Type,
   to_type~ : Type,
   value : &LLVMValue,
-) -> &LLVMValue {
-  // For now, just return the original value
-  // TODO: Implement proper type casting
-  value
+) -> &LLVMValue raise {
+  if from_type == to_type {
+    return value
+  }
+  match (from_type, to_type) {
+    // Pointer to integer conversion
+    (Ptr(_), Int(width)) => {
+      let int_type : &@IR.IntegerType = match width {
+        8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+        16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+        32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+        _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+      }
+      self.builder.createPtrToInt(value, int_type)
+    }
+
+    // Integer to pointer conversion  
+    (Int(_), Ptr(_)) | (UInt(_), Ptr(_)) => self.builder.createIntToPtr(value)
+
+    // Float to integer conversion
+    (FP(_), Int(width)) => {
+      let int_type : &@IR.IntegerType = match width {
+        8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+        16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+        32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+        _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+      }
+      self.builder.createFPToSI(value, int_type)
+    }
+
+    // Float to unsigned integer conversion
+    (FP(_), UInt(width)) => {
+      let int_type : &@IR.IntegerType = match width {
+        8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+        16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+        32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+        _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+      }
+      self.builder.createFPToUI(value, int_type)
+    }
+
+    // Integer to float conversion
+    (Int(_), FP(width)) => {
+      let fp_type : &@IR.FPType = match width {
+        32 => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+        64 => self.global_ctx.llvm_ctx.getDoubleTy() as &@IR.FPType
+        _ => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+      }
+      self.builder.createSIToFP(value, fp_type)
+    }
+
+    // Unsigned integer to float conversion
+    (UInt(_), FP(width)) => {
+      let fp_type : &@IR.FPType = match width {
+        32 => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+        64 => self.global_ctx.llvm_ctx.getDoubleTy() as &@IR.FPType
+        _ => self.global_ctx.llvm_ctx.getFloatTy() as &@IR.FPType
+      }
+      self.builder.createUIToFP(value, fp_type)
+    }
+
+    // Integer extension/truncation
+    (Int(from_width), Int(to_width)) =>
+      if from_width < to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createSExt(value, int_type)
+      } else if from_width > to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createTrunc(value, int_type)
+      } else {
+        value
+      }
+
+    // For other cases, use bitcast as fallback
+    _ => {
+      let to_llvm_type = self.global_ctx.convert_type_to_llvm(to_type)
+      match to_llvm_type.tryAsPrimitiveType() {
+        Some(prim_type) => self.builder.createBitCast(value, prim_type)
+        None => value // If bitcast fails, return original value
+      }
+    }
+  }
 }
 
 ///|
