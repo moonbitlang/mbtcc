@@ -81,6 +81,7 @@ fn CodeGenContext::convert_type_to_llvm(
 
 ///|
 pub suberror CodeGenError {
+  SyntaxError(String)
   UnSupportFeature(String)
   LLVMError(Error)
 } derive(Show)
@@ -537,7 +538,7 @@ pub fn CodeGenContext::emit_declaration(
         for init_decl in inits {
           let { declarator, initializer } = init_decl
           if initializer is Some(_) {
-            raise CodeGenError::UnSupportFeature(
+            raise CodeGenError::SyntaxError(
               "Typedef declarations cannot have initializers",
             )
           }
@@ -565,7 +566,7 @@ pub fn CodeGenContext::emit_declaration(
           if is_function_decl {
             // Handle function declaration
             if initializer is Some(_) {
-              raise CodeGenError::UnSupportFeature(
+              raise CodeGenError::SyntaxError(
                 "Function declarations cannot have initializers",
               )
             }
@@ -822,7 +823,7 @@ fn FuncCodeGenContext::emit_statement(
 ) -> Unit raise {
   match stmt {
     Empty => ()
-    LabeledStatement(label) =>
+    LabeledStatement(_) =>
       raise CodeGenError::UnSupportFeature("Labeled statements not supported")
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
     SelectionStatement(sel_stmt) => self.emit_selection_statement(sel_stmt)
@@ -886,9 +887,9 @@ fn FuncCodeGenContext::emit_assign_expr(
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAdd(left_val, right)
             FP(_) => self.builder.createFAdd(left_val, right)
-            _ =>
+            ty =>
               raise CodeGenError::UnSupportFeature(
-                "Unsupported type for AddAssign.",
+                "Unsupported type for AddAssign. \{ty}",
               )
           }
           ignore(self.builder.createStore(result, left))
@@ -900,9 +901,9 @@ fn FuncCodeGenContext::emit_assign_expr(
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createSub(left_val, right)
             FP(_) => self.builder.createFSub(left_val, right)
-            _ =>
+            ty =>
               raise CodeGenError::UnSupportFeature(
-                "Unsupported type for SubAssign.",
+                "Unsupported type for SubAssign. \{ty}",
               )
           }
           self.builder.createStore(result, left)
@@ -2111,7 +2112,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let field_idx = fields.search_by( pair => pair.0 == field_name )
             let field_idx = match field_idx {
               Some(idx) => idx
-              None => raise CodeGenError::UnSupportFeature(
+              None => raise CodeGenError::SyntaxError(
                 "Field \{field_name} not found in struct \{struct_name}",
               )
             }
