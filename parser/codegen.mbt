@@ -1778,8 +1778,6 @@ fn FuncCodeGenContext::emit_for(
   for_cond : ForCondition,
   stmt : Statement,
 ) -> Unit raise {
-  // Simple for loop implementation
-  // TODO: Implement proper for loop with initialization and increment
   let { for_init, cond, inc } = for_cond
 
   // Handle initialization
@@ -1789,14 +1787,55 @@ fn FuncCodeGenContext::emit_for(
     Empty => ()
   }
 
-  // Create a simple while loop with the condition
+  // Create basic blocks for the for loop
+  let cond_bb = self.func_value.addBasicBlock(name="for.cond")
+  let body_bb = self.func_value.addBasicBlock(name="for.body")
+  let inc_bb = self.func_value.addBasicBlock(name="for.inc")
+  let exit_bb = self.func_value.addBasicBlock(name="for.exit")
+
+  // Jump to condition block
+  ignore(self.builder.createBr(cond_bb))
+
+  // Emit condition block
+  self.builder.setInsertPoint(cond_bb)
   if cond.length() > 0 {
     let cond_expr = Expr::{ exprs: cond }
-    self.emit_while(cond_expr, stmt)
+    let (cond_type, cond_val) = self.emit_expr(cond_expr)
+
+    // Convert condition to boolean if needed
+    let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      self.builder.createICmpNE(cond_val, zero)
+    } else {
+      cond_val
+    }
+
+    // Create conditional branch
+    ignore(self.builder.createCondBr(bool_cond, body_bb, exit_bb))
   } else {
-    // Infinite loop if no condition
-    self.emit_statement(stmt)
+    // No condition, always jump to body (infinite loop)
+    ignore(self.builder.createBr(body_bb))
   }
+
+  // Emit body block
+  self.builder.setInsertPoint(body_bb)
+  self.emit_statement(stmt)
+
+  // Jump to increment block (if no explicit jump was made)
+  ignore(self.builder.createBr(inc_bb))
+
+  // Emit increment block
+  self.builder.setInsertPoint(inc_bb)
+  if inc.length() > 0 {
+    let inc_expr = Expr::{ exprs: inc }
+    ignore(self.emit_expr(inc_expr))
+  }
+
+  // Jump back to condition
+  ignore(self.builder.createBr(cond_bb))
+
+  // Continue with exit block
+  self.builder.setInsertPoint(exit_bb)
 }
 
 ///|
