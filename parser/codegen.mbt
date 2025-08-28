@@ -548,23 +548,23 @@ fn CodeGenContext::analysis_func_declarator(
           "Variadic functions are not supported.",
         )
       }
-      for param in params {
+      for i, param in params.iter2() {
         let { decl_specs, declarator } = param
-        guard declarator is Some(declarator) else {
-          raise CodeGenError::UnSupportFeature(
-            "Parameter without declarator is not supported.",
-          )
-        }
-        guard declarator is Declarator(declarator) else {
-          raise CodeGenError::UnSupportFeature(
-            "Only simple parameter declarators are supported.",
-          )
-        }
         let param_type = self.analysis_declspecs(decl_specs)
-        let (param_type, param_name) = self.analysis_param_declarator(
-          declarator, param_type,
-        )
-        func_params.push((param_name, param_type))
+        let (final_param_type, param_name) = match declarator {
+          Some(declarator) =>
+            match declarator {
+              Declarator(declarator) =>
+                self.analysis_param_declarator(declarator, param_type)
+              AbstractDeclarator(_) =>
+                // For abstract declarators, generate a default parameter name
+                (param_type, "param_\{i}")
+            }
+          None =>
+            // For parameters without declarators, generate a default parameter name
+            (param_type, "param_\{i}")
+        }
+        func_params.push((param_name, final_param_type))
       }
       (func_name, func_params)
     }
@@ -590,23 +590,23 @@ fn CodeGenContext::analysis_func_declarator(
           "Variadic functions are not supported.",
         )
       }
-      for param in params {
+      for i, param in params.iter2() {
         let { decl_specs, declarator } = param
-        guard declarator is Some(declarator) else {
-          raise CodeGenError::UnSupportFeature(
-            "Parameter without declarator is not supported.",
-          )
-        }
-        guard declarator is Declarator(declarator) else {
-          raise CodeGenError::UnSupportFeature(
-            "Only simple parameter declarators are supported.",
-          )
-        }
         let param_type = self.analysis_declspecs(decl_specs)
-        let (param_type, param_name) = self.analysis_param_declarator(
-          declarator, param_type,
-        )
-        func_params.push((param_name, param_type))
+        let (final_param_type, param_name) = match declarator {
+          Some(declarator) =>
+            match declarator {
+              Declarator(declarator) =>
+                self.analysis_param_declarator(declarator, param_type)
+              AbstractDeclarator(_) =>
+                // For abstract declarators, generate a default parameter name
+                (param_type, "param_\{i}")
+            }
+          None =>
+            // For parameters without declarators, generate a default parameter name
+            (param_type, "param_\{i}")
+        }
+        func_params.push((param_name, final_param_type))
       }
       (func_name, func_params)
     }
@@ -1932,9 +1932,7 @@ fn FuncCodeGenContext::emit_prim_expr(
           (UInt(64), llvm_value)
         }
         Float(value) => {
-          let llvm_value = self.global_ctx.llvm_ctx.getConstFloat(
-            value,
-          )
+          let llvm_value = self.global_ctx.llvm_ctx.getConstFloat(value)
           (FP(32), llvm_value)
         }
         Double(value) => {
