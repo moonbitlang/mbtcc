@@ -40,6 +40,7 @@ passing_tests=(
   "for.c"
   "arr1.c"
   "arr2.c"
+  "arr3.c"
   "sum_of_arr.c"
   "typedef.c"
   "simple_int.c"
