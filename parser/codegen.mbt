@@ -64,6 +64,7 @@ struct CodeGenContext {
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
   function_env : Env[@IR.Function] // Global function symbol table
+  typedef_env : Env[Type] // Type alias symbol table
 }
 
 ///|
@@ -76,11 +77,13 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule("demo")
   let function_env = Env::new()
+  let typedef_env = Env::new()
   CodeGenContext::{
     external_decls: ctx.external_decls,
     llvm_ctx,
     llvm_mod,
     function_env,
+    typedef_env,
   }
 }
 
@@ -88,7 +91,7 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
 pub fn CodeGenContext::analysis_declspecs(
   self : Self,
   declspecs : Array[DeclSpec],
-) -> Type {
+) -> Type raise CodeGenError {
   let mut is_signed = true
   let mut base_type : Type? = None
   let mut is_long = false
@@ -116,7 +119,14 @@ pub fn CodeGenContext::analysis_declspecs(
           StructSpec(_) => ...
           UnionSpec(_) => ...
           EnumSpec(_) => base_type = Some(Enum([]))
-          TypedefName(_) => ...
+          TypedefName(typedef_name) =>
+            match self.typedef_env.get(typedef_name) {
+              Some(typedef_type) => base_type = Some(typedef_type)
+              None =>
+                raise CodeGenError::UnSupportFeature(
+                  "Undefined typedef: \{typedef_name}",
+                )
+            }
         }
       StorageClassSpec(_) =>
         // Storage class doesn't affect type
@@ -321,8 +331,54 @@ fn CodeGenContext::analysis_direct_abstract_declarator(
 pub fn CodeGenContext::emit_declaration(
   self : Self,
   decl : Declaration,
-) -> Unit {
-  ...
+) -> Unit raise CodeGenError {
+  match decl {
+    Decl(declspecs, inits) => {
+      // Check if this is a typedef declaration
+      let is_typedef = declspecs
+        .iter()
+        .any(fn(spec) {
+          match spec {
+            StorageClassSpec(StorageClassSpec::Typedef) => true
+            _ => false
+          }
+        })
+      if is_typedef {
+        // Handle typedef declaration
+        // Extract the base type from non-typedef declspecs
+        let base_declspecs = declspecs.filter(fn(spec) {
+          match spec {
+            StorageClassSpec(StorageClassSpec::Typedef) => false
+            _ => true
+          }
+        })
+        let base_type = self.analysis_declspecs(base_declspecs)
+
+        // Process each init declarator to get the typedef name
+        for init_decl in inits {
+          let { declarator, initializer } = init_decl
+          if initializer is Some(_) {
+            raise CodeGenError::UnSupportFeature(
+              "Typedef declarations cannot have initializers",
+            )
+          }
+          let typedef_name = declarator.get_ident()
+          // For now, we only support simple typedef (no pointers/arrays)
+          let typedef_type = match declarator.pointer {
+            Some(_) => Ptr(base_type)
+            None => base_type
+          }
+
+          // Add to typedef environment
+          self.typedef_env.set(typedef_name, typedef_type)
+        }
+      } else {
+        // Handle regular variable declaration
+        // This will be implemented in the next step
+        ()
+      }
+    }
+  }
 }
 
 ///|

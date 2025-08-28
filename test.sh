@@ -38,6 +38,7 @@ passing_tests=(
   "simple_arr.c"
   "simple_arr2.c"
   "sum_of_arr.c"
+  "simple_typedef.c"
 )
 
 # Clean up and create the temporary directory
