@@ -26,6 +26,7 @@ passing_tests=(
   "ret42.c"
   "simple_add.c"
   "simple_unary.c"
+  "simple_call.c"
 )
 
 # Clean up and create the temporary directory

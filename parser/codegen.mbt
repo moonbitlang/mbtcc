@@ -49,10 +49,11 @@ pub suberror CodeGenError {
 } derive(Show)
 
 ///|
-pub struct CodeGenContext {
+struct CodeGenContext {
   external_decls : Array[ExternalDeclaration]
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
+  function_env : Env[@IR.Function] // Global function symbol table
 }
 
 ///|
@@ -64,7 +65,13 @@ pub fn CodeGenContext::dump(self : Self) -> Unit {
 pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule("demo")
-  CodeGenContext::{ external_decls: ctx.external_decls, llvm_ctx, llvm_mod }
+  let function_env = Env::new()
+  CodeGenContext::{
+    external_decls: ctx.external_decls,
+    llvm_ctx,
+    llvm_mod,
+    function_env,
+  }
 }
 
 ///|
@@ -345,6 +352,8 @@ pub fn CodeGenContext::emit_function_definition(
   let llvm_func = self.llvm_mod.addFunction(func_type, func_name) catch {
     err => raise CodeGenError::LLVMError(err)
   }
+  // Add function to global function environment
+  self.function_env.set(func_name, llvm_func)
   let var_env : Env[(Type, &LLVMValue)] = Env::new()
   for i in 0..<params.length() {
     let (param_name, param_type) = params[i]
@@ -1240,19 +1249,34 @@ fn FuncCodeGenContext::emit_postfix_expr(
       }
     })
 
+  // Check if we have function calls
+  let has_function_call = post_expr.suffixes
+    .iter()
+    .any(fn(suffix) {
+      match suffix {
+        Call(_) => true
+        _ => false
+      }
+    })
+
   // Evaluate the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
     Left(prim_expr) =>
       if has_increment_decrement {
         // For ++/-- operators, we need the lvalue (address) of the head
         self.emit_prim_expr_as_lvalue(prim_expr)
+      } else if has_function_call {
+        // For function calls, don't evaluate the head as an rvalue yet
+        // We'll handle it in the Call suffix processing
+        // Return dummy values for now
+        (Int(32), self.global_ctx.llvm_ctx.getConstInt32(0))
       } else {
         // For other operators, evaluate normally as rvalue
         self.emit_prim_expr(prim_expr)
       }
     Right((type_name, init_list)) => ...
   }
-  let expr_type = expr_type_init
+  let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
 
   // Apply postfix operators in order (left to right)
@@ -1269,11 +1293,47 @@ fn FuncCodeGenContext::emit_postfix_expr(
             )
         }
       }
-      Call(arg_exprs) =>
+      Call(arg_exprs) => {
         // Function call: func(args)
-        // For now, just skip function calls and return a placeholder
-        // TODO: Implement proper function call handling
-        ()
+        // The expr_value should contain the function to call
+        // First, we need to determine if this is a function name
+
+        // For function calls, we need to get the function name from the head
+        let func_name = match post_expr.head {
+          Left(PrimExpr::Identifier(name)) => name
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Only direct function calls by name are supported",
+            )
+        }
+
+        // Look up the function in the global function environment
+        let func : @IR.Function = match
+          self.global_ctx.function_env.get(func_name) {
+          Some(f) => f
+          None =>
+            raise CodeGenError::UnSupportFeature(
+              "Undefined function: \{func_name}",
+            )
+        }
+
+        // Evaluate arguments
+        let arg_values : Array[&LLVMValue] = []
+        let arg_types : Array[Type] = []
+        for arg_expr in arg_exprs {
+          let (arg_type, arg_value) = self.emit_assign_expr(arg_expr)
+          arg_values.push(arg_value)
+          arg_types.push(arg_type)
+        }
+
+        // Create the function call
+        let call_result = self.builder.createCall(func, arg_values)
+
+        // Determine return type - for now assume int
+        // TODO: Get actual return type from function signature
+        expr_value = call_result
+        expr_type = Int(32) // Assume int return type for now
+      }
       DotAccess(_) => ...
       ArrowAccess(_) => ...
       PlusPlus =>
