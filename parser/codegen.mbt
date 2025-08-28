@@ -2126,9 +2126,43 @@ fn FuncCodeGenContext::emit_postfix_expr(
             )
         }
       ArrowAccess(field_name) =>
-        raise CodeGenError::UnSupportFeature(
-          "Pointer field access not implemented",
-        )
+        // Handle pointer field access: ptr->field
+        // This is equivalent to (*ptr).field
+        match expr_type {
+          Ptr(Struct(struct_name, field_types)) => {
+            // Simple field name resolution for Point struct
+            let field_index = match field_name {
+              "x" => 0
+              "y" => 1
+              _ => 0 // Default to first field
+            }
+            if field_index < field_types.length() && field_types.length() > 0 {
+              let field_type = field_types[field_index]
+              let field_llvm_type = self.global_ctx.convert_type_to_llvm(
+                field_type,
+              )
+              // Create GEP instruction to access the field via pointer
+              let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
+                Struct(struct_name, field_types),
+              )
+              let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
+                self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+                self.global_ctx.llvm_ctx.getConstInt32(field_index), // field index
+              ])
+              let loaded_value = self.builder.createLoad(field_llvm_type, gep)
+              expr_type = field_type
+              expr_value = loaded_value
+            } else {
+              raise CodeGenError::UnSupportFeature(
+                "Field index out of bounds: index=\{field_index}, num_fields=\{field_types.length()}",
+              )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Arrow access only supported on pointer to struct types, got \{expr_type}",
+            )
+        }
       PlusPlus =>
         // Post-increment: return old value, increment stored value
         match expr_type {
@@ -2357,9 +2391,39 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
             )
         }
       ArrowAccess(field_name) =>
-        raise CodeGenError::UnSupportFeature(
-          "Pointer field access not implemented",
-        )
+        // Handle pointer field access as lvalue: ptr->field
+        // This is equivalent to &((*ptr).field)
+        match expr_type {
+          Ptr(Struct(struct_name, field_types)) => {
+            // Simple field name resolution for Point struct
+            let field_index = match field_name {
+              "x" => 0
+              "y" => 1
+              _ => 0 // Default to first field
+            }
+            if field_index < field_types.length() && field_types.length() > 0 {
+              let field_type = field_types[field_index]
+              let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
+                Struct(struct_name, field_types),
+              )
+              // Create GEP instruction to get the address of the field via pointer
+              let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
+                self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+                self.global_ctx.llvm_ctx.getConstInt32(field_index), // field index
+              ])
+              expr_type = field_type
+              expr_value = gep // Return address, not loaded value
+            } else {
+              raise CodeGenError::UnSupportFeature(
+                "Field index out of bounds: index=\{field_index}, num_fields=\{field_types.length()}",
+              )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Arrow access only supported on pointer to struct types, got \{expr_type}",
+            )
+        }
       Call(_) =>
         raise CodeGenError::UnSupportFeature(
           "Function calls do not produce lvalues",
