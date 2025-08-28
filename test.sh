@@ -27,6 +27,7 @@ passing_tests=(
   "simple_add.c"
   "simple_unary.c"
   "simple_call.c"
+  "simple_ptr.c"
 )
 
 # Clean up and create the temporary directory

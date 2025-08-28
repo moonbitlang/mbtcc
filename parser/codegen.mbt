@@ -547,8 +547,6 @@ fn FuncCodeGenContext::emit_assign_expr(
     Assign(left, op, expr) => {
       let (lty, left) = self.emit_unary_expr_as_lvalue(left)
       let (rty, right) = self.emit_assign_expr(expr)
-      let left_type = self.global_ctx.convert_type_to_llvm(lty)
-      let left_val = self.builder.createLoad(left_type, left)
       let right = if lty != rty {
         self.emit_cast(from_type=rty, to_type=lty, right)
       } else {
@@ -560,6 +558,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           right
         }
         AddAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAdd(left_val, right)
             FP(_) => self.builder.createFAdd(left_val, right)
@@ -572,6 +572,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           result
         }
         SubAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createSub(left_val, right)
             FP(_) => self.builder.createFSub(left_val, right)
@@ -583,6 +585,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         MultAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createMul(left_val, right)
             FP(_) => self.builder.createFMul(left_val, right)
@@ -594,6 +598,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         DivAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) => self.builder.createSDiv(left_val, right)
             UInt(_) => self.builder.createUDiv(left_val, right)
@@ -606,6 +612,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         ModAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) => self.builder.createSRem(left_val, right)
             UInt(_) => self.builder.createURem(left_val, right)
@@ -617,6 +625,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         AndAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAnd(left_val, right)
             _ =>
@@ -627,6 +637,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         OrAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createOr(left_val, right)
             _ =>
@@ -637,6 +649,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         BitwiseAndAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createAnd(left_val, right)
             _ =>
@@ -647,6 +661,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         BitwiseOrAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createOr(left_val, right)
             _ =>
@@ -657,6 +673,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         BitwiseXorAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createXor(left_val, right)
             _ =>
@@ -667,6 +685,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         LeftShiftAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) | UInt(_) => self.builder.createShl(left_val, right)
             _ =>
@@ -677,6 +697,8 @@ fn FuncCodeGenContext::emit_assign_expr(
           self.builder.createStore(result, left)
         }
         RightShiftAssign => {
+          let left_type = self.global_ctx.convert_type_to_llvm(lty)
+          let left_val = self.builder.createLoad(left_type, left)
           let result = match lty {
             Int(_) => self.builder.createAShr(left_val, right)
             UInt(_) => self.builder.createLShr(left_val, right)
@@ -1024,6 +1046,22 @@ fn FuncCodeGenContext::emit_cast_expr(
 }
 
 ///|
+fn FuncCodeGenContext::emit_cast_expr_as_lvalue(
+  self : Self,
+  cast_expr : CastExpr,
+) -> (Type, &LLVMValue) raise {
+  match cast_expr {
+    UnaryExpr(unary_expr) => self.emit_unary_expr_as_lvalue(unary_expr)
+    Cast(type_name, expr) =>
+      // For cast expressions as lvalue, we need to handle this carefully
+      // For now, we'll raise an error since casting to lvalue is complex
+      raise CodeGenError::UnSupportFeature(
+        "Cast expressions as lvalue not supported yet",
+      )
+  }
+}
+
+///|
 fn FuncCodeGenContext::emit_unary_expr(
   self : Self,
   unary_expr : UnaryExpr,
@@ -1142,10 +1180,14 @@ fn FuncCodeGenContext::emit_unary_expr_body(
     UnaryOp(op, cast_expr) => {
       let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
       match op {
-        AddressOf =>
+        AddressOf => {
           // Address-of operator: get address of lvalue
-          // operand_value should already be an address for this to work
-          (Ptr(operand_type), operand_value)
+          // We need to get the lvalue (address) of the operand
+          let (lvalue_type, lvalue_addr) = self.emit_cast_expr_as_lvalue(
+            cast_expr,
+          )
+          (Ptr(lvalue_type), lvalue_addr)
+        }
         Dereference =>
           // Dereference operator: load from pointer
           match operand_type {
