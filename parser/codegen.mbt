@@ -95,6 +95,7 @@ pub fn CodeGenContext::analysis_declspecs(
   let mut is_signed = true
   let mut base_type : Type? = None
   let mut is_long = false
+  let mut is_long_long = false
   let mut is_short = false
   let mut is_unsigned = false
   for declspec in declspecs {
@@ -105,7 +106,7 @@ pub fn CodeGenContext::analysis_declspecs(
           Char => base_type = Some(Int(8))
           Short => is_short = true
           Int => base_type = Some(Int(32))
-          Long => is_long = true
+          Long => if is_long { is_long_long = true } else { is_long = true }
           Float => base_type = Some(FP(32))
           Double => base_type = Some(FP(64))
           Signed => is_signed = true
@@ -148,8 +149,10 @@ pub fn CodeGenContext::analysis_declspecs(
     Some(ty) =>
       match ty {
         Int(width) => {
-          let final_width = if is_long {
-            64
+          let final_width = if is_long_long {
+            64 // long long is always 64-bit
+          } else if is_long {
+            64 // long is 64-bit on most systems
           } else if is_short {
             16
           } else {
@@ -171,7 +174,13 @@ pub fn CodeGenContext::analysis_declspecs(
       }
     None =>
       // Default type when no explicit type is given
-      if is_long {
+      if is_long_long {
+        if is_unsigned {
+          UInt(64)
+        } else {
+          Int(64)
+        }
+      } else if is_long {
         if is_unsigned {
           UInt(64)
         } else {
@@ -859,7 +868,7 @@ pub fn FuncCodeGenContext::emit_cast(
       self.builder.createUIToFP(value, fp_type)
     }
 
-    // Integer extension/truncation
+    // Signed integer extension/truncation
     (Int(from_width), Int(to_width)) =>
       if from_width < to_width {
         let int_type : &@IR.IntegerType = match to_width {
@@ -870,6 +879,78 @@ pub fn FuncCodeGenContext::emit_cast(
           _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
         }
         self.builder.createSExt(value, int_type)
+      } else if from_width > to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createTrunc(value, int_type)
+      } else {
+        value
+      }
+
+    // Unsigned integer extension/truncation
+    (UInt(from_width), UInt(to_width)) =>
+      if from_width < to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createZExt(value, int_type)
+      } else if from_width > to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createTrunc(value, int_type)
+      } else {
+        value
+      }
+
+    // Signed to unsigned integer conversion
+    (Int(from_width), UInt(to_width)) =>
+      if from_width < to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createSExt(value, int_type)
+      } else if from_width > to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createTrunc(value, int_type)
+      } else {
+        value
+      }
+
+    // Unsigned to signed integer conversion
+    (UInt(from_width), Int(to_width)) =>
+      if from_width < to_width {
+        let int_type : &@IR.IntegerType = match to_width {
+          8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
+          16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
+          32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
+          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+        }
+        self.builder.createZExt(value, int_type)
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
@@ -905,14 +986,8 @@ pub fn FuncCodeGenContext::emit_cast(
         value
       }
 
-    // For other cases, use bitcast as fallback
-    _ => {
-      let to_llvm_type = self.global_ctx.convert_type_to_llvm(to_type)
-      match to_llvm_type.tryAsPrimitiveType() {
-        Some(prim_type) => self.builder.createBitCast(value, prim_type)
-        None => value // If bitcast fails, return original value
-      }
-    }
+    // For other cases that don't require conversion, return original value
+    _ => value
   }
 }
 
@@ -988,15 +1063,28 @@ fn FuncCodeGenContext::emit_inclusive_or_expr(
   incl_or_expr : InclusiveOrExpr,
 ) -> (Type, &LLVMValue) raise {
   let { exprs: exclusive_or_exprs } = incl_or_expr
-  let (first_ty, first_val) = self.emit_exclusive_or_expr(exclusive_or_exprs[0])
+  let (first_ty_init, first_val_init) = self.emit_exclusive_or_expr(
+    exclusive_or_exprs[0],
+  )
+  let mut first_ty = first_ty_init
+  let mut first_val = first_val_init
   for i in 1..<exclusive_or_exprs.length() {
     let (ty, val) = self.emit_exclusive_or_expr(exclusive_or_exprs[i])
-    let first_val = if first_ty != ty {
+    let adjusted_first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
-
+    // Perform bitwise OR operation
+    let result = match first_ty {
+      Int(_) | UInt(_) => self.builder.createOr(adjusted_first_val, val)
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Bitwise OR not supported for type \{first_ty}",
+        )
+    }
+    first_val = result
+    first_ty = ty
   }
   (first_ty, first_val)
 }
@@ -1007,15 +1095,26 @@ fn FuncCodeGenContext::emit_exclusive_or_expr(
   excl_or_expr : ExclusiveOrExpr,
 ) -> (Type, &LLVMValue) raise {
   let { exprs: and_exprs } = excl_or_expr
-  let (first_ty, first_val) = self.emit_and_expr(and_exprs[0])
+  let (first_ty_init, first_val_init) = self.emit_and_expr(and_exprs[0])
+  let mut first_ty = first_ty_init
+  let mut first_val = first_val_init
   for i in 1..<and_exprs.length() {
     let (ty, val) = self.emit_and_expr(and_exprs[i])
-    let first_val = if first_ty != ty {
+    let adjusted_first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
-
+    // Perform bitwise XOR operation
+    let result = match first_ty {
+      Int(_) | UInt(_) => self.builder.createXor(adjusted_first_val, val)
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Bitwise XOR not supported for type \{first_ty}",
+        )
+    }
+    first_val = result
+    first_ty = ty
   }
   (first_ty, first_val)
 }
@@ -1026,15 +1125,28 @@ fn FuncCodeGenContext::emit_and_expr(
   and_expr : AndExpr,
 ) -> (Type, &LLVMValue) raise {
   let { exprs: equality_exprs } = and_expr
-  let (first_ty, first_val) = self.emit_equality_expr(equality_exprs[0])
+  let (first_ty_init, first_val_init) = self.emit_equality_expr(
+    equality_exprs[0],
+  )
+  let mut first_ty = first_ty_init
+  let mut first_val = first_val_init
   for i in 1..<equality_exprs.length() {
     let (ty, val) = self.emit_equality_expr(equality_exprs[i])
-    let first_val = if first_ty != ty {
+    let adjusted_first_val = if first_ty != ty {
       self.emit_cast(from_type=first_ty, to_type=ty, first_val)
     } else {
       first_val
     }
-
+    // Perform bitwise AND operation
+    let result = match first_ty {
+      Int(_) | UInt(_) => self.builder.createAnd(adjusted_first_val, val)
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Bitwise AND not supported for type \{first_ty}",
+        )
+    }
+    first_val = result
+    first_ty = ty
   }
   (first_ty, first_val)
 }
@@ -1114,7 +1226,15 @@ fn FuncCodeGenContext::emit_shift_expr(
     let op = ops[i - 1]
     let result = match op {
       Shl => self.builder.createShl(first_val, val)
-      Shr => self.builder.createAShr(first_val, val)
+      Shr =>
+        match first_ty {
+          Int(_) => self.builder.createAShr(first_val, val) // Arithmetic (signed) shift right
+          UInt(_) => self.builder.createLShr(first_val, val) // Logical (unsigned) shift right
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Shift operations not supported for type \{first_ty}",
+            )
+        }
     }
     first_val = result
     first_ty = ty
@@ -1567,6 +1687,10 @@ fn FuncCodeGenContext::emit_postfix_expr(
           arg_values.push(arg_value)
           arg_types.push(arg_type)
         }
+
+        // TODO: For now, we don't have function signature information to do proper type checking
+        // This is a simplification - in a real compiler, we'd check against the function's parameter types
+        // and convert arguments as needed
 
         // Create the function call
         let call_result = self.builder.createCall(func, arg_values)
