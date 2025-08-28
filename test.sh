@@ -48,6 +48,7 @@ passing_tests=(
   "bin_float.c"
   "struct1.c"
   "struct2.c"
+  "struct3.c"
 )
 
 # Clean up and create the temporary directory
@@ -79,13 +80,13 @@ for test_name in "${passing_tests[@]}"; do
     echo "Testing $test_name..."
 
     # --- Step 1: Compile and run with GCC to get the expected output ---
-    gcc "$c_file" "$runtime_c" -o "$TMP_DIR/$base_name.gcc.out"
+    gcc "$c_file" "$runtime_c" -lm -o "$TMP_DIR/$base_name.gcc.out"
     expected_output=$(./"$TMP_DIR/$base_name.gcc.out")
     echo "Expected output (from GCC): $expected_output"
 
     # --- Step 2: Compile with mbtcc, then clang, to produce the mbtcc executable ---
     moon run main --warn-list -1-2-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll"
-    clang "$TMP_DIR/$base_name.ll" "$runtime_c" -o "$TMP_DIR/$base_name.mbtcc.out"
+    clang "$TMP_DIR/$base_name.ll" "$runtime_c" -lm -o "$TMP_DIR/$base_name.mbtcc.out"
 
     # --- Step 3: Run the mbtcc-generated executable and get the actual output ---
     actual_output=$(./"$TMP_DIR/$base_name.mbtcc.out")
