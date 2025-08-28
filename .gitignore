@@ -4,3 +4,4 @@ target/
 .moonagent
 IR.mbti
 llvm_*
+tmp/
