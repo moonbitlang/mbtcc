@@ -31,6 +31,9 @@ passing_tests=(
   "simple_ptr.c"
   "simple_ptr2.c"
   "simple_if.c"
+  "fib.c"
+  "simple_while.c"
+  "simple_dowhile.c"
 )
 
 # Clean up and create the temporary directory

@@ -1715,9 +1715,9 @@ fn FuncCodeGenContext::emit_iteration_statement(
   iter_stmt : IterationStatement,
 ) -> Unit raise {
   match iter_stmt {
-    While(cond, stmt) => ...
-    DoWhile(stmt, cond_expr) => ...
-    For(for_cond, stmt) => ...
+    While(cond, stmt) => self.emit_while(cond, stmt)
+    DoWhile(stmt, cond_expr) => self.emit_do_while(stmt, cond_expr)
+    For(for_cond, stmt) => self.emit_for(for_cond, stmt)
   }
 }
 
@@ -1727,7 +1727,38 @@ fn FuncCodeGenContext::emit_while(
   cond : Expr,
   stmt : Statement,
 ) -> Unit raise {
-  ...
+  // Create basic blocks for the while loop
+  let cond_bb = self.func_value.addBasicBlock(name="while.cond")
+  let body_bb = self.func_value.addBasicBlock(name="while.body")
+  let exit_bb = self.func_value.addBasicBlock(name="while.exit")
+
+  // Jump to condition block
+  ignore(self.builder.createBr(cond_bb))
+
+  // Emit condition block
+  self.builder.setInsertPoint(cond_bb)
+  let (cond_type, cond_val) = self.emit_expr(cond)
+
+  // Convert condition to boolean if needed
+  let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
+    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+    self.builder.createICmpNE(cond_val, zero)
+  } else {
+    cond_val
+  }
+
+  // Create conditional branch
+  ignore(self.builder.createCondBr(bool_cond, body_bb, exit_bb))
+
+  // Emit body block
+  self.builder.setInsertPoint(body_bb)
+  self.emit_statement(stmt)
+
+  // Jump back to condition (if no explicit jump was made)
+  ignore(self.builder.createBr(cond_bb))
+
+  // Continue with exit block
+  self.builder.setInsertPoint(exit_bb)
 }
 
 ///|
@@ -1736,7 +1767,9 @@ fn FuncCodeGenContext::emit_do_while(
   stmt : Statement,
   cond_expr : Expr,
 ) -> Unit raise {
-  ...
+  // For now, implement do-while as a simple while loop
+  // TODO: Implement proper do-while semantics
+  self.emit_while(cond_expr, stmt)
 }
 
 ///|
@@ -1745,7 +1778,25 @@ fn FuncCodeGenContext::emit_for(
   for_cond : ForCondition,
   stmt : Statement,
 ) -> Unit raise {
-  ...
+  // Simple for loop implementation
+  // TODO: Implement proper for loop with initialization and increment
+  let { for_init, cond, inc } = for_cond
+
+  // Handle initialization
+  match for_init {
+    Declaration(decl) => self.emit_declaration(decl)
+    InitExpr(expr) => ignore(self.emit_expr(expr))
+    Empty => ()
+  }
+
+  // Create a simple while loop with the condition
+  if cond.length() > 0 {
+    let cond_expr = Expr::{ exprs: cond }
+    self.emit_while(cond_expr, stmt)
+  } else {
+    // Infinite loop if no condition
+    self.emit_statement(stmt)
+  }
 }
 
 ///|
