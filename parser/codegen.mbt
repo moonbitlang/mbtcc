@@ -46,9 +46,12 @@ fn CodeGenContext::convert_type_to_llvm(
         err => raise CodeGenError::LLVMError(err)
       }
     }
-    Struct(_) => ...
-    Union(_) => ...
-    Enum(_) => ...
+    Struct(_) =>
+      raise CodeGenError::UnSupportFeature("Struct types not implemented yet")
+    Union(_) =>
+      raise CodeGenError::UnSupportFeature("Union types not implemented yet")
+    Enum(_) =>
+      raise CodeGenError::UnSupportFeature("Enum types not implemented yet")
   }
 }
 
@@ -118,10 +121,14 @@ pub fn CodeGenContext::analysis_declspecs(
             is_unsigned = true
           }
           Bool => base_type = Some(Int(1))
-          Complex => ...
-          Atomic(_) => ...
-          StructSpec(_) => ...
-          UnionSpec(_) => ...
+          Complex =>
+            raise CodeGenError::UnSupportFeature("Complex types not supported")
+          Atomic(_) =>
+            raise CodeGenError::UnSupportFeature("Atomic types not supported")
+          StructSpec(_) =>
+            raise CodeGenError::UnSupportFeature("Struct specs not supported")
+          UnionSpec(_) =>
+            raise CodeGenError::UnSupportFeature("Union specs not supported")
           EnumSpec(_) => base_type = Some(Enum([]))
           TypedefName(typedef_name) =>
             match self.typedef_env.get(typedef_name) {
@@ -332,10 +339,22 @@ fn CodeGenContext::analysis_direct_abstract_declarator(
   base_type : Type,
 ) -> Type raise CodeGenError {
   match direct_abstract_decl {
-    FuncDecl(inner_opt, _param_type_list) => ...
-    ArrayDecl(inner_opt, is_static~, _type_quals, _size_expr) => ...
-    InCompleteArray(inner_opt) => ...
-    FuncPtr(inner_opt, _abstract_decl) => ...
+    FuncDecl(inner_opt, _param_type_list) =>
+      raise CodeGenError::UnSupportFeature(
+        "Function declarations in abstract declarators not supported",
+      )
+    ArrayDecl(inner_opt, is_static~, _type_quals, _size_expr) =>
+      raise CodeGenError::UnSupportFeature(
+        "Array declarations in abstract declarators not supported",
+      )
+    InCompleteArray(inner_opt) =>
+      raise CodeGenError::UnSupportFeature(
+        "Incomplete arrays in abstract declarators not supported",
+      )
+    FuncPtr(inner_opt, _abstract_decl) =>
+      raise CodeGenError::UnSupportFeature(
+        "Function pointers in abstract declarators not supported",
+      )
   }
 }
 
@@ -400,6 +419,7 @@ struct FuncCodeGenContext {
   func_value : @IR.Function
   var_env : Env[(Type, &LLVMValue, Bool)] // Type, alloca, is_array
   builder : @IR.IRBuilder
+  return_type : Type // Function return type for type checking
 }
 
 ///|
@@ -456,6 +476,7 @@ pub fn CodeGenContext::emit_function_definition(
     func_value: llvm_func,
     var_env,
     builder,
+    return_type: ret_type,
   }
   func_codegen.emit_function_body()
 }
@@ -588,7 +609,8 @@ fn FuncCodeGenContext::emit_statement(
 ) -> Unit raise {
   match stmt {
     Empty => ()
-    LabeledStatement(label) => ...
+    LabeledStatement(label) =>
+      raise CodeGenError::UnSupportFeature("Labeled statements not supported")
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
     SelectionStatement(sel_stmt) => self.emit_selection_statement(sel_stmt)
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
@@ -883,7 +905,12 @@ pub fn FuncCodeGenContext::emit_cast(
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
           _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
         }
-        self.builder.createSExt(value, int_type)
+        // For boolean (i1) to integer conversion, use zero extension
+        if from_width == 1 {
+          self.builder.createZExt(value, int_type)
+        } else {
+          self.builder.createSExt(value, int_type)
+        }
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
@@ -990,6 +1017,12 @@ pub fn FuncCodeGenContext::emit_cast(
       } else {
         value
       }
+
+    // Pointer to pointer conversion (type cast)
+    (Ptr(_), Ptr(_)) =>
+      // In LLVM, all pointers have the same representation, so this is essentially a no-op
+      // but we return the value to maintain type information
+      value
 
     // For other cases that don't require conversion, return original value
     _ => value
@@ -1491,8 +1524,7 @@ fn FuncCodeGenContext::emit_unary_expr_body(
 ) -> (Type, &LLVMValue) raise {
   match unary_body {
     PostFix(postfix_expr) => self.emit_postfix_expr(postfix_expr)
-    UnaryOp(op, cast_expr) => {
-      let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
+    UnaryOp(op, cast_expr) =>
       match op {
         AddressOf => {
           // Address-of operator: get address of lvalue
@@ -1502,72 +1534,90 @@ fn FuncCodeGenContext::emit_unary_expr_body(
           )
           (Ptr(lvalue_type), lvalue_addr)
         }
-        Dereference =>
-          // Dereference operator: load from pointer
-          match operand_type {
-            Ptr(pointed_type) => {
-              let llvm_type = self.global_ctx.convert_type_to_llvm(pointed_type)
-              let loaded_value = self.builder.createLoad(
-                llvm_type, operand_value,
-              )
-              (pointed_type, loaded_value)
-            }
-            _ =>
-              raise CodeGenError::UnSupportFeature(
-                "Cannot dereference non-pointer type \{operand_type}",
-              )
-          }
-        Positive =>
-          // Unary plus: no-op, just return the operand
-          (operand_type, operand_value)
-        Negative =>
-          // Unary minus: negate the operand
-          match operand_type {
-            Int(_) | UInt(_) => {
-              let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-              let negated = self.builder.createSub(zero, operand_value)
-              (operand_type, negated)
-            }
-            FP(_) => ...
-            _ =>
-              raise CodeGenError::UnSupportFeature(
-                "Unary minus not supported for type \{operand_type}",
-              )
-          }
-        BitwiseNot =>
-          // Bitwise NOT: XOR with all 1s
-          match operand_type {
-            Int(width) | UInt(width) => {
-              let all_ones = match width {
-                1 => self.global_ctx.llvm_ctx.getConstTrue()
-                8 => self.global_ctx.llvm_ctx.getConstInt8(-1)
-                16 => self.global_ctx.llvm_ctx.getConstInt16(-1)
-                32 => self.global_ctx.llvm_ctx.getConstInt32(-1)
-                64 => self.global_ctx.llvm_ctx.getConstInt64(-1L)
-                _ => self.global_ctx.llvm_ctx.getConstInt32(-1) // Fallback
+        _ => {
+          let (operand_type, operand_value) = self.emit_cast_expr(cast_expr)
+          match op {
+            AddressOf => raise CodeGenError::UnSupportFeature("Impossible case")
+            Dereference =>
+              // Dereference operator: load from pointer
+              match operand_type {
+                Ptr(pointed_type) => {
+                  let llvm_type = self.global_ctx.convert_type_to_llvm(
+                    pointed_type,
+                  )
+                  let loaded_value = self.builder.createLoad(
+                    llvm_type, operand_value,
+                  )
+                  (pointed_type, loaded_value)
+                }
+                _ =>
+                  raise CodeGenError::UnSupportFeature(
+                    "Cannot dereference non-pointer type \{operand_type}",
+                  )
               }
-              let result = self.builder.createXor(operand_value, all_ones)
-              (operand_type, result)
+            Positive =>
+              // Unary plus: no-op, just return the operand
+              (operand_type, operand_value)
+            Negative =>
+              // Unary minus: negate the operand
+              match operand_type {
+                Int(_) | UInt(_) => {
+                  let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+                  let negated = self.builder.createSub(zero, operand_value)
+                  (operand_type, negated)
+                }
+                FP(_) => {
+                  // For floating point, use FSub with zero constant
+                  let zero = match operand_type {
+                    FP(32) => self.global_ctx.llvm_ctx.getConstZeroFloat()
+                    FP(64) => self.global_ctx.llvm_ctx.getConstZeroDouble()
+                    _ => self.global_ctx.llvm_ctx.getConstZeroFloat() // Fallback
+                  }
+                  let negated = self.builder.createFSub(zero, operand_value)
+                  (operand_type, negated)
+                }
+                _ =>
+                  raise CodeGenError::UnSupportFeature(
+                    "Unary minus not supported for type \{operand_type}",
+                  )
+              }
+            BitwiseNot =>
+              // Bitwise NOT: XOR with all 1s
+              match operand_type {
+                Int(width) | UInt(width) => {
+                  let all_ones = match width {
+                    1 => self.global_ctx.llvm_ctx.getConstTrue()
+                    8 => self.global_ctx.llvm_ctx.getConstInt8(-1)
+                    16 => self.global_ctx.llvm_ctx.getConstInt16(-1)
+                    32 => self.global_ctx.llvm_ctx.getConstInt32(-1)
+                    64 => self.global_ctx.llvm_ctx.getConstInt64(-1L)
+                    _ => self.global_ctx.llvm_ctx.getConstInt32(-1) // Fallback
+                  }
+                  let result = self.builder.createXor(operand_value, all_ones)
+                  (operand_type, result)
+                }
+                _ =>
+                  raise CodeGenError::UnSupportFeature(
+                    "Bitwise NOT not supported for type \{operand_type}",
+                  )
+              }
+            LogicalNot => {
+              // Logical NOT: compare with zero
+              let zero = match operand_type {
+                Int(_) | UInt(_) =>
+                  self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
+                FP(_) =>
+                  self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
+                Ptr(_) =>
+                  self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Null pointer
+                _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Fallback
+              }
+              let is_zero = self.builder.createICmpEQ(operand_value, zero)
+              (Int(1), is_zero)
             }
-            _ =>
-              raise CodeGenError::UnSupportFeature(
-                "Bitwise NOT not supported for type \{operand_type}",
-              )
           }
-        LogicalNot => {
-          // Logical NOT: compare with zero
-          let zero = match operand_type {
-            Int(_) | UInt(_) =>
-              self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
-            FP(_) => self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
-            Ptr(_) => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Null pointer
-            _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Fallback
-          }
-          let is_zero = self.builder.createICmpEQ(operand_value, zero)
-          (Int(1), is_zero)
         }
       }
-    }
     SizeofTypeName(type_name) => {
       // Sizeof type: get size of specified type
       let expr_type = self.global_ctx.analysis_typename(type_name)
@@ -1579,14 +1629,29 @@ fn FuncCodeGenContext::emit_unary_expr_body(
         Int(64) | UInt(64) => 8
         FP(32) => 4
         FP(64) => 8
-        Ptr(_) => 8
-        ...
-      } // Assume 64-bit pointers
-      // Default size
+        Ptr(_) => 8 // Assume 64-bit pointers
+        _ => 4 // Default size
+      }
       let size_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
       (Int(32), size_value)
     }
-    AlignOfTypeName(type_name) => ...
+    AlignOfTypeName(type_name) => {
+      // AlignOf type: return alignment in bytes as compile-time constant
+      let expr_type = self.global_ctx.analysis_typename(type_name)
+      let align_bytes = match expr_type {
+        Int(1) | UInt(1) => 1
+        Int(8) | UInt(8) => 1
+        Int(16) | UInt(16) => 2
+        Int(32) | UInt(32) => 4
+        Int(64) | UInt(64) => 8
+        FP(32) => 4
+        FP(64) => 8
+        Ptr(_) => 8 // Assume 64-bit pointers
+        _ => 4 // Default alignment
+      }
+      let align_value = self.global_ctx.llvm_ctx.getConstInt32(align_bytes)
+      (Int(32), align_value)
+    }
   }
 }
 
@@ -1630,7 +1695,10 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // For other operators, evaluate normally as rvalue
         self.emit_prim_expr(prim_expr)
       }
-    Right((type_name, init_list)) => ...
+    Right((type_name, init_list)) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals not supported yet",
+      )
   }
   let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
@@ -1725,8 +1793,14 @@ fn FuncCodeGenContext::emit_postfix_expr(
         expr_value = call_result
         expr_type = func_ret_type
       }
-      DotAccess(_) => ...
-      ArrowAccess(_) => ...
+      DotAccess(field_name) =>
+        raise CodeGenError::UnSupportFeature(
+          "Struct field access not implemented",
+        )
+      ArrowAccess(field_name) =>
+        raise CodeGenError::UnSupportFeature(
+          "Pointer field access not implemented",
+        )
       PlusPlus =>
         // Post-increment: return old value, increment stored value
         match expr_type {
@@ -1826,11 +1900,17 @@ fn FuncCodeGenContext::emit_prim_expr(
           (Int(8), llvm_value)
         }
       }
-    StringLiteral(str_value) => ...
+    StringLiteral(str_value) =>
+      raise CodeGenError::UnSupportFeature(
+        "String literals not implemented yet",
+      )
     ParenExpr(expr) =>
       // Parenthesized expression - just evaluate the inner expression
       self.emit_expr(expr)
-    BuiltinOffsetof(type_name, unary_expr) => ...
+    BuiltinOffsetof(type_name, unary_expr) =>
+      raise CodeGenError::UnSupportFeature(
+        "Builtin offsetof not implemented yet",
+      )
   }
 }
 
@@ -2094,7 +2174,17 @@ fn FuncCodeGenContext::emit_jump_statement(
       match expr_opt {
         Some(expr) => {
           let (expr_type, expr_val) = self.emit_expr(expr)
-          ignore(self.builder.createRet(expr_val))
+          // Convert the expression type to match the function's return type
+          let return_val = if expr_type != self.return_type {
+            self.emit_cast(
+              from_type=expr_type,
+              to_type=self.return_type,
+              expr_val,
+            )
+          } else {
+            expr_val
+          }
+          ignore(self.builder.createRet(return_val))
         }
         None => ignore(self.builder.createRetVoid())
       }

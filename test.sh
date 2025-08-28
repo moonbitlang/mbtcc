@@ -41,6 +41,7 @@ passing_tests=(
   "typedef.c"
   "simple_int.c"
   "bin_int.c"
+  "bin_float.c"
 )
 
 # Clean up and create the temporary directory
