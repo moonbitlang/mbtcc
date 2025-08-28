@@ -404,9 +404,57 @@ pub fn CodeGenContext::emit_declaration(
           self.typedef_env.set(typedef_name, typedef_type)
         }
       } else {
-        // Handle regular variable declaration
-        // This will be implemented in the next step
-        ()
+        // Handle regular declarations (variables and function declarations)
+        let base_type = self.analysis_declspecs(declspecs)
+        for init_decl in inits {
+          let { declarator, initializer } = init_decl
+
+          // Check if this is a function declaration
+          let is_function_decl = match declarator.directDeclarator {
+            FunctionDecl(_, _) | FunctionPtr(_, _) => true
+            _ => false
+          }
+          if is_function_decl {
+            // Handle function declaration
+            if initializer is Some(_) {
+              raise CodeGenError::UnSupportFeature(
+                "Function declarations cannot have initializers",
+              )
+            }
+            let (ret_type, func_name, params) = self.analysis_func_declarator(
+              declarator, base_type,
+            )
+
+            // Create LLVM function type
+            let param_types : Array[&LLVMType] = Array::new()
+            for param in params {
+              let (_, param_type) = param
+              let llvm_param_type = self.convert_type_to_llvm(param_type)
+              param_types.push(llvm_param_type)
+            }
+            let llvm_ret_type = self.convert_type_to_llvm(ret_type)
+            let func_type = self.llvm_ctx.getFunctionType(
+              llvm_ret_type, param_types,
+            ) catch {
+              err => raise CodeGenError::LLVMError(err)
+            }
+
+            // Declare the function (extern if not already defined)
+            let llvm_func = self.llvm_mod.addFunction(func_type, func_name) catch {
+              err => raise CodeGenError::LLVMError(err)
+            }
+
+            // Add function to global function environment
+            self.function_env.set(func_name, llvm_func)
+            // Store function signature for type checking during calls
+            self.function_sig_env.set(func_name, (ret_type, params))
+          } else {
+            // Handle variable declaration
+            // For now, skip variable declarations at global scope
+            // TODO: Implement global variable declarations
+            ()
+          }
+        }
       }
     }
   }
