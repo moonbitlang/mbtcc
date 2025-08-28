@@ -5,3 +5,4 @@ target/
 IR.mbti
 llvm_*
 tmp/
+smith_test/
