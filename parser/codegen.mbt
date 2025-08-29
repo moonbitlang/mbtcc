@@ -3161,7 +3161,7 @@ fn FuncCodeGenContext::emit_init_declarator(
                 ignore(self.builder.createStore(init_val, gep))
               }
               InitList(nested_init_pairs) =>
-                // Handle nested initialization for multi-dimensional arrays
+                // Handle nested initialization for multi-dimensional arrays and struct arrays
                 match elem_type {
                   Array(inner_elem_type, inner_size) => {
                     // This is a nested array (e.g., 2D array element)
@@ -3219,9 +3219,81 @@ fn FuncCodeGenContext::emit_init_declarator(
                       inner_index = inner_index + 1
                     }
                   }
+                  Struct(struct_name, struct_field_types) => {
+                    // This is a struct array element: arr[index] = { .field1 = value1, .field2 = value2 }
+                    let struct_llvm_type = self.global_ctx.convert_type_to_llvm(elem_type)
+                    let array_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
+                    
+                    // Calculate GEP to the struct element in the array: &arr[index]
+                    let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
+                    let struct_gep = self.builder.createGEP(alloca, array_llvm_type, [
+                      self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+                      index_val, // Index into array
+                    ])
+                    
+                    // Initialize each field of the struct
+                    for nested_pair in nested_init_pairs {
+                      let (designators, nested_initializer) = nested_pair
+                      
+                      // Find the field name from designators
+                      let field_name = if designators.length() == 1 {
+                        match designators[0] {
+                          DotAccess(name) => name
+                          _ =>
+                            raise CodeGenError::UnSupportFeature(
+                              "Only dot access designators supported for struct initialization",
+                            )
+                        }
+                      } else {
+                        raise CodeGenError::UnSupportFeature(
+                          "Multiple designators not supported yet",
+                        )
+                      }
+                      
+                      // Find the field index and type
+                      let field_idx = struct_field_types.search_by(pair => pair.0 == field_name)
+                      let field_idx = match field_idx {
+                        Some(idx) => idx
+                        None =>
+                          raise CodeGenError::SyntaxError(
+                            "Field \{field_name} not found in struct \{struct_name}",
+                          )
+                      }
+                      let (_, field_type) = struct_field_types[field_idx]
+                      
+                      // Get the field value
+                      let field_init_val = match nested_initializer {
+                        AssignExpr(assign_expr) => {
+                          let (init_type, init_val) = self.emit_assign_expr(assign_expr)
+                          if init_type != field_type {
+                            self.emit_cast(
+                              from_type=init_type,
+                              to_type=field_type,
+                              init_val,
+                            )
+                          } else {
+                            init_val
+                          }
+                        }
+                        InitList(_) =>
+                          raise CodeGenError::UnSupportFeature(
+                            "Nested struct field initialization not supported yet",
+                          )
+                      }
+                      
+                      // Create GEP to access the field: &arr[index].field
+                      let field_gep = self.builder.createGEP(struct_gep, struct_llvm_type, [
+                        self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+                        self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
+                      ])
+                      
+                      // Store the field value
+                      ignore(self.builder.createStore(field_init_val, field_gep))
+                    }
+                  }
                   _ =>
                     raise CodeGenError::UnSupportFeature(
-                      "Nested InitList only supported for multi-dimensional arrays",
+                      "Nested InitList only supported for multi-dimensional arrays and struct arrays",
                     )
                 }
             }
