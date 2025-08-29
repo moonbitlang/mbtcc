@@ -143,9 +143,10 @@ fn CodeGenContext::analysis_declarator_type_for_struct(
   // For struct fields, we mainly care about arrays and pointers
   match declarator.directDeclarator {
     Identifier(id) => (id, result_type)
-    _ => raise CodeGenError::UnSupportFeature(
-      "Only simple identifiers are supported in struct field declarators.",
-    )
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple identifiers are supported in struct field declarators.",
+      )
   }
 }
 
@@ -191,11 +192,12 @@ fn CodeGenContext::analysis_struct_spec(
                       match self.struct_env.get(nested_struct_name) {
                         Some(existing_struct_type) =>
                           field_base_type = Some(existing_struct_type)
-                        None => {
+                        None =>
                           // For now, create a placeholder struct type
                           // This will be resolved when the struct is fully defined
-                          field_base_type = Some(Type::Struct(nested_struct_name, []))
-                        }
+                          field_base_type = Some(
+                            Type::Struct(nested_struct_name, []),
+                          )
                       }
                     }
                     _ => () // Use default
@@ -203,7 +205,7 @@ fn CodeGenContext::analysis_struct_spec(
                 TypeQualifier(_) => () // Ignore qualifiers for now
               }
             }
-            
+
             // Use default type if none specified
             let field_base_type = match field_base_type {
               Some(ty) => ty
@@ -220,9 +222,10 @@ fn CodeGenContext::analysis_struct_spec(
                   )
                   fields.push((field_name, field_type))
                 }
-                _ => raise CodeGenError::UnSupportFeature(
-                  "Only simple declarators are supported in struct fields.",
-                )
+                _ =>
+                  raise CodeGenError::UnSupportFeature(
+                    "Only simple declarators are supported in struct fields.",
+                  )
               }
             }
           }
@@ -271,9 +274,8 @@ pub fn CodeGenContext::analysis_declspecs(
             raise CodeGenError::UnSupportFeature("Complex types not supported")
           Atomic(_) =>
             raise CodeGenError::UnSupportFeature("Atomic types not supported")
-          StructSpec(struct_spec) => {
+          StructSpec(struct_spec) =>
             base_type = Some(self.analysis_struct_spec(struct_spec))
-          }
           UnionSpec(_) =>
             raise CodeGenError::UnSupportFeature("Union specs not supported")
           EnumSpec(_) => base_type = Some(Enum([]))
@@ -2109,14 +2111,15 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // Handle struct field access: struct.field
         match expr_type {
           Struct(struct_name, fields) => {
-            let field_idx = fields.search_by( pair => pair.0 == field_name )
+            let field_idx = fields.search_by(pair => pair.0 == field_name)
             let field_idx = match field_idx {
               Some(idx) => idx
-              None => raise CodeGenError::SyntaxError(
-                "Field \{field_name} not found in struct \{struct_name}",
-              )
+              None =>
+                raise CodeGenError::SyntaxError(
+                  "Field \{field_name} not found in struct \{struct_name}",
+                )
             }
-            let (_, field_type)= fields[field_idx]
+            let (_, field_type) = fields[field_idx]
             let field_llvm_type = self.global_ctx.convert_type_to_llvm(
               field_type,
             )
@@ -2125,9 +2128,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
             )
             let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
-              self.global_ctx.llvm_ctx.getConstInt32(
-                field_idx,
-              ), // field index
+              self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
             let loaded_value = self.builder.createLoad(field_llvm_type, gep)
             expr_type = field_type
@@ -2143,14 +2144,15 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // This is equivalent to (*ptr).field
         match expr_type {
           Ptr(Struct(struct_name, field_types)) => {
-            let field_idx = field_types.search_by( pair => pair.0 == field_name )
+            let field_idx = field_types.search_by(pair => pair.0 == field_name)
             let field_idx = match field_idx {
               Some(idx) => idx
-              None => raise CodeGenError::UnSupportFeature(
-                "Field \{field_name} not found in struct \{struct_name}",
-              )
+              None =>
+                raise CodeGenError::UnSupportFeature(
+                  "Field \{field_name} not found in struct \{struct_name}",
+                )
             }
-            let (_, field_type)= field_types[field_idx]
+            let (_, field_type) = field_types[field_idx]
             let field_llvm_type = self.global_ctx.convert_type_to_llvm(
               field_type,
             )
@@ -2332,7 +2334,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
   // Start with the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
     Left(prim_expr) => self.emit_prim_expr_as_lvalue(prim_expr)
-    Right((_)) =>
+    Right(_) =>
       raise CodeGenError::UnSupportFeature(
         "Compound literals as lvalues not supported",
       )
@@ -2368,7 +2370,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
         // Handle struct field access as lvalue: struct.field
         match expr_type {
           Struct(struct_name, field_types) => {
-            let field_idx = field_types.search_by( pair => pair.0 == field_name )
+            let field_idx = field_types.search_by(pair => pair.0 == field_name)
             let field_index = match field_idx {
               Some(idx) => idx
               None =>
@@ -2376,7 +2378,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
                   "Field \{field_name} not found in struct \{struct_name}",
                 )
             }
-            let (_, field_type)= field_types[field_index]
+            let (_, field_type) = field_types[field_index]
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               expr_type,
             )
@@ -2398,7 +2400,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
         // This is equivalent to &((*ptr).field)
         match expr_type {
           Ptr(Struct(struct_name, field_types)) => {
-            let field_idx = field_types.search_by( pair => pair.0 == field_name )
+            let field_idx = field_types.search_by(pair => pair.0 == field_name)
             let field_idx = match field_idx {
               Some(idx) => idx
               None =>
@@ -2406,7 +2408,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
                   "Field \{field_name} not found in struct \{struct_name}",
                 )
             }
-            let (_, field_type)= field_types[field_idx]
+            let (_, field_type) = field_types[field_idx]
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               Struct(struct_name, field_types),
             )
@@ -3053,80 +3055,82 @@ fn FuncCodeGenContext::emit_decl(
 
     // Handle initialization if present
     match initializer {
-      Some(init) =>
-        // For now, only handle simple expression initializers
-        match init {
-          AssignExpr(assign_expr) => {
-            let (init_type, init_val) = self.emit_assign_expr(assign_expr)
-            let init_val = if init_type != var_type {
-              self.emit_cast(from_type=init_type, to_type=var_type, init_val)
-            } else {
-              init_val
+      Some(init) => self.emit_init_declarator(init, var_type, alloca)
+      // No initialization - variable is uninitialized
+      None => ()
+    }
+  }
+}
+
+fn FuncCodeGenContext::emit_init_declarator(self: Self, init: Initializer, var_type: Type, alloca: &LLVMValue) -> Unit raise {
+  match init {
+    AssignExpr(assign_expr) => {
+      let (init_type, init_val) = self.emit_assign_expr(assign_expr)
+      let init_val = if init_type != var_type {
+        self.emit_cast(from_type=init_type, to_type=var_type, init_val)
+      } else {
+        init_val
+      }
+      let _ = self.builder.createStore(init_val, alloca)
+    }
+    InitList(init_pairs) => {
+      // Handle array initialization lists like {1, 2, 3, 4, 5}
+      match var_type {
+        Array(elem_type, size) => {
+          // Initialize array elements one by one
+          let elem_llvm_type = self.global_ctx.convert_type_to_llvm(
+            elem_type,
+          )
+          let mut index = 0
+          for pair in init_pairs {
+            let (designators, initializer) = pair
+            // For simple array initialization, ignore designators for now
+            if index >= size {
+              break // Don't initialize beyond array bounds
             }
-            ignore(self.builder.createStore(init_val, alloca))
-          }
-          InitList(init_pairs) =>
-            // Handle array initialization lists like {1, 2, 3, 4, 5}
-            match var_type {
-              Array(elem_type, size) => {
-                // Initialize array elements one by one
-                let elem_llvm_type = self.global_ctx.convert_type_to_llvm(
-                  elem_type,
+
+            // Get the value to initialize with
+            let init_val = match initializer {
+              AssignExpr(assign_expr) => {
+                let (init_type, init_val) = self.emit_assign_expr(
+                  assign_expr,
                 )
-                let mut index = 0
-                for pair in init_pairs {
-                  let (designators, initializer) = pair
-                  // For simple array initialization, ignore designators for now
-                  if index >= size {
-                    break // Don't initialize beyond array bounds
-                  }
-
-                  // Get the value to initialize with
-                  let init_val = match initializer {
-                    AssignExpr(assign_expr) => {
-                      let (init_type, init_val) = self.emit_assign_expr(
-                        assign_expr,
-                      )
-                      if init_type != elem_type {
-                        self.emit_cast(
-                          from_type=init_type,
-                          to_type=elem_type,
-                          init_val,
-                        )
-                      } else {
-                        init_val
-                      }
-                    }
-                    InitList(_) =>
-                      raise CodeGenError::UnSupportFeature(
-                        "Nested InitList not supported yet",
-                      )
-                  }
-
-                  // Calculate the GEP to the array element
-                  let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
-                  let array_llvm_type = self.global_ctx.convert_type_to_llvm(
-                    var_type,
+                if init_type != elem_type {
+                  self.emit_cast(
+                    from_type=init_type,
+                    to_type=elem_type,
+                    init_val,
                   )
-                  let gep = self.builder.createGEP(alloca, array_llvm_type, [
-                    self.global_ctx.llvm_ctx.getConstInt32(0), // First index for array base
-                    index_val, // Second index for array element
-                  ])
-
-                  // Store the value
-                  ignore(self.builder.createStore(init_val, gep))
-                  index = index + 1
+                } else {
+                  init_val
                 }
               }
-              _ =>
+              InitList(_) =>
                 raise CodeGenError::UnSupportFeature(
-                  "InitList only supported for array types currently",
+                  "Nested InitList not supported yet",
                 )
             }
+
+            // Calculate the GEP to the array element
+            let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
+            let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+              var_type,
+            )
+            let gep = self.builder.createGEP(alloca, array_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // First index for array base
+              index_val, // Second index for array element
+            ])
+
+            // Store the value
+            ignore(self.builder.createStore(init_val, gep))
+            index = index + 1
+          }
         }
-      None =>
-        // No initialization - variable is uninitialized
-        ()
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "InitList only supported for array types currently",
+          )
+      }
     }
   }
 }

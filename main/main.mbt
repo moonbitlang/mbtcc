@@ -74,7 +74,7 @@ fn main {
       return
     }
     _ => ()
-  } 
+  }
   if args.contains("--print-ast") {
     ctx.print_ast()
   }

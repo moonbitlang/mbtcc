@@ -90,12 +90,20 @@ fn ParserContext::get_error_or_warning_msg(
 }
 
 ///|
-pub fn ParserContext::get_warning_msg(self : Self, idx : Int, msg : String) -> String {
+pub fn ParserContext::get_warning_msg(
+  self : Self,
+  idx : Int,
+  msg : String,
+) -> String {
   self.get_error_or_warning_msg(idx, msg, Warning)
 }
 
 ///|
-pub fn ParserContext::get_error_msg(self : Self, idx : Int, msg : String) -> String {
+pub fn ParserContext::get_error_msg(
+  self : Self,
+  idx : Int,
+  msg : String,
+) -> String {
   self.get_error_or_warning_msg(idx, msg, Error)
 }
 
@@ -204,7 +212,7 @@ fn[V] Env::contains(self : Env[V], name : String) -> Bool {
 ///|
 pub fn ParserContext::create(
   code : String,
-  source_file~ : String = "demo",
+  source_file? : String = "demo",
 ) -> ParserContext {
   let ctx = ParserContext::{
     source_file,
