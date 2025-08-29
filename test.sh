@@ -41,6 +41,7 @@ passing_tests=(
   "arr1.c"
   "arr2.c"
   "arr3.c"
+  "arr2d.c"
   "sum_of_arr.c"
   "typedef.c"
   "simple_int.c"
@@ -49,6 +50,7 @@ passing_tests=(
   "struct1.c"
   "struct2.c"
   "struct3.c"
+  "struct4.c"
 )
 
 # Clean up and create the temporary directory

@@ -2032,8 +2032,32 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let gep = self.builder.createGEP(expr_value, elem_llvm_type, [
               index_value,
             ])
+            match pointed_type {
+              Array(_, _) => {
+                // For array types, return the address (array decay to pointer)
+                expr_type = pointed_type
+                expr_value = gep
+              }
+              _ => {
+                // For scalar types, load the value
+                let loaded_value = self.builder.createLoad(elem_llvm_type, gep)
+                expr_type = pointed_type
+                expr_value = loaded_value
+              }
+            }
+          }
+          Array(elem_type, _) => {
+            // For array indexing: arr[index]
+            let elem_llvm_type = self.global_ctx.convert_type_to_llvm(elem_type)
+            let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+              expr_type,
+            )
+            let gep = self.builder.createGEP(expr_value, array_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+              index_value, // Index into array
+            ])
             let loaded_value = self.builder.createLoad(elem_llvm_type, gep)
-            expr_type = pointed_type
+            expr_type = elem_type
             expr_value = loaded_value
           }
           _ =>
@@ -2360,6 +2384,18 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
             expr_type = pointed_type
             expr_value = gep // Return address, not loaded value
           }
+          Array(elem_type, _) => {
+            // For array lvalue indexing: return the address of arr[index]
+            let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+              expr_type,
+            )
+            let gep = self.builder.createGEP(expr_value, array_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+              index_value, // Index into array
+            ])
+            expr_type = elem_type
+            expr_value = gep // Return address, not loaded value
+          }
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Array indexing not supported for type \{expr_type}",
@@ -2482,10 +2518,11 @@ fn FuncCodeGenContext::emit_while(
   cond : Expr,
   stmt : Statement,
 ) -> Unit raise {
-  // Create basic blocks for the while loop
-  let cond_bb = self.func_value.addBasicBlock(name="while.cond")
-  let body_bb = self.func_value.addBasicBlock(name="while.body")
-  let exit_bb = self.func_value.addBasicBlock(name="while.exit")
+  // Create basic blocks for the while loop with unique names
+  let block_id = self.get_next_block_id()
+  let cond_bb = self.func_value.addBasicBlock(name="while.cond.\{block_id}")
+  let body_bb = self.func_value.addBasicBlock(name="while.body.\{block_id}")
+  let exit_bb = self.func_value.addBasicBlock(name="while.exit.\{block_id}")
 
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
@@ -2542,11 +2579,12 @@ fn FuncCodeGenContext::emit_for(
     Empty => ()
   }
 
-  // Create basic blocks for the for loop
-  let cond_bb = self.func_value.addBasicBlock(name="for.cond")
-  let body_bb = self.func_value.addBasicBlock(name="for.body")
-  let inc_bb = self.func_value.addBasicBlock(name="for.inc")
-  let exit_bb = self.func_value.addBasicBlock(name="for.exit")
+  // Create basic blocks for the for loop with unique names
+  let block_id = self.get_next_block_id()
+  let cond_bb = self.func_value.addBasicBlock(name="for.cond.\{block_id}")
+  let body_bb = self.func_value.addBasicBlock(name="for.body.\{block_id}")
+  let inc_bb = self.func_value.addBasicBlock(name="for.inc.\{block_id}")
+  let exit_bb = self.func_value.addBasicBlock(name="for.exit.\{block_id}")
 
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
@@ -3062,7 +3100,13 @@ fn FuncCodeGenContext::emit_decl(
   }
 }
 
-fn FuncCodeGenContext::emit_init_declarator(self: Self, init: Initializer, var_type: Type, alloca: &LLVMValue) -> Unit raise {
+///|
+fn FuncCodeGenContext::emit_init_declarator(
+  self : Self,
+  init : Initializer,
+  var_type : Type,
+  alloca : &LLVMValue,
+) -> Unit raise {
   match init {
     AssignExpr(assign_expr) => {
       let (init_type, init_val) = self.emit_assign_expr(assign_expr)
@@ -3072,15 +3116,14 @@ fn FuncCodeGenContext::emit_init_declarator(self: Self, init: Initializer, var_t
         init_val
       }
       let _ = self.builder.createStore(init_val, alloca)
+
     }
-    InitList(init_pairs) => {
-      // Handle array initialization lists like {1, 2, 3, 4, 5}
+    InitList(init_pairs) =>
+      // Handle array and struct initialization lists
       match var_type {
         Array(elem_type, size) => {
           // Initialize array elements one by one
-          let elem_llvm_type = self.global_ctx.convert_type_to_llvm(
-            elem_type,
-          )
+          let elem_llvm_type = self.global_ctx.convert_type_to_llvm(elem_type)
           let mut index = 0
           for pair in init_pairs {
             let (designators, initializer) = pair
@@ -3089,13 +3132,12 @@ fn FuncCodeGenContext::emit_init_declarator(self: Self, init: Initializer, var_t
               break // Don't initialize beyond array bounds
             }
 
-            // Get the value to initialize with
-            let init_val = match initializer {
+            // Handle different types of initializers
+            match initializer {
               AssignExpr(assign_expr) => {
-                let (init_type, init_val) = self.emit_assign_expr(
-                  assign_expr,
-                )
-                if init_type != elem_type {
+                // Simple scalar initialization
+                let (init_type, init_val) = self.emit_assign_expr(assign_expr)
+                let init_val = if init_type != elem_type {
                   self.emit_cast(
                     from_type=init_type,
                     to_type=elem_type,
@@ -3104,33 +3146,154 @@ fn FuncCodeGenContext::emit_init_declarator(self: Self, init: Initializer, var_t
                 } else {
                   init_val
                 }
+
+                // Calculate the GEP to the array element
+                let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
+                let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+                  var_type,
+                )
+                let gep = self.builder.createGEP(alloca, array_llvm_type, [
+                  self.global_ctx.llvm_ctx.getConstInt32(0), // First index for array base
+                  index_val, // Second index for array element
+                ])
+
+                // Store the value
+                ignore(self.builder.createStore(init_val, gep))
+              }
+              InitList(nested_init_pairs) =>
+                // Handle nested initialization for multi-dimensional arrays
+                match elem_type {
+                  Array(inner_elem_type, inner_size) => {
+                    // This is a nested array (e.g., 2D array element)
+                    let mut inner_index = 0
+                    for nested_pair in nested_init_pairs {
+                      let (_, nested_initializer) = nested_pair
+                      if inner_index >= inner_size {
+                        break // Don't initialize beyond array bounds
+                      }
+
+                      // Get the nested value
+                      let nested_init_val = match nested_initializer {
+                        AssignExpr(assign_expr) => {
+                          let (init_type, init_val) = self.emit_assign_expr(
+                            assign_expr,
+                          )
+                          if init_type != inner_elem_type {
+                            self.emit_cast(
+                              from_type=init_type,
+                              to_type=inner_elem_type,
+                              init_val,
+                            )
+                          } else {
+                            init_val
+                          }
+                        }
+                        InitList(_) =>
+                          raise CodeGenError::UnSupportFeature(
+                            "Deeply nested InitList (3D+) not supported yet",
+                          )
+                      }
+
+                      // Calculate the GEP to the nested array element: arr[index][inner_index]
+                      let index_val = self.global_ctx.llvm_ctx.getConstInt32(
+                        index,
+                      )
+                      let inner_index_val = self.global_ctx.llvm_ctx.getConstInt32(
+                        inner_index,
+                      )
+                      let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+                        var_type,
+                      )
+                      let gep = self.builder.createGEP(
+                        alloca,
+                        array_llvm_type,
+                        [
+                          self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+                          index_val, // First dimension index
+                          inner_index_val, // Second dimension index
+                        ],
+                      )
+
+                      // Store the nested value
+                      ignore(self.builder.createStore(nested_init_val, gep))
+                      inner_index = inner_index + 1
+                    }
+                  }
+                  _ =>
+                    raise CodeGenError::UnSupportFeature(
+                      "Nested InitList only supported for multi-dimensional arrays",
+                    )
+                }
+            }
+            index = index + 1
+          }
+        }
+        Struct(struct_name, field_types) => {
+          // Handle struct initialization lists like { .x = 3, .y = 4 }
+          let struct_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
+          for pair in init_pairs {
+            let (designators, initializer) = pair
+
+            // Find the field name from designators
+            let field_name = if designators.length() == 1 {
+              match designators[0] {
+                DotAccess(name) => name
+                _ =>
+                  raise CodeGenError::UnSupportFeature(
+                    "Only dot access designators supported for struct initialization",
+                  )
+              }
+            } else {
+              raise CodeGenError::UnSupportFeature(
+                "Multiple designators not supported yet",
+              )
+            }
+
+            // Find the field index and type
+            let field_idx = field_types.search_by(pair => pair.0 == field_name)
+            let field_idx = match field_idx {
+              Some(idx) => idx
+              None =>
+                raise CodeGenError::SyntaxError(
+                  "Field \{field_name} not found in struct \{struct_name}",
+                )
+            }
+            let (_, field_type) = field_types[field_idx]
+
+            // Get the initialization value
+            let init_val = match initializer {
+              AssignExpr(assign_expr) => {
+                let (init_type, init_val) = self.emit_assign_expr(assign_expr)
+                if init_type != field_type {
+                  self.emit_cast(
+                    from_type=init_type,
+                    to_type=field_type,
+                    init_val,
+                  )
+                } else {
+                  init_val
+                }
               }
               InitList(_) =>
                 raise CodeGenError::UnSupportFeature(
-                  "Nested InitList not supported yet",
+                  "Nested struct initialization not supported yet",
                 )
             }
 
-            // Calculate the GEP to the array element
-            let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
-            let array_llvm_type = self.global_ctx.convert_type_to_llvm(
-              var_type,
-            )
-            let gep = self.builder.createGEP(alloca, array_llvm_type, [
-              self.global_ctx.llvm_ctx.getConstInt32(0), // First index for array base
-              index_val, // Second index for array element
+            // Create GEP to access the field
+            let gep = self.builder.createGEP(alloca, struct_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+              self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
 
-            // Store the value
+            // Store the value in the field
             ignore(self.builder.createStore(init_val, gep))
-            index = index + 1
           }
         }
         _ =>
           raise CodeGenError::UnSupportFeature(
-            "InitList only supported for array types currently",
+            "InitList only supported for array and struct types currently",
           )
       }
-    }
   }
 }
