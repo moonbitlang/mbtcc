@@ -44,6 +44,7 @@ passing_tests=(
   "arr2d.c"
   "sum_of_arr.c"
   "typedef.c"
+  "typedef2.c"
   "simple_int.c"
   "bin_int.c"
   "bin_float.c"
