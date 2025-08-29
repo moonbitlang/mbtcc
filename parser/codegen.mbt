@@ -98,6 +98,7 @@ struct CodeGenContext {
   typedef_env : Env[Type] // Type alias symbol table
   struct_env : Env[Type] // Struct type cache
   llvm_struct_env : Env[&LLVMType] // LLVM struct type cache
+  mut anon_struct_counter : Int // Counter for generating unique anonymous struct names
 }
 
 ///|
@@ -123,6 +124,7 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
     typedef_env,
     struct_env,
     llvm_struct_env,
+    anon_struct_counter: 0,
   }
 }
 
@@ -160,7 +162,11 @@ fn CodeGenContext::analysis_struct_spec(
   // Get struct name first
   let struct_name = match struct_spec.name {
     Some(name) => name
-    None => "anon"
+    None => {
+      let name = "anon_\{self.anon_struct_counter}"
+      self.anon_struct_counter = self.anon_struct_counter + 1
+      name
+    }
   }
 
   // Check if this struct is already defined (for forward references)
@@ -172,47 +178,19 @@ fn CodeGenContext::analysis_struct_spec(
       for struct_decl in struct_spec.decls {
         match struct_decl {
           Normal(spec_qualifiers, struct_declarators) => {
-            // Get the base type from type specifiers/qualifiers
-            let mut field_base_type : Type? = None
+            // Convert spec_qualifiers to declspecs and use the standard analysis
+            let declspecs : Array[DeclSpec] = []
             for spec in spec_qualifiers {
               match spec {
                 TypeSpec(type_spec) =>
-                  match type_spec {
-                    TypeSpec::Int => field_base_type = Some(Type::Int(32))
-                    TypeSpec::Char => field_base_type = Some(Type::Int(8))
-                    TypeSpec::Short => field_base_type = Some(Type::Int(16))
-                    TypeSpec::Long => field_base_type = Some(Type::Int(64))
-                    TypeSpec::Float => field_base_type = Some(Type::FP(32))
-                    TypeSpec::Double => field_base_type = Some(Type::FP(64))
-                    TypeSpec::StructSpec(struct_spec) => {
-                      // Handle nested struct types
-                      let nested_struct_name = match struct_spec.name {
-                        Some(name) => name
-                        None => "anon"
-                      }
-                      // Check if this nested struct is already defined
-                      match self.struct_env.get(nested_struct_name) {
-                        Some(existing_struct_type) =>
-                          field_base_type = Some(existing_struct_type)
-                        None =>
-                          // For now, create a placeholder struct type
-                          // This will be resolved when the struct is fully defined
-                          field_base_type = Some(
-                            Type::Struct(nested_struct_name, []),
-                          )
-                      }
-                    }
-                    _ => () // Use default
-                  }
-                TypeQualifier(_) => () // Ignore qualifiers for now
+                  declspecs.push(DeclSpec::TypeSpec(type_spec))
+                TypeQualifier(type_qual) =>
+                  declspecs.push(DeclSpec::TypeQualifier(type_qual))
               }
             }
 
-            // Use default type if none specified
-            let field_base_type = match field_base_type {
-              Some(ty) => ty
-              None => Type::Int(32) // Default to int
-            }
+            // Get the base type using the standard analysis
+            let field_base_type = self.analysis_declspecs(declspecs)
 
             // Process each field declarator
             for struct_declarator in struct_declarators {
