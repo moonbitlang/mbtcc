@@ -53,6 +53,7 @@ passing_tests=(
   "struct3.c"
   "struct4.c"
   "arr_struct.c"
+  "sizeof.c"
 )
 
 # Clean up and create the temporary directory

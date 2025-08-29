@@ -60,9 +60,11 @@ fn CodeGenContext::convert_type_to_llvm(
             llvm_field_types.push(llvm_field_type)
           }
           // Create LLVM struct type using Context::getStructType with a name
+          // Try both packed and unpacked to see what's happening
           let llvm_struct_type = self.llvm_ctx.getStructType(
             llvm_field_types,
             name=full_struct_name,
+            isPacked=false, // Test: try unpacked
           ) catch {
             err => raise CodeGenError::LLVMError(err)
           }
@@ -780,6 +782,83 @@ fn CodeGenContext::analysis_func_declarator(
       )
   }
   (ret_type, func_name, params)
+}
+
+///|
+fn FuncCodeGenContext::calculate_type_size(self : Self, ty : Type) -> Int {
+  match ty {
+    Int(1) | UInt(1) => 1 // bool
+    Int(8) | UInt(8) => 1 // char
+    Int(16) | UInt(16) => 2 // short
+    Int(32) | UInt(32) => 4 // int
+    Int(64) | UInt(64) => 8 // long
+    FP(32) => 4 // float
+    FP(64) => 8 // double
+    Ptr(_) => 8 // pointer (assume 64-bit)
+    Array(elem_type, count) => {
+      let elem_size = self.calculate_type_size(elem_type)
+      elem_size * count
+    }
+    Struct(_, fields) => {
+      let mut total_size = 0
+      let mut max_alignment = 1
+
+      // Calculate size with alignment for each field
+      for field in fields {
+        let (_, field_type) = field
+        let field_size = self.calculate_type_size(field_type)
+        let field_alignment = self.calculate_type_alignment(field_type)
+
+        // Update maximum alignment requirement
+        if field_alignment > max_alignment {
+          max_alignment = field_alignment
+        }
+
+        // Align current position to field alignment
+        if total_size % field_alignment != 0 {
+          total_size = (total_size / field_alignment + 1) * field_alignment
+        }
+
+        // Add field size
+        total_size = total_size + field_size
+      }
+
+      // Align total struct size to the maximum alignment requirement
+      if total_size % max_alignment != 0 {
+        total_size = (total_size / max_alignment + 1) * max_alignment
+      }
+      total_size
+    }
+    Void => 0
+    _ => 4 // Default fallback
+  }
+}
+
+///|
+fn FuncCodeGenContext::calculate_type_alignment(self : Self, ty : Type) -> Int {
+  match ty {
+    Int(1) | UInt(1) => 1 // bool
+    Int(8) | UInt(8) => 1 // char
+    Int(16) | UInt(16) => 2 // short
+    Int(32) | UInt(32) => 4 // int
+    Int(64) | UInt(64) => 8 // long
+    FP(32) => 4 // float
+    FP(64) => 8 // double
+    Ptr(_) => 8 // pointer (assume 64-bit)
+    Array(elem_type, _) => self.calculate_type_alignment(elem_type)
+    Struct(_, fields) => {
+      let mut max_alignment = 1
+      for field in fields {
+        let (_, field_type) = field
+        let field_alignment = self.calculate_type_alignment(field_type)
+        if field_alignment > max_alignment {
+          max_alignment = field_alignment
+        }
+      }
+      max_alignment
+    }
+    _ => 4 // Default fallback
+  }
 }
 
 ///|
@@ -1812,17 +1891,8 @@ fn FuncCodeGenContext::emit_unary_expr(
         }
       Sizeof => {
         // Sizeof operator: return size in bytes as compile-time constant
-        let size_bytes = match expr_type {
-          Int(1) | UInt(1) => 1
-          Int(8) | UInt(8) => 1
-          Int(16) | UInt(16) => 2
-          Int(32) | UInt(32) => 4
-          Int(64) | UInt(64) => 8
-          FP(32) => 4
-          FP(64) => 8
-          Ptr(_) => 8 // Assume 64-bit pointers
-          _ => 4 // Default size
-        }
+        // Calculate size manually for now due to LLVM DataLayout issues
+        let size_bytes = self.calculate_type_size(expr_type)
         expr_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
         expr_type = Int(32)
       }
@@ -1935,17 +2005,8 @@ fn FuncCodeGenContext::emit_unary_expr_body(
     SizeofTypeName(type_name) => {
       // Sizeof type: get size of specified type
       let expr_type = self.global_ctx.analysis_typename(type_name)
-      let size_bytes = match expr_type {
-        Int(1) | UInt(1) => 1
-        Int(8) | UInt(8) => 1
-        Int(16) | UInt(16) => 2
-        Int(32) | UInt(32) => 4
-        Int(64) | UInt(64) => 8
-        FP(32) => 4
-        FP(64) => 8
-        Ptr(_) => 8 // Assume 64-bit pointers
-        _ => 4 // Default size
-      }
+      // Calculate size manually for now due to LLVM DataLayout issues
+      let size_bytes = self.calculate_type_size(expr_type)
       let size_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
       (Int(32), size_value)
     }
