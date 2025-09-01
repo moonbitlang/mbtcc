@@ -21,7 +21,7 @@ pub enum Type {
 fn CodeGenContext::convert_type_to_llvm(
   self : Self,
   ty : Type,
-) -> &LLVMType raise CodeGenError {
+) -> &LLVMType raise {
   match ty {
     Void => self.llvm_ctx.getVoidTy() as &LLVMType
     Int(1) => self.llvm_ctx.getInt1Ty()
@@ -42,9 +42,7 @@ fn CodeGenContext::convert_type_to_llvm(
     Ptr(_) => self.llvm_ctx.getPtrTy()
     Array(elem_type, size) => {
       let element_llvm_type = self.convert_type_to_llvm(elem_type)
-      self.llvm_ctx.getArrayType(element_llvm_type, size) catch {
-        err => raise CodeGenError::LLVMError(err)
-      }
+      self.llvm_ctx.getArrayType(element_llvm_type, size)
     }
     Struct(struct_name, field_types) => {
       let full_struct_name = "struct." + struct_name
@@ -65,9 +63,7 @@ fn CodeGenContext::convert_type_to_llvm(
             llvm_field_types,
             name=full_struct_name,
             isPacked=false, // Test: try unpacked
-          ) catch {
-            err => raise CodeGenError::LLVMError(err)
-          }
+          )
           // Cache the LLVM struct type
           self.llvm_struct_env.set(full_struct_name, llvm_struct_type)
           llvm_struct_type
@@ -103,7 +99,8 @@ struct CodeGenContext {
 
 ///|
 pub fn CodeGenContext::dump(self : Self) -> Unit {
-  self.llvm_mod.dump()
+  //self.llvm_mod.dump()
+  println(self.llvm_mod)
 }
 
 ///|
@@ -566,14 +563,10 @@ pub fn CodeGenContext::emit_declaration(
             let llvm_ret_type = self.convert_type_to_llvm(ret_type)
             let func_type = self.llvm_ctx.getFunctionType(
               llvm_ret_type, param_types,
-            ) catch {
-              err => raise CodeGenError::LLVMError(err)
-            }
+            )
 
             // Declare the function (extern if not already defined)
-            let llvm_func = self.llvm_mod.addFunction(func_type, func_name) catch {
-              err => raise CodeGenError::LLVMError(err)
-            }
+            let llvm_func = self.llvm_mod.addFunction(func_type, func_name)
 
             // Add function to global function environment
             self.function_env.set(func_name, llvm_func)
@@ -624,12 +617,8 @@ pub fn CodeGenContext::emit_function_definition(
     param_types.push(llvm_param_type)
   }
   let llvm_ret_type = self.convert_type_to_llvm(ret_type)
-  let func_type = self.llvm_ctx.getFunctionType(llvm_ret_type, param_types) catch {
-    err => raise CodeGenError::LLVMError(err)
-  }
-  let llvm_func = self.llvm_mod.addFunction(func_type, func_name) catch {
-    err => raise CodeGenError::LLVMError(err)
-  }
+  let func_type = self.llvm_ctx.getFunctionType(llvm_ret_type, param_types)
+  let llvm_func = self.llvm_mod.addFunction(func_type, func_name)
   // Add function to global function environment
   self.function_env.set(func_name, llvm_func)
   // Store function signature for type checking during calls
@@ -1929,13 +1918,14 @@ fn FuncCodeGenContext::emit_unary_expr_body(
                   (operand_type, negated)
                 }
                 FP(_) => {
-                  // For floating point, use FSub with zero constant
+                  //// For floating point, use FSub with zero constant
                   let zero = match operand_type {
-                    FP(32) => self.global_ctx.llvm_ctx.getConstZeroFloat()
-                    FP(64) => self.global_ctx.llvm_ctx.getConstZeroDouble()
-                    _ => self.global_ctx.llvm_ctx.getConstZeroFloat() // Fallback
+                    FP(32) => self.global_ctx.llvm_ctx.getConstFloat(0)
+                    FP(64) => self.global_ctx.llvm_ctx.getConstDouble(0)
+                    _ => self.global_ctx.llvm_ctx.getConstFloat(0) // Fallback
                   }
                   let negated = self.builder.createFSub(zero, operand_value)
+                  //let negated = self.builder.createFNeg(operand_value)
                   (operand_type, negated)
                 }
                 _ =>
