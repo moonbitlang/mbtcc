@@ -1,4 +1,4 @@
-void println_int(int x);
+#include "test.h"
 
 struct Point {
   int x;
@@ -13,7 +13,7 @@ int main() {
   struct Point p1 = { .x = 3, .y = 4 };
 
   int z = sum_point_coords(&p1);
-  println_int(z);
+  printf("%d\n", z); // Should print 7
   return 0;
 }
 

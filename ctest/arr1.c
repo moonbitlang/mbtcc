@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
   int arr[5];
@@ -12,6 +12,7 @@ int main() {
   for (int i = 0; i < 5; i++) {
     total += arr[i];
   }
-  println_int(total); // Should print 15
+  // Should print 15
+  printf("%d\n", total);
   return 0;
 }

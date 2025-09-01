@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int is_eq(int actual, int expected) {
   if (expected == actual) {
@@ -98,6 +98,6 @@ int main() {
   passed += is_equll(ulla | ullb, 15);
   passed += is_equll(ulla ^ ullb, 14);
 
-  println_int(passed);
+  printf("%d\n", passed);
   return 0;
 }

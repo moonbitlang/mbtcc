@@ -1,5 +1,5 @@
 
-void println_int(int n);
+#include "test.h"
 
 int main() {
   int arr2d[2][2] = {{1, 2}, {3, 4}};
@@ -10,6 +10,6 @@ int main() {
       sum += arr2d[i][j];
     }
   }
-  println_int(sum);
+  printf("%d\n", sum);
   return 0; // Expected return value is 10
 }

@@ -1,6 +1,5 @@
 
-void println_int(int n);
-void* malloc(unsigned long);
+#include "test.h"
 
 typedef struct {
   double* buf;
@@ -40,6 +39,6 @@ int main() {
   v = vec_push(v, 3.0);
   double s = sum(v);
   int r = (int)s;
-  println_int(r); // expect: 6
+  printf("%d\n", r); // expect: 6
   return 0;
 }

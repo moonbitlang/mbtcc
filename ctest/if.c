@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int max(int a, int b) {
   int res;
@@ -12,6 +12,6 @@ int max(int a, int b) {
 
 int main () {
   int res = max(3, 5);
-  println_int(res);
+  printf("%d\n", res);
   return 0;
 }

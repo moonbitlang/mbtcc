@@ -1,5 +1,5 @@
 
-void println_double(double);
+#include "test.h"
 
 int main() {
   double a[5] = { 1.0, 3., 5, 7e+0, 9, };
@@ -8,6 +8,6 @@ int main() {
   for (int i = 0; i < 5; i++) {
     sum += a[i];
   }
-  println_double(sum);
+  printf("%lf\n", sum);
   return 0;
 }

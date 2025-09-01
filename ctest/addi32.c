@@ -1,8 +1,8 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
   int a = 1;
   int b = 3;
-  println_int(a + b);
+  printf("%d\n", a + b);
   return 0;
 }

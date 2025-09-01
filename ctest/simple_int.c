@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
   int a = 5, b = 11;
@@ -11,6 +11,6 @@ int main() {
   if (a != b) {
     result = result + 1;
   }
-  println_int(result);
+  printf("%d\n", result);
   return 0;
 }

@@ -1,4 +1,5 @@
-void println_int(int);
+#include "test.h"
+
 
 int ret42() {
     return 42;
@@ -6,6 +7,6 @@ int ret42() {
 
 int main () {
   int x = ret42();
-  println_int(x);
+  printf("%d\n", x);
   return 0;
 }

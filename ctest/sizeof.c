@@ -1,5 +1,5 @@
 
-void println_int(int);
+#include "test.h"
 
 typedef struct { int a; char b; } S1;
 typedef struct { int a; char b; char c; } S2;
@@ -40,6 +40,6 @@ int main() {
   passed += is_eq(16, sizeof(S6));
   passed += is_eq(16, sizeof(S7));
 
-  println_int(passed);
+  printf("%d\n", passed);
   return 0;
 }

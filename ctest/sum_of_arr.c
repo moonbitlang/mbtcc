@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int sum(int* arr, int len) {
   int total = 0;
@@ -11,6 +11,6 @@ int sum(int* arr, int len) {
 int main() {
   int arr[5] = {1, 2, 3, 4, 5};
   int result = sum(arr, 5);
-  println_int(result); // Should print 15
+  printf("%d\n", result); // Should print 15
   return 0;
 }

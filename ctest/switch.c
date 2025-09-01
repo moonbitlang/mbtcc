@@ -1,5 +1,4 @@
-
-void println_int(int x);
+#include "test.h"
 
 int foo(int a) {
   switch (a) {
@@ -18,7 +17,7 @@ int main() {
   int r4 = foo(4);
 
   int r = r1 + r2 + r3 + r4;
-  println_int(r);
+  printf("%d\n", r);
 
   return 0;
 }

@@ -1,8 +1,4 @@
-
-float sqrtf(float x);
-double sqrt(double x);
-void print_int(int x);
-void println_int(int x);
+#include "test.h"
 
 struct Position {
   int x;
@@ -24,11 +20,11 @@ int main() {
   rect.height = 6.0;
 
   float diag = sqrtf(rect.width * rect.width + rect.height * rect.height);
-  print_int((int)diag);
+  printf("%d\n", (int)diag);
 
   struct Position p = rect.pos;
   int dist = (int)sqrt((double)(p.x * p.x + p.y * p.y));
-  println_int(dist);
+  printf("%d\n", dist);
 
   return 0;
 }

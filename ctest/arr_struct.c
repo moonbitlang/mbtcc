@@ -1,6 +1,5 @@
 
-double sqrt(double);
-void println_int(int);
+#include "test.h"
 
 struct Point {
   double x, y;
@@ -18,7 +17,7 @@ int main() {
   double total = len1 + len2;
 
   int itotal = (int)total;
-  println_int(itotal);
+  printf("%d\n", itotal);
 
   return 0;
 }

@@ -3,14 +3,15 @@ priv struct TokenInfo {
   lineno : Int
   column : Int
   codeidx : Int
+  source_file : String
 }
 
 ///|
 struct ParserContext {
   source_file : String
   code : String
-  alltoks : Array[Token]
-  tokinfos : Array[TokenInfo]
+  mut alltoks : Array[Token]
+  mut tokinfos : Array[TokenInfo]
   mut typedefs : Env[Int]
   external_decls : Array[ExternalDeclaration]
 }
@@ -62,7 +63,7 @@ fn ParserContext::get_error_or_warning_msg(
   let lineno = tokinfo.lineno
   let column = tokinfo.column
   let codeidx = tokinfo.codeidx
-  let source_file = self.source_file
+  let source_file = tokinfo.source_file
   let str_builder = StringBuilder::new()
 
   // 第一行：文件名、行号和列号
@@ -210,12 +211,11 @@ fn[V] Env::contains(self : Env[V], name : String) -> Bool {
 }
 
 ///|
-pub fn ParserContext::create(
+pub fn ParserContext::create_by_code(
   code : String,
-  source_file? : String = "demo",
 ) -> ParserContext {
   let ctx = ParserContext::{
-    source_file,
+    source_file : "demo",
     code,
     alltoks: Array::new(),
     tokinfos: Array::new(),
@@ -227,6 +227,46 @@ pub fn ParserContext::create(
   ctx.add_typedef("__builtin_va_list")
   ctx
 }
+
+pub fn ParserContext::create_by_file(
+  file_path: String
+) -> ParserContext {
+  let path = @path.Path::new(file_path) 
+  if !path.is_exists() {
+    println("File not found: \{file_path}")
+    panic()
+  }
+
+  if !path.is_file() {
+    println("Not a file: \{file_path}")
+    panic()
+  }
+
+  let path_str = path.to_absolute()
+  let code = @fs.read_file_to_string(path_str) catch {
+    _ => {
+      println("Failed to read file: \{path_str}")
+      panic()
+    }
+  }
+  let ctx = ParserContext::{
+    source_file : path_str,
+    code,
+    alltoks: Array::new(),
+    tokinfos: Array::new(),
+    typedefs: Env::new(),
+    external_decls: Array::new(),
+  }
+  // builtin typedefs
+  ctx.add_typedef("__builtin_va_list")
+  ctx
+
+}
+
+//pub fn ParserContext::create_by_path(file_path: String) -> ParserContext {
+//  // split file_path into directory and filename
+//  let path = 
+//}
 
 //fn ParserContext::is_typedef(self: ParserContext, name: String) -> Bool {
 //  self.typedefs.contains(name)

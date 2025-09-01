@@ -106,6 +106,10 @@ pub enum Token {
   Identifier(String)
   Constant(Constant)
   StringLiteral(String)
+
+  // For Preprocessor
+  Hash // #
+  Hash2 // ##
   EOF
 } derive(Show, Eq)
 
@@ -145,6 +149,7 @@ pub suberror LexerError String derive(Show)
 
 ///|
 pub fn ParserContext::tokenize(self : Self) -> Unit raise {
+  let source_file = self.source_file
   let tokens = self.alltoks
   let tokinfos = self.tokinfos
   let mut lineno = 1
@@ -153,8 +158,22 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
   loop self.code[:] {
     [] => {
       tokens.push(EOF)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       break
+    }
+    [.."##", .. rest] => {
+      tokens.push(Hash2)
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
+      column += 2
+      codeidx += 2
+      continue rest
+    }
+    ['#', .. rest] => {
+      tokens.push(Hash)
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
+      column += 1
+      codeidx += 1
+      continue rest
     }
     ['\n', .. rest] => {
       lineno += 1
@@ -205,245 +224,245 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
     }
     [.. "<<=", .. rest] => {
       tokens.push(LeftShiftAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 3
       codeidx += 3
       continue rest
     }
     [.. ">>=", .. rest] => {
       tokens.push(RightShiftAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 3
       codeidx += 3
       continue rest
     }
     [.. "&&=", .. rest] => {
       tokens.push(AndAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 3
       codeidx += 3
       continue rest
     }
     [.. "||=", .. rest] => {
       tokens.push(OrAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 3
       codeidx += 3
       continue rest
     }
     [.. "<<", .. rest] => {
       tokens.push(Shl)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. ">>", .. rest] => {
       tokens.push(Shr)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "++", .. rest] => {
       tokens.push(PlusPlus)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "--", .. rest] => {
       tokens.push(MinusMinus)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "->", .. rest] => {
       tokens.push(Arrow)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "...", .. rest] => {
       tokens.push(Ellipsis)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 3
       codeidx += 3
       continue rest
     }
     [.. "==", .. rest] => {
       tokens.push(EQ)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "!=", .. rest] => {
       tokens.push(NE)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "<=", .. rest] => {
       tokens.push(LE)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "<", .. rest] => {
       tokens.push(LT)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [.. ">=", .. rest] => {
       tokens.push(GE)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. ">", .. rest] => {
       tokens.push(GT)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [.. "&&", .. rest] => {
       tokens.push(DoubleAnd)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "||", .. rest] => {
       tokens.push(DoubleOr)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "*=", .. rest] => {
       tokens.push(StarAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "/=", .. rest] => {
       tokens.push(DivAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "%=", .. rest] => {
       tokens.push(ModAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "+=", .. rest] => {
       tokens.push(PlusAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "-=", .. rest] => {
       tokens.push(MinusAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "&=", .. rest] => {
       tokens.push(BitAndAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "^=", .. rest] => {
       tokens.push(BitXorAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     [.. "|=", .. rest] => {
       tokens.push(BitOrAssign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2
       codeidx += 2
       continue rest
     }
     ['(', .. rest] => {
       tokens.push(LParen)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [')', .. rest] => {
       tokens.push(RParen)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['[', .. rest] => {
       tokens.push(LBracket)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [']', .. rest] => {
       tokens.push(RBracket)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['{', .. rest] => {
       tokens.push(LBrace)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['}', .. rest] => {
       tokens.push(RBrace)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [';', .. rest] => {
       tokens.push(Semi)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [':', .. rest] => {
       tokens.push(Colon)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['.', '0'..='9', ..] as code => {
       // 这是一个以 . 开头的浮点数
-      let tokinfo = TokenInfo::{ lineno, column, codeidx }
+      let tokinfo = TokenInfo::{ lineno, column, codeidx, source_file }
       let (tok, rest, char_count) = lex_number(code)
       tokens.push(tok)
       tokinfos.push(tokinfo)
@@ -453,104 +472,104 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
     }
     ['.', .. rest] => {
       tokens.push(Dot)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     [',', .. rest] => {
       tokens.push(Comma)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['+', .. rest] => {
       tokens.push(Plus)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['-', .. rest] => {
       tokens.push(Minus)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['*', .. rest] => {
       tokens.push(Star)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['/', .. rest] => {
       tokens.push(Slash)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['%', .. rest] => {
       tokens.push(Mod)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['&', .. rest] => {
       tokens.push(And)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['|', .. rest] => {
       tokens.push(Or)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['^', .. rest] => {
       tokens.push(Xor)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['!', .. rest] => {
       tokens.push(Not)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['?', .. rest] => {
       tokens.push(Question)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['~', .. rest] => {
       tokens.push(Tilde)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['=', .. rest] => {
       tokens.push(Assign)
-      tokinfos.push(TokenInfo::{ lineno, column, codeidx })
+      tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 1
       codeidx += 1
       continue rest
     }
     ['\'', ..] as code => {
-      let tokinfo = TokenInfo::{ lineno, column, codeidx }
+      let tokinfo = TokenInfo::{ lineno, column, codeidx, source_file }
       let (tok, rest, char_count) = lex_char_literal(code)
       tokens.push(tok)
       tokinfos.push(tokinfo)
@@ -560,7 +579,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
     }
     //['\'', ..] as code => raise LexerError("Parse Error: Unclosed char literal: \{code}")
     ['"', ..] as code => {
-      let tokinfo = TokenInfo::{ lineno, column, codeidx }
+      let tokinfo = TokenInfo::{ lineno, column, codeidx, source_file }
       let (tok, rest, char_count) = lex_string_literal(code)
       tokens.push(tok)
       tokinfos.push(tokinfo)
@@ -569,7 +588,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
       continue rest
     }
     ['0'..='9', ..] as code => {
-      let tokinfo = TokenInfo::{ lineno, column, codeidx }
+      let tokinfo = TokenInfo::{ lineno, column, codeidx, source_file }
       let (tok, rest, char_count) = lex_number(code)
       tokens.push(tok)
       tokinfos.push(tokinfo)
@@ -578,7 +597,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
       continue rest
     }
     ['a'..='z' | 'A'..='Z' | '_' | '$', ..] as code => {
-      let tokinfo = TokenInfo::{ lineno, column, codeidx }
+      let tokinfo = TokenInfo::{ lineno, column, codeidx, source_file }
       let (tok, rest, char_count) = lex_ident(code)
       tokens.push(tok)
       tokinfos.push(tokinfo)
@@ -1300,7 +1319,7 @@ test "tokenize test" {
     Identifier("a123"),
     EOF,
   ]
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1340,7 +1359,7 @@ test "tokenize comment test" {
     Comma,
     EOF,
   ]
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1359,19 +1378,19 @@ test "tokenize comment test" {
 ///|
 test "tokenize error test" {
   let code = "\"hello"
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed string literal",
   )
   let code = "'c"
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed char literal",
   )
   let code = "''"
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for empty char literal",
@@ -1379,13 +1398,13 @@ test "tokenize error test" {
   let code =
     #|"hello
     #|
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for unclosed string literal",
   )
   let code = "中"
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   assert_true(
     (try? ctx.tokenize()) is Err(_),
     msg="Tokenization should fail for non-ASCII character",
@@ -1441,7 +1460,7 @@ test "tokenize numbers test" {
     Constant(UInt(0U)), // 0U
     EOF,
   ]
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   ctx.tokenize()
   assert_eq(
     ctx.alltoks.length(),
@@ -1463,7 +1482,7 @@ test "tokenize numbers test" {
 test "tokenize hex float test" {
   let code =
     #|0x1.921fb54442d18p+2 0x1.158e460913dp+63 0x1.0p+1 0x1.5p-1 0x0.8p+3
-  let ctx = ParserContext::create(code)
+  let ctx = ParserContext::create_by_code(code)
   ctx.tokenize()
 
   // 检查tokens的数量 (5个十六进制浮点数 + EOF = 6个tokens)

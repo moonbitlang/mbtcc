@@ -1,6 +1,5 @@
 
-double sqrt(double x);
-void println_int(int);
+#include "test.h"
 
 typedef struct {
   double real;
@@ -13,7 +12,7 @@ int main() {
   double len = sqrt(c1.real * c1.real + c1.imag * c1.imag);
 
   int ilen = (int)len;
-  println_int(ilen);
+  printf("%d\n", ilen);
 
   return 0;
 }

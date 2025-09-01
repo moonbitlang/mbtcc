@@ -1,4 +1,5 @@
-void println_int(int);
+#include "test.h"
+
 
 int sum(int n) {
     int s = 0;
@@ -10,6 +11,6 @@ int sum(int n) {
 }
 
 int main() {
-  println_int(sum(10)); // Expected: 55
+  printf("%d\n", sum(10)); // Expected: 55
   return 0;
 }

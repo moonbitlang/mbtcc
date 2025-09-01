@@ -1,5 +1,5 @@
 
-void println_int(int x);
+#include "test.h"
 
 struct Point {
   int x;
@@ -12,6 +12,6 @@ int main() {
   p1.y = 4;
 
   int z = p1.x + p1.y;
-  println_int(z);
+  printf("%d\n", z); // Should print 7
   return 0;
 }

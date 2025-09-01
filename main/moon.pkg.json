@@ -2,7 +2,6 @@
   "is-main": true,
   "import": [
     "Kaida-Amethyst/mbtcc/parser",
-    "moonbitlang/x/fs"
   ],
   "link" : {
     "native" : {

@@ -1,4 +1,4 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
   int a = 5;
@@ -12,6 +12,6 @@ int main() {
 
   int d = 5;
   --d;
-  println_int(a + b + c + d);
+  printf("%d\n", a + b + c + d);
   return 0;
 }

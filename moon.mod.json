@@ -6,6 +6,9 @@
     "Kaida-Amethyst/MoonLLVM": "0.1.4",
     "Kaida-Amethyst/llvm": {
       "path": "../llvm.mbt"
+    },
+    "Kaida-Amethyst/path" : {
+      "path": "../path.mbt"
     }
   },
   "readme": "README.md",

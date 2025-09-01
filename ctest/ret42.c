@@ -1,6 +1,6 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
-  println_int(42);
+  printf("%d\n", 42);
   return 0;
 }

@@ -1,9 +1,9 @@
-void println_int(int);
+#include "test.h"
 
 int main() {
   int x = 42;
   int* p = &x;
   int y = *p;
-  println_int(y);
+  printf("%d\n", y);
   return 0;
 }
