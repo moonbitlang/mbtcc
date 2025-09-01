@@ -34,6 +34,7 @@ passing_tests=(
   "ptr2.c"
   "if.c"
   "if2.c"
+  "switch.c"
   "while.c"
   "dowhile.c"
   "for.c"

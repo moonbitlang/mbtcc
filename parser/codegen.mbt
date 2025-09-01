@@ -871,8 +871,7 @@ fn FuncCodeGenContext::emit_statement(
 ) -> Unit raise {
   match stmt {
     Empty => ()
-    LabeledStatement(_) =>
-      raise CodeGenError::UnSupportFeature("Labeled statements not supported")
+    LabeledStatement(labeled_stmt) => self.emit_labeled_statement(labeled_stmt)
     ExpressionStatement(expr) => self.emit_expr_stat(expr)
     SelectionStatement(sel_stmt) => self.emit_selection_statement(sel_stmt)
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
@@ -2578,7 +2577,9 @@ fn FuncCodeGenContext::emit_while(
   // Jump back to condition (if no explicit jump was made)
   ignore(self.builder.createBr(cond_bb))
 
-  // Continue with exit block
+  // Only set exit block if it has predecessors (i.e., if there are break statements or fall-through)
+  // In this case since all cases have return statements, the exit block is not needed
+  // But we keep it for consistency and in case of fall-through cases
   self.builder.setInsertPoint(exit_bb)
 }
 
@@ -2738,9 +2739,469 @@ fn FuncCodeGenContext::emit_selection_statement(
       // Continue with merge block
       self.builder.setInsertPoint(merge_bb)
     }
-    Switch(_, _) =>
-      // For now, skip switch statements
-      ()
+    Switch(switch_expr, switch_stmt) =>
+      self.emit_switch_statement(switch_expr, switch_stmt)
+  }
+}
+
+///|
+fn FuncCodeGenContext::emit_switch_statement(
+  self : Self,
+  switch_expr : Expr,
+  switch_stmt : Statement,
+) -> Unit raise {
+  // Evaluate the switch expression (condition)
+  let (cond_type, cond_val) = self.emit_expr(switch_expr)
+
+  // Convert condition to integer if needed
+  let switch_val = match cond_type {
+    Int(_) => cond_val
+    UInt(_) => cond_val
+    _ => self.emit_cast(from_type=cond_type, to_type=Int(32), cond_val)
+  }
+
+  // Generate unique names for basic blocks
+  let block_id = self.get_next_block_id()
+  let default_bb = self.func_value.addBasicBlock(
+    name="switch.default.\{block_id}",
+  )
+  let exit_bb = self.func_value.addBasicBlock(name="switch.exit.\{block_id}")
+
+  // Create the switch instruction
+  let switch_inst = self.builder.createSwitch(switch_val, default_bb)
+
+  // Collect case information and create basic blocks for cases
+  let case_blocks : Array[(Int, @IR.BasicBlock)] = []
+  let has_default = Ref::new(false)
+
+  // Process the switch statement to find cases and default
+  match switch_stmt {
+    CompoundStatement(comp_stmt) => {
+      // First pass: collect case information
+      self.collect_switch_cases(comp_stmt, case_blocks, has_default, block_id)
+
+      // Add cases to switch instruction
+      for case_item in case_blocks {
+        let (case_value, case_bb) = case_item
+        let const_int = self.global_ctx.llvm_ctx.getConstInt32(case_value)
+        ignore(switch_inst.addCase(const_int, case_bb))
+      }
+
+      // Second pass: emit the switch body with proper control flow
+      self.emit_switch_body(
+        comp_stmt,
+        case_blocks,
+        default_bb,
+        exit_bb,
+        has_default.val,
+      )
+    }
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Switch statement body must be a compound statement",
+      )
+  }
+
+  // Continue with exit block
+  self.builder.setInsertPoint(exit_bb)
+}
+
+///|
+fn FuncCodeGenContext::collect_switch_cases(
+  self : Self,
+  comp_stmt : CompoundStatement,
+  case_blocks : Array[(Int, @IR.BasicBlock)],
+  has_default : Ref[Bool],
+  block_id : Int,
+) -> Unit raise {
+  for item in comp_stmt.items {
+    match item {
+      Statement(Statement::LabeledStatement(labeled_stmt)) =>
+        match labeled_stmt {
+          Case(const_expr, _) => {
+            // Evaluate the case constant
+            let case_value = self.evaluate_case_constant(const_expr)
+            let case_bb = self.func_value.addBasicBlock(
+              name="switch.case.\{case_value}.\{block_id}",
+            )
+            case_blocks.push((case_value, case_bb))
+          }
+          Default(_) => has_default.val = true
+          _ => () // Regular labels, skip
+        }
+      _ => () // Non-labeled statements, skip for now
+    }
+  }
+}
+
+///|
+fn FuncCodeGenContext::emit_switch_body(
+  self : Self,
+  comp_stmt : CompoundStatement,
+  case_blocks : Array[(Int, @IR.BasicBlock)],
+  default_bb : @IR.BasicBlock,
+  exit_bb : @IR.BasicBlock,
+  has_default : Bool,
+) -> Unit raise {
+  // Create a map from case values to basic blocks
+  let case_map = Map::new()
+  for case_item in case_blocks {
+    let (case_value, case_bb) = case_item
+    case_map.set(case_value, case_bb)
+  }
+
+  // Process each statement in the compound statement
+  // The key insight is that in C switch statements, each case/default label
+  // starts a new basic block, and statements following a label are emitted
+  // in that block until we hit another label or the end
+  let mut current_bb : @IR.BasicBlock? = None
+  for item in comp_stmt.items {
+    match item {
+      Statement(stmt) =>
+        match stmt {
+          LabeledStatement(labeled_stmt) =>
+            match labeled_stmt {
+              Case(const_expr, case_stmt) => {
+                // Switch to the appropriate case block
+                let case_value = self.evaluate_case_constant(const_expr)
+                let case_bb = case_map.get(case_value).unwrap()
+                self.builder.setInsertPoint(case_bb)
+                current_bb = Some(case_bb)
+
+                // Emit the case statement (this might be a return, break, or other statement)
+                self.emit_statement(case_stmt)
+              }
+              Default(default_stmt) => {
+                // Switch to the default block
+                self.builder.setInsertPoint(default_bb)
+                current_bb = Some(default_bb)
+
+                // Emit the default statement
+                self.emit_statement(default_stmt)
+              }
+              _ =>
+                // Regular labels not supported in switch for now
+                raise CodeGenError::UnSupportFeature(
+                  "Regular labels not supported in switch statements",
+                )
+            }
+          _ =>
+            // Regular statement - emit in current case block
+            if current_bb is Some(_) {
+              self.emit_statement(stmt)
+            } else {
+              // Statements that appear before any case/default are ignored
+              // This is consistent with C behavior
+              ()
+            }
+        }
+      Declaration(decl) =>
+        // Declarations in switch - emit in current case block
+        if current_bb is Some(_) {
+          self.emit_declaration(decl)
+        } else {
+          // Declarations that appear before any case/default are ignored
+          ()
+        }
+    }
+  }
+
+  // If default block was not used, make it jump to exit
+  if !has_default {
+    self.builder.setInsertPoint(default_bb)
+    ignore(self.builder.createBr(exit_bb))
+  }
+
+  // Ensure the exit block has a terminator instruction
+  // Always add a return to the exit block since it might be reached by break statements
+  self.builder.setInsertPoint(exit_bb)
+  match self.return_type {
+    Void => ignore(self.builder.createRetVoid())
+    _ => {
+      // Create a dummy return value for non-void functions
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      let return_val = self.emit_cast(
+        from_type=Int(32),
+        to_type=self.return_type,
+        zero,
+      )
+      ignore(self.builder.createRet(return_val))
+    }
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_constant(
+  self : Self,
+  const_expr : ConstantExpr,
+) -> Int raise CodeGenError {
+  // For now, implement a simple constant expression evaluator for switch cases
+  // This is similar to the array size evaluator but more constrained
+  let { expr, select } = const_expr
+  if select is Some(_) {
+    raise CodeGenError::UnSupportFeature(
+      "Conditional expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_logical_or(expr)
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_logical_or(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_logical_and(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_logical_and(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_inclusive_or(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_inclusive_or(
+  self : Self,
+  incl_or_expr : InclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = incl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_exclusive_or(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_exclusive_or(
+  self : Self,
+  excl_or_expr : ExclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = excl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_and(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_and(
+  self : Self,
+  and_expr : AndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_equality(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_equality(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = eq_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex equality expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_relational(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_relational(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = rel_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex relational expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_shift(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_shift(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = shift_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex shift expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_addsub(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_addsub(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = add_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex arithmetic expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_mult(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_mult(
+  self : Self,
+  mult_expr : MultExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = mult_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex multiplication expressions not supported in case constants",
+    )
+  }
+  self.evaluate_case_cast(exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_cast(
+  self : Self,
+  cast_expr : CastExpr,
+) -> Int raise CodeGenError {
+  match cast_expr {
+    UnaryExpr(unary_expr) => self.evaluate_case_unary(unary_expr)
+    Cast(_, _) =>
+      raise CodeGenError::UnSupportFeature(
+        "Cast expressions not supported in case constants",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_unary(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> Int raise CodeGenError {
+  if !unary_expr.prefix.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Unary prefix operators not supported in case constants",
+    )
+  }
+  self.evaluate_case_unary_body(unary_expr.body)
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_unary_body(
+  self : Self,
+  unary_body : UnaryExprBody,
+) -> Int raise CodeGenError {
+  match unary_body {
+    PostFix(postfix_expr) => self.evaluate_case_postfix(postfix_expr)
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple postfix expressions supported in case constants",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_postfix(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> Int raise CodeGenError {
+  if !post_expr.suffixes.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Postfix operators not supported in case constants",
+    )
+  }
+  match post_expr.head {
+    Left(prim_expr) => self.evaluate_case_primary(prim_expr)
+    Right(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals not supported in case constants",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::evaluate_case_primary(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> Int raise CodeGenError {
+  match prim_expr {
+    Constant(constant) =>
+      match constant {
+        Int(value) => value
+        Long(value) => value.to_int()
+        UInt(value) => value.reinterpret_as_int()
+        ULong(value) => value.reinterpret_as_int64().to_int()
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Only integer constants supported in case constants",
+          )
+      }
+    ParenExpr(expr) => {
+      if expr.exprs.length() != 1 {
+        raise CodeGenError::UnSupportFeature(
+          "Complex parenthesized expressions not supported in case constants",
+        )
+      }
+      match expr.exprs[0] {
+        Conditional(cond_expr) => self.evaluate_case_constant(cond_expr)
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Only constant expressions supported in case constants",
+          )
+      }
+    }
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only integer constants supported in case constants",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::emit_labeled_statement(
+  self : Self,
+  labeled_stmt : LabeledStatement,
+) -> Unit raise {
+  match labeled_stmt {
+    Case(_, stmt) =>
+      // For case statements, the block switching is handled by emit_switch_body
+      // Here we just emit the statement content
+      self.emit_statement(stmt)
+    Default(stmt) =>
+      // For default statements, the block switching is handled by emit_switch_body
+      // Here we just emit the statement content  
+      self.emit_statement(stmt)
+    Label(label_name, stmt) =>
+      // Regular labels - for now, just emit the statement
+      // TODO: Implement proper label/goto support
+      self.emit_statement(stmt)
   }
 }
 
