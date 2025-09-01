@@ -30,6 +30,7 @@ passing_tests=(
   "addf32.c"
   "unary1.c"
   "call.c"
+  "printf.c"
   "ptr1.c"
   "ptr2.c"
   "if.c"
@@ -54,6 +55,7 @@ passing_tests=(
   "struct4.c"
   "arr_struct.c"
   "sizeof.c"
+  "fib.c"
 )
 
 # Clean up and create the temporary directory

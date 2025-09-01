@@ -4386,6 +4386,8 @@ fn ParameterList::parse(
   let (first_decl, rest_toks) = ParameterDecl::parse(toks, ctx)
   decls.push(first_decl)
   let rest_toks = loop rest_toks {
+    // Ellipsis is handled in ParameterTypeList
+    [Comma, Ellipsis, ..] as rest_toks => break rest_toks
     [Comma, .. rest_toks] => {
       let (next_decl, rest) = ParameterDecl::parse(rest_toks, ctx)
       decls.push(next_decl)

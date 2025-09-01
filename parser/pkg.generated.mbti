@@ -2,13 +2,14 @@
 package "Kaida-Amethyst/mbtcc/parser"
 
 import(
-  "Kaida-Amethyst/MoonLLVM/IR"
+  "Kaida-Amethyst/llvm/IR"
 )
 
 // Values
 
 // Errors
 pub suberror CodeGenError {
+  SyntaxError(String)
   UnSupportFeature(String)
   LLVMError(Error)
 }
@@ -104,9 +105,9 @@ impl Eq for CastExpr
 impl Show for CastExpr
 
 type CodeGenContext
-fn CodeGenContext::analysis_declspecs(Self, Array[DeclSpec]) -> Type
+fn CodeGenContext::analysis_declspecs(Self, Array[DeclSpec]) -> Type raise
 fn CodeGenContext::dump(Self) -> Unit
-fn CodeGenContext::emit_declaration(Self, Declaration) -> Unit
+fn CodeGenContext::emit_declaration(Self, Declaration) -> Unit raise
 fn CodeGenContext::emit_external_decl(Self, ExternalDeclaration) -> Unit raise
 fn CodeGenContext::emit_function_definition(Self, FunctionDefinition) -> Unit raise
 fn CodeGenContext::from_parser(ParserContext) -> Self
@@ -622,8 +623,8 @@ pub enum Type {
   FP(Int)
   Ptr(Type)
   Array(Type, Int)
-  Struct(Array[Type])
-  Union(Array[Type])
+  Struct(String, Array[(String, Type)])
+  Union(Array[(String, Type)])
   Enum(Array[(String, Int64)])
 }
 impl Eq for Type

@@ -99,14 +99,13 @@ struct CodeGenContext {
 
 ///|
 pub fn CodeGenContext::dump(self : Self) -> Unit {
-  //self.llvm_mod.dump()
   println(self.llvm_mod)
 }
 
 ///|
 pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_ctx = @IR.Context::new()
-  let llvm_mod = llvm_ctx.addModule("demo")
+  let llvm_mod = llvm_ctx.addModule(ctx.source_file)
   let function_env = Env::new()
   let function_sig_env = Env::new()
   let typedef_env = Env::new()
@@ -549,7 +548,7 @@ pub fn CodeGenContext::emit_declaration(
                 "Function declarations cannot have initializers",
               )
             }
-            let (ret_type, func_name, params) = self.analysis_func_declarator(
+            let (ret_type, func_name, params, isVarArg) = self.analysis_func_declarator(
               declarator, base_type,
             )
 
@@ -562,7 +561,7 @@ pub fn CodeGenContext::emit_declaration(
             }
             let llvm_ret_type = self.convert_type_to_llvm(ret_type)
             let func_type = self.llvm_ctx.getFunctionType(
-              llvm_ret_type, param_types,
+              llvm_ret_type, param_types, isVarArg~
             )
 
             // Declare the function (extern if not already defined)
@@ -606,7 +605,7 @@ pub fn CodeGenContext::emit_function_definition(
     )
   }
   let basic_type = self.analysis_declspecs(func_def.declSpecs)
-  let (ret_type, func_name, params) = self.analysis_func_declarator(
+  let (ret_type, func_name, params, isVarArg) = self.analysis_func_declarator(
     func_def.declarator,
     basic_type,
   )
@@ -617,7 +616,7 @@ pub fn CodeGenContext::emit_function_definition(
     param_types.push(llvm_param_type)
   }
   let llvm_ret_type = self.convert_type_to_llvm(ret_type)
-  let func_type = self.llvm_ctx.getFunctionType(llvm_ret_type, param_types)
+  let func_type = self.llvm_ctx.getFunctionType(llvm_ret_type, param_types, isVarArg~)
   let llvm_func = self.llvm_mod.addFunction(func_type, func_name)
   // Add function to global function environment
   self.function_env.set(func_name, llvm_func)
@@ -656,20 +655,15 @@ fn CodeGenContext::analysis_func_declarator(
   self : Self,
   decl : Declarator,
   basic_type : Type,
-) -> (Type, String, Array[(String, Type)]) raise {
+) -> (Type, String, Array[(String, Type)], Bool) raise {
   let ret_type = match decl.pointer {
     Some(_) => Ptr(basic_type)
     None => basic_type
   }
-  let (func_name, params) = match decl.directDeclarator {
+  let (func_name, params, variadic) = match decl.directDeclarator {
     FunctionDecl(Identifier(func_name), param_type_list) => {
       let func_params : Array[(String, Type)] = []
       let { params, variadic } = param_type_list
-      if variadic {
-        raise CodeGenError::UnSupportFeature(
-          "Variadic functions are not supported.",
-        )
-      }
       for i, param in params.iter2() {
         let { decl_specs, declarator } = param
         let param_type = self.analysis_declspecs(decl_specs)
@@ -688,7 +682,7 @@ fn CodeGenContext::analysis_func_declarator(
         }
         func_params.push((param_name, final_param_type))
       }
-      (func_name, func_params)
+      (func_name, func_params, variadic)
     }
     // Handle FunctionPtr case - for functions like main() with empty parameter list
     FunctionPtr(Identifier(func_name), params_list) => {
@@ -700,18 +694,13 @@ fn CodeGenContext::analysis_func_declarator(
           "K&R style function parameter lists are not supported.",
         )
       }
-      (func_name, func_params)
+      (func_name, func_params, false)
     }
     FunctionDecl(nested_decl, param_type_list) => {
       // Handle nested function declarators
       let func_name = nested_decl.get_ident()
       let func_params : Array[(String, Type)] = []
       let { params, variadic } = param_type_list
-      if variadic {
-        raise CodeGenError::UnSupportFeature(
-          "Variadic functions are not supported.",
-        )
-      }
       for i, param in params.iter2() {
         let { decl_specs, declarator } = param
         let param_type = self.analysis_declspecs(decl_specs)
@@ -730,7 +719,7 @@ fn CodeGenContext::analysis_func_declarator(
         }
         func_params.push((param_name, final_param_type))
       }
-      (func_name, func_params)
+      (func_name, func_params, variadic)
     }
     FunctionPtr(nested_decl, params_list) => {
       // Handle nested function pointers
@@ -741,14 +730,14 @@ fn CodeGenContext::analysis_func_declarator(
           "K&R style function parameter lists are not supported.",
         )
       }
-      (func_name, func_params)
+      (func_name, func_params, false)
     }
     _ =>
       raise CodeGenError::UnSupportFeature(
         "Only function declarators are supported.",
       )
   }
-  (ret_type, func_name, params)
+  (ret_type, func_name, params, variadic)
 }
 
 ///|
@@ -836,14 +825,6 @@ fn FuncCodeGenContext::get_next_block_id(self : Self) -> Int {
 }
 
 ///|
-fn FuncCodeGenContext::current_block_has_terminator(self : Self) -> Bool {
-  // For now, we'll assume blocks don't have terminators
-  // In a more complete implementation, we'd check if the current block
-  // already has a terminating instruction
-  false
-}
-
-///|
 fn FuncCodeGenContext::emit_function_body(self : Self) -> Unit raise {
   let compound_statement = self.func_def.body
   // Entry block and insert point are already set up
@@ -877,6 +858,49 @@ fn FuncCodeGenContext::emit_statement(
     IterationStatement(iter_stmt) => self.emit_iteration_statement(iter_stmt)
     JumpStatement(jump_stmt) => self.emit_jump_statement(jump_stmt)
     CompoundStatement(comp_stmt) => self.emit_compound_statement(comp_stmt)
+  }
+}
+
+///|
+fn FuncCodeGenContext::emit_statement_with_terminator_check(
+  self : Self,
+  stmt : Statement,
+) -> Bool raise {
+  match stmt {
+    Empty => false
+    LabeledStatement(labeled_stmt) => {
+      self.emit_labeled_statement(labeled_stmt)
+      false // labeled statements typically don't terminate
+    }
+    ExpressionStatement(expr) => {
+      self.emit_expr_stat(expr)
+      false
+    }
+    SelectionStatement(sel_stmt) => {
+      self.emit_selection_statement(sel_stmt)
+      false // selection statements are handled specially
+    }
+    IterationStatement(iter_stmt) => {
+      self.emit_iteration_statement(iter_stmt)
+      false
+    }
+    JumpStatement(jump_stmt) => {
+      self.emit_jump_statement(jump_stmt)
+      true // jump statements always terminate
+    }
+    CompoundStatement(comp_stmt) => {
+      // Check if any statement in the compound statement terminates
+      for item in comp_stmt.items {
+        match item {
+          Statement(stmt) =>
+            if self.emit_statement_with_terminator_check(stmt) {
+              return true
+            }
+          Declaration(decl) => self.emit_declaration(decl)
+        }
+      }
+      false
+    }
   }
 }
 
@@ -2330,10 +2354,13 @@ fn FuncCodeGenContext::emit_prim_expr(
           (Int(8), llvm_value)
         }
       }
-    StringLiteral(_) =>
-      raise CodeGenError::UnSupportFeature(
-        "String literals not implemented yet",
-      )
+    //raise CodeGenError::UnSupportFeature(
+    //  "String literals not implemented yet",
+    //)
+    StringLiteral(s) => {
+      let str = self.builder.createGlobalString(s)
+      (Ptr(Int(8)), str) // char*
+    }
     ParenExpr(expr) =>
       // Parenthesized expression - just evaluate the inner expression
       self.emit_expr(expr)
@@ -2719,20 +2746,20 @@ fn FuncCodeGenContext::emit_selection_statement(
 
       // Emit then block
       self.builder.setInsertPoint(then_bb)
-      self.emit_statement(then_stmt)
-      // Only add a branch to merge if the block doesn't already have a terminator
-      if !self.current_block_has_terminator() {
+      let then_has_terminator = self.emit_statement_with_terminator_check(
+        then_stmt,
+      )
+      if !then_has_terminator {
         ignore(self.builder.createBr(merge_bb))
       }
 
       // Emit else block
       self.builder.setInsertPoint(else_bb)
-      match else_stmt_opt {
-        Some(else_stmt) => self.emit_statement(else_stmt)
-        None => ()
+      let else_has_terminator = match else_stmt_opt {
+        Some(else_stmt) => self.emit_statement_with_terminator_check(else_stmt)
+        None => false
       }
-      // Only add a branch to merge if the block doesn't already have a terminator
-      if !self.current_block_has_terminator() {
+      if !else_has_terminator {
         ignore(self.builder.createBr(merge_bb))
       }
 
