@@ -1,8 +1,7 @@
 
-void println_int(int);
+int printf(const char *format, ...);
 
 int main() {
-  int x = 10;
-  println_int(x);
+  printf("%d\n", 42);
   return 0;
 }
