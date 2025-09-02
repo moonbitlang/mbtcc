@@ -2474,8 +2474,14 @@ fn FuncCodeGenContext::emit_prim_expr(
       match self.var_env.get(name) {
         Some((ty, alloca_value, is_array)) =>
           if is_array {
-            // For array variables, return the address directly (decay to pointer)
-            (ty, alloca_value)
+            // For array variables, decay to pointer to first element
+            match ty {
+              Array(elem_type, _) => {
+                let ptr_type = Ptr(elem_type)
+                (ptr_type, alloca_value)
+              }
+              _ => (ty, alloca_value) // shouldn't happen
+            }
           } else {
             // For normal variables (including pointer variables), load the value
             let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
@@ -2590,7 +2596,7 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
 
   // Start with the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
-    Left(prim_expr) => 
+    Left(prim_expr) =>
       if has_arrow_access {
         // For arrow access, we need the loaded pointer value, not the address
         self.emit_prim_expr(prim_expr)
@@ -2614,14 +2620,30 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
         let (_, index_value) = self.emit_expr(index_expr)
         match expr_type {
           Ptr(pointed_type) => {
-            // For lvalue indexing: return the address (ptr + index)
+            // For pointer indexing: ptr[index]
+            // We need to load the pointer value first since expr_value is the alloca address
+            let ptr_llvm_type = self.global_ctx.llvm_ctx.getPtrTy()
+            let ptr_value = self.builder.createLoad(ptr_llvm_type, expr_value)
+              as &LLVMValue
             let elem_llvm_type = self.global_ctx.convert_type_to_llvm(
               pointed_type,
             )
-            let gep = self.builder.createGEP(expr_value, elem_llvm_type, [
+            let gep = self.builder.createGEP(ptr_value, elem_llvm_type, [
               index_value,
             ])
             expr_type = pointed_type
+            expr_value = gep // Return address, not loaded value
+          }
+          Array(elem_type, _) => {
+            // For array lvalue indexing: return the address of arr[index]
+            let array_llvm_type = self.global_ctx.convert_type_to_llvm(
+              expr_type,
+            )
+            let gep = self.builder.createGEP(expr_value, array_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+              index_value, // Index into array
+            ])
+            expr_type = elem_type
             expr_value = gep // Return address, not loaded value
           }
           Array(elem_type, _) => {
@@ -3784,9 +3806,9 @@ fn FuncCodeGenContext::emit_decl(
           name=var_name,
         )
 
-        // Array variable name refers to a pointer to the first element
-        let ptr_type = Ptr(elem_type)
-        (array_llvm_type, ptr_type, array_alloca, true)
+        // Array variable: store the original array type in environment
+        // This is important for proper lvalue handling of array indexing
+        (array_llvm_type, var_type, array_alloca, true)
       }
       _ => {
         let llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
