@@ -2578,9 +2578,26 @@ fn FuncCodeGenContext::emit_postfix_expr_as_lvalue(
   self : Self,
   post_expr : PostFixExpr,
 ) -> (Type, &LLVMValue) raise {
+  // Check if we have arrow access (ptr->field) - needs special handling
+  let has_arrow_access = post_expr.suffixes
+    .iter()
+    .any(fn(suffix) {
+      match suffix {
+        ArrowAccess(_) => true
+        _ => false
+      }
+    })
+
   // Start with the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
-    Left(prim_expr) => self.emit_prim_expr_as_lvalue(prim_expr)
+    Left(prim_expr) => 
+      if has_arrow_access {
+        // For arrow access, we need the loaded pointer value, not the address
+        self.emit_prim_expr(prim_expr)
+      } else {
+        // For other cases, we need the lvalue (address)
+        self.emit_prim_expr_as_lvalue(prim_expr)
+      }
     Right(_) =>
       raise CodeGenError::UnSupportFeature(
         "Compound literals as lvalues not supported",
