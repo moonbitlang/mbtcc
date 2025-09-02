@@ -561,7 +561,9 @@ pub fn CodeGenContext::emit_declaration(
             }
             let llvm_ret_type = self.convert_type_to_llvm(ret_type)
             let func_type = self.llvm_ctx.getFunctionType(
-              llvm_ret_type, param_types, isVarArg~
+              llvm_ret_type,
+              param_types,
+              isVarArg~,
             )
 
             // Declare the function (extern if not already defined)
@@ -616,7 +618,11 @@ pub fn CodeGenContext::emit_function_definition(
     param_types.push(llvm_param_type)
   }
   let llvm_ret_type = self.convert_type_to_llvm(ret_type)
-  let func_type = self.llvm_ctx.getFunctionType(llvm_ret_type, param_types, isVarArg~)
+  let func_type = self.llvm_ctx.getFunctionType(
+    llvm_ret_type,
+    param_types,
+    isVarArg~,
+  )
   let llvm_func = self.llvm_mod.addFunction(func_type, func_name)
   // Add function to global function environment
   self.function_env.set(func_name, llvm_func)
@@ -1583,15 +1589,83 @@ fn FuncCodeGenContext::emit_equality_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_relational_expr(exprs[i])
-    first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
-    } else {
-      first_val
-    }
+
+    // For simplicity, handle the most common cases for linked_list.c
     let op = ops[i - 1]
-    let result = match op {
-      EQ => self.builder.createICmpEQ(first_val, val)
-      NE => self.builder.createICmpNE(first_val, val)
+    let result = match (op, first_ty, ty) {
+      // Floating point comparisons
+      (EQ, FP(_), FP(_)) => self.builder.createFCmpOEQ(first_val, val)
+      (NE, FP(_), FP(_)) => self.builder.createFCmpONE(first_val, val)
+
+      // Integer comparisons (same type)
+      (EQ, Int(_), Int(_)) | (EQ, UInt(_), UInt(_)) =>
+        self.builder.createICmpEQ(first_val, val)
+      (NE, Int(_), Int(_)) | (NE, UInt(_), UInt(_)) =>
+        self.builder.createICmpNE(first_val, val)
+
+      // Pointer comparisons (same type)
+      (EQ, Ptr(_), Ptr(_)) => self.builder.createICmpEQ(first_val, val)
+      (NE, Ptr(_), Ptr(_)) => self.builder.createICmpNE(first_val, val)
+
+      // Pointer to null (integer 0) comparison - convert pointer to int for comparison
+      (EQ, Ptr(_), Int(_)) | (EQ, Ptr(_), UInt(_)) => {
+        // Convert pointer to integer for comparison (simpler approach)
+        let int_val = self.builder.createPtrToInt(
+          first_val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let val_64 = self.emit_cast(from_type=ty, to_type=Int(64), val)
+        self.builder.createICmpEQ(int_val, val_64)
+      }
+      (NE, Ptr(_), Int(_)) | (NE, Ptr(_), UInt(_)) => {
+        // Convert pointer to integer for comparison
+        let int_val = self.builder.createPtrToInt(
+          first_val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let val_64 = self.emit_cast(from_type=ty, to_type=Int(64), val)
+        self.builder.createICmpNE(int_val, val_64)
+      }
+      (EQ, Int(_), Ptr(_)) | (EQ, UInt(_), Ptr(_)) => {
+        // Convert pointer to integer for comparison
+        let int_val = self.builder.createPtrToInt(
+          val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let first_val_64 = self.emit_cast(
+          from_type=first_ty,
+          to_type=Int(64),
+          first_val,
+        )
+        self.builder.createICmpEQ(first_val_64, int_val)
+      }
+      (NE, Int(_), Ptr(_)) | (NE, UInt(_), Ptr(_)) => {
+        // Convert pointer to integer for comparison
+        let int_val = self.builder.createPtrToInt(
+          val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let first_val_64 = self.emit_cast(
+          from_type=first_ty,
+          to_type=Int(64),
+          first_val,
+        )
+        self.builder.createICmpNE(first_val_64, int_val)
+      }
+
+      // Mixed integer types - cast to common type
+      (EQ, Int(_), UInt(_)) | (EQ, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpEQ(first_val, casted_val)
+      }
+      (NE, Int(_), UInt(_)) | (NE, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpNE(first_val, casted_val)
+      }
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Unsupported equality comparison between \{first_ty} and \{ty}",
+        )
     }
     first_val = result
     first_ty = Int(1)
@@ -1610,17 +1684,55 @@ fn FuncCodeGenContext::emit_relational_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_shift_expr(exprs[i])
-    first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
-    } else {
-      first_val
-    }
+
+    // For simplicity, handle the most common cases for linked_list.c
     let op = ops[i - 1]
-    let result = match op {
-      LT => self.builder.createICmpSLT(first_val, val)
-      GT => self.builder.createICmpSGT(first_val, val)
-      LE => self.builder.createICmpSLE(first_val, val)
-      GE => self.builder.createICmpSGE(first_val, val)
+    let result = match (op, first_ty, ty) {
+      // Floating point comparisons
+      (LT, FP(_), FP(_)) => self.builder.createFCmpOLT(first_val, val)
+      (GT, FP(_), FP(_)) => self.builder.createFCmpOGT(first_val, val)
+      (LE, FP(_), FP(_)) => self.builder.createFCmpOLE(first_val, val)
+      (GE, FP(_), FP(_)) => self.builder.createFCmpOGE(first_val, val)
+
+      // Signed integer comparisons (same type)
+      (LT, Int(_), Int(_)) => self.builder.createICmpSLT(first_val, val)
+      (GT, Int(_), Int(_)) => self.builder.createICmpSGT(first_val, val)
+      (LE, Int(_), Int(_)) => self.builder.createICmpSLE(first_val, val)
+      (GE, Int(_), Int(_)) => self.builder.createICmpSGE(first_val, val)
+
+      // Unsigned integer comparisons (same type)
+      (LT, UInt(_), UInt(_)) => self.builder.createICmpULT(first_val, val)
+      (GT, UInt(_), UInt(_)) => self.builder.createICmpUGT(first_val, val)
+      (LE, UInt(_), UInt(_)) => self.builder.createICmpULE(first_val, val)
+      (GE, UInt(_), UInt(_)) => self.builder.createICmpUGE(first_val, val)
+
+      // Pointer comparisons (same type)
+      (LT, Ptr(_), Ptr(_)) => self.builder.createICmpULT(first_val, val)
+      (GT, Ptr(_), Ptr(_)) => self.builder.createICmpUGT(first_val, val)
+      (LE, Ptr(_), Ptr(_)) => self.builder.createICmpULE(first_val, val)
+      (GE, Ptr(_), Ptr(_)) => self.builder.createICmpUGE(first_val, val)
+
+      // Mixed integer types - cast to common type
+      (LT, Int(_), UInt(_)) | (LT, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpSLT(first_val, casted_val)
+      }
+      (GT, Int(_), UInt(_)) | (GT, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpSGT(first_val, casted_val)
+      }
+      (LE, Int(_), UInt(_)) | (LE, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpSLE(first_val, casted_val)
+      }
+      (GE, Int(_), UInt(_)) | (GE, UInt(_), Int(_)) => {
+        let casted_val = self.emit_cast(from_type=ty, to_type=first_ty, val)
+        self.builder.createICmpSGE(first_val, casted_val)
+      }
+      _ =>
+        raise CodeGenError::UnSupportFeature(
+          "Unsupported relational comparison between \{first_ty} and \{ty}",
+        )
     }
     first_val = result
     first_ty = Int(1)
@@ -2300,19 +2412,10 @@ fn FuncCodeGenContext::emit_prim_expr(
             // For array variables, return the address directly (decay to pointer)
             (ty, alloca_value)
           } else {
-            match ty {
-              Struct(_, _) =>
-                // For struct variables, return the address for field access
-                (ty, alloca_value)
-              _ => {
-                // For normal variables (including pointer variables), load the value
-                let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
-                let loaded_value = self.builder.createLoad(
-                  llvm_type, alloca_value,
-                )
-                (ty, loaded_value)
-              }
-            }
+            // For normal variables (including pointer variables), load the value
+            let llvm_type = self.global_ctx.convert_type_to_llvm(ty)
+            let loaded_value = self.builder.createLoad(llvm_type, alloca_value)
+            (ty, loaded_value)
           }
         None =>
           raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
