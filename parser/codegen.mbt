@@ -135,7 +135,12 @@ fn CodeGenContext::analysis_declarator_type_for_struct(
 
   // Handle pointer in declarator
   match declarator.pointer {
-    Some(_) => result_type = Ptr(result_type)
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+    }
     None => ()
   }
 
@@ -363,10 +368,16 @@ fn CodeGenContext::analysis_param_declarator(
 
   // Handle pointer declarators
   let mut param_type = match decl.pointer {
-    Some(_pointer) =>
-      // For now, just create a pointer to the basic type
-      // TODO: Handle multiple levels of pointers
-      Ptr(basic_type)
+    Some(pointer) => {
+      // Handle multiple levels of pointers
+      // Each element in pointer.inner() represents one level of pointer
+      let mut result_type = basic_type
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+      result_type
+    }
     None => basic_type
   }
 
@@ -442,7 +453,12 @@ fn CodeGenContext::analysis_abstract_declarator(
 
   // Handle pointer in abstract declarator
   match abstract_decl.pointer {
-    Some(_pointer) => result_type = Ptr(result_type)
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+    }
     None => ()
   }
 
@@ -521,10 +537,16 @@ pub fn CodeGenContext::emit_declaration(
             )
           }
           let typedef_name = declarator.get_ident()
-          // For now, we only support simple typedef (no pointers/arrays)
-          let typedef_type = match declarator.pointer {
-            Some(_) => Ptr(base_type)
-            None => base_type
+          // Handle typedef with pointers
+          let mut typedef_type = base_type
+          match declarator.pointer {
+            Some(pointer) => {
+              let pointer_levels = pointer.inner()
+              for _ in pointer_levels {
+                typedef_type = Ptr(typedef_type)
+              }
+            }
+            None => ()
           }
 
           // Add to typedef environment
@@ -662,9 +684,15 @@ fn CodeGenContext::analysis_func_declarator(
   decl : Declarator,
   basic_type : Type,
 ) -> (Type, String, Array[(String, Type)], Bool) raise {
-  let ret_type = match decl.pointer {
-    Some(_) => Ptr(basic_type)
-    None => basic_type
+  let mut ret_type = basic_type
+  match decl.pointer {
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        ret_type = Ptr(ret_type)
+      }
+    }
+    None => ()
   }
   let (func_name, params, variadic) = match decl.directDeclarator {
     FunctionDecl(Identifier(func_name), param_type_list) => {
@@ -835,6 +863,17 @@ fn FuncCodeGenContext::emit_function_body(self : Self) -> Unit raise {
   let compound_statement = self.func_def.body
   // Entry block and insert point are already set up
   self.emit_compound_statement(compound_statement)
+
+  // For void functions, always add implicit return at the end
+  // (LLVM will optimize away unreachable returns)
+  match self.return_type {
+    Void =>
+      // For void functions, add implicit return
+      ignore(self.builder.createRetVoid())
+    _ => ()
+    // For non-void functions, the C standard requires an explicit return
+    // We'll let the user handle this case
+  }
 }
 
 ///|
@@ -2158,12 +2197,35 @@ fn FuncCodeGenContext::emit_postfix_expr(
       }
     })
 
+  // Check if we have dot access (struct.field) - needs lvalue
+  let has_dot_access = post_expr.suffixes
+    .iter()
+    .any(fn(suffix) {
+      match suffix {
+        DotAccess(_) => true
+        _ => false
+      }
+    })
+
+  // Check if we have arrow access (ptr->field) - needs rvalue
+  let has_arrow_access = post_expr.suffixes
+    .iter()
+    .any(fn(suffix) {
+      match suffix {
+        ArrowAccess(_) => true
+        _ => false
+      }
+    })
+
   // Evaluate the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
     Left(prim_expr) =>
-      if has_increment_decrement {
-        // For ++/-- operators, we need the lvalue (address) of the head
+      if has_increment_decrement || has_dot_access {
+        // For ++/-- operators or dot access, we need the lvalue (address) of the head
         self.emit_prim_expr_as_lvalue(prim_expr)
+      } else if has_arrow_access {
+        // For arrow access, we MUST use rvalue (load the pointer value)
+        self.emit_prim_expr(prim_expr)
       } else if has_function_call {
         // For function calls, don't evaluate the head as an rvalue yet
         // We'll handle it in the Call suffix processing
@@ -2297,6 +2359,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
       }
       DotAccess(field_name) =>
         // Handle struct field access: struct.field
+        // The expr_value should be the address of the struct (lvalue)
         match expr_type {
           Struct(struct_name, fields) => {
             let field_idx = fields.search_by(pair => pair.0 == field_name)
@@ -2330,6 +2393,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
       ArrowAccess(field_name) =>
         // Handle pointer field access: ptr->field
         // This is equivalent to (*ptr).field
+        // Note: expr_value should already be a pointer value (loaded from a pointer variable)
         match expr_type {
           Ptr(Struct(struct_name, field_types)) => {
             let field_idx = field_types.search_by(pair => pair.0 == field_name)
@@ -2347,6 +2411,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               Struct(struct_name, field_types),
             )
+            // expr_value is already a pointer value, use it directly for GEP
             let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
@@ -3345,7 +3410,12 @@ fn FuncCodeGenContext::analysis_declarator_type(
 
   // Handle pointer in declarator
   match declarator.pointer {
-    Some(_) => result_type = Ptr(result_type)
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+    }
     None => ()
   }
 

@@ -56,6 +56,7 @@ passing_tests=(
   "arr_struct.c"
   "sizeof.c"
   "fib.c"
+  "linked_list.c"
 )
 
 # Clean up and create the temporary directory
