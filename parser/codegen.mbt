@@ -3780,6 +3780,99 @@ fn FuncCodeGenContext::emit_declaration(
 }
 
 ///|
+fn FuncCodeGenContext::count_initializer_elements(
+  self : Self,
+  initializer : Initializer,
+) -> Int {
+  ignore(self)
+  match initializer {
+    AssignExpr(_) => 1
+    InitList(init_pairs) => init_pairs.length()
+  }
+}
+
+///|
+fn FuncCodeGenContext::analysis_declarator_type_with_initializer(
+  self : Self,
+  declarator : Declarator,
+  base_type : Type,
+  initializer : Initializer?,
+) -> Type raise CodeGenError {
+  let mut result_type = base_type
+
+  // Handle pointer in declarator
+  match declarator.pointer {
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+    }
+    None => ()
+  }
+
+  // Handle direct declarator with potential size inference
+  result_type = self.analysis_direct_declarator_type_with_initializer(
+    declarator.directDeclarator,
+    result_type,
+    initializer,
+  )
+  result_type
+}
+
+///|
+fn FuncCodeGenContext::analysis_direct_declarator_type_with_initializer(
+  self : Self,
+  direct_declarator : DirectDeclarator,
+  base_type : Type,
+  initializer : Initializer?,
+) -> Type raise CodeGenError {
+  match direct_declarator {
+    Identifier(_) => base_type
+    Array(inner_declarator, _type_quals, size_expr) => {
+      // Handle array declarator: int arr[5] or int arr[] = {...}
+      let element_type = self.analysis_direct_declarator_type_with_initializer(
+        inner_declarator,
+        base_type,
+        None,
+      )
+      let array_size = match size_expr {
+        Some(assign_expr) =>
+          // Evaluate constant array size expression
+          self.evaluate_constant_expr(assign_expr)
+        None =>
+          // Infer size from initializer if available
+          match initializer {
+            Some(init) => self.count_initializer_elements(init)
+            None =>
+              raise CodeGenError::UnSupportFeature(
+                "Array declaration without size and without initializer",
+              )
+          }
+      }
+      Array(element_type, array_size)
+    }
+    StaticArray(inner_declarator, _type_quals, _size_expr) => {
+      // Handle static array declarator
+      let element_type = self.analysis_direct_declarator_type_with_initializer(
+        inner_declarator,
+        base_type,
+        None,
+      )
+      // TODO: Implement proper static array handling
+      Array(element_type, 1) // Placeholder
+    }
+    Parenthesized(inner_declarator) =>
+      // Handle parenthesized declarator
+      self.analysis_declarator_type_with_initializer(
+        inner_declarator, base_type, initializer,
+      )
+    _ =>
+      raise CodeGenError::UnSupportFeature("Unsupported direct declarator type")
+  }
+}
+
+///|
 fn FuncCodeGenContext::emit_decl(
   self : Self,
   declspecs : Array[DeclSpec],
@@ -3793,8 +3886,10 @@ fn FuncCodeGenContext::emit_decl(
     let { declarator, initializer } = init_decl
     let var_name = declarator.get_ident()
 
-    // Analyze the declarator to get the final type
-    let var_type = self.analysis_declarator_type(declarator, base_type)
+    // Analyze the declarator to get the final type, considering initializer for array size inference
+    let var_type = self.analysis_declarator_type_with_initializer(
+      declarator, base_type, initializer,
+    )
 
     // Allocate space for the variable
     let (llvm_type, env_type, alloca, is_array) = match var_type {
