@@ -45,7 +45,7 @@ passing_tests=(
   "sizeof.c"
   "fib.c"
   "linked_list.c"
-  "bubble_sort.c"
+  "sort.c"
 )
 
 # Clean up and create the temporary directory
