@@ -4012,10 +4012,21 @@ fn FuncCodeGenContext::collect_switch_cases(
         match labeled_stmt {
           Case(const_expr, _) => {
             // Evaluate the case constant
-            let case_value = self.evaluate_case_constant(const_expr)
+            let (_, case_value) = self.emit_conditional_expr(const_expr)
             let case_bb = self.func_value.addBasicBlock(
               name="switch.case.\{case_value}.\{block_id}",
             )
+            guard case_value.tryAsConst() is Some(case_value) else {
+              raise CodeGenError::SyntaxError(
+                "Case label must be a constant integer",
+              )
+            }
+            guard case_value.asConstEnum() is ConstantInt(case_value) else {
+              raise CodeGenError::SyntaxError(
+                "Case label must be a constant integer",
+              )
+            }
+            let case_value = case_value.to_int()
             case_blocks.push((case_value, case_bb))
           }
           Default(_) => has_default.val = true
@@ -4055,7 +4066,19 @@ fn FuncCodeGenContext::emit_switch_body(
             match labeled_stmt {
               Case(const_expr, case_stmt) => {
                 // Switch to the appropriate case block
-                let case_value = self.evaluate_case_constant(const_expr)
+                //let case_value = self.evaluate_case_constant(const_expr)
+                let (_, case_value) = self.emit_conditional_expr(const_expr)
+                guard case_value.tryAsConst() is Some(case_value) else {
+                  raise CodeGenError::SyntaxError(
+                    "Case label must be a constant integer",
+                  )
+                }
+                guard case_value.asConstEnum() is ConstantInt(case_value) else {
+                  raise CodeGenError::SyntaxError(
+                    "Case label must be a constant integer",
+                  )
+                }
+                let case_value = case_value.to_int()
                 let case_bb = case_map.get(case_value).unwrap()
                 self.builder.setInsertPoint(case_bb)
                 current_bb = Some(case_bb)
@@ -4119,260 +4142,6 @@ fn FuncCodeGenContext::emit_switch_body(
       )
       ignore(self.builder.createRet(return_val))
     }
-  }
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_constant(
-  self : Self,
-  const_expr : ConstantExpr,
-) -> Int raise CodeGenError {
-  // For now, implement a simple constant expression evaluator for switch cases
-  // This is similar to the array size evaluator but more constrained
-  let { expr, select } = const_expr
-  if select is Some(_) {
-    raise CodeGenError::UnSupportFeature(
-      "Conditional expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_logical_or(expr)
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_logical_or(
-  self : Self,
-  log_or_expr : LogicalOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_logical_and(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_logical_and(
-  self : Self,
-  log_and_expr : LogicalAndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_inclusive_or(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_inclusive_or(
-  self : Self,
-  incl_or_expr : InclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = incl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_exclusive_or(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_exclusive_or(
-  self : Self,
-  excl_or_expr : ExclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = excl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_and(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_and(
-  self : Self,
-  and_expr : AndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_equality(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_equality(
-  self : Self,
-  eq_expr : EqualityExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = eq_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex equality expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_relational(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_relational(
-  self : Self,
-  rel_expr : RelationalExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = rel_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex relational expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_shift(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_shift(
-  self : Self,
-  shift_expr : ShiftExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = shift_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex shift expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_addsub(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_addsub(
-  self : Self,
-  add_expr : AddSubExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = add_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex arithmetic expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_mult(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_mult(
-  self : Self,
-  mult_expr : MultExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = mult_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex multiplication expressions not supported in case constants",
-    )
-  }
-  self.evaluate_case_cast(exprs[0])
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_cast(
-  self : Self,
-  cast_expr : CastExpr,
-) -> Int raise CodeGenError {
-  match cast_expr {
-    UnaryExpr(unary_expr) => self.evaluate_case_unary(unary_expr)
-    Cast(_, _) =>
-      raise CodeGenError::UnSupportFeature(
-        "Cast expressions not supported in case constants",
-      )
-  }
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_unary(
-  self : Self,
-  unary_expr : UnaryExpr,
-) -> Int raise CodeGenError {
-  if !unary_expr.prefix.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Unary prefix operators not supported in case constants",
-    )
-  }
-  self.evaluate_case_unary_body(unary_expr.body)
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_unary_body(
-  self : Self,
-  unary_body : UnaryExprBody,
-) -> Int raise CodeGenError {
-  match unary_body {
-    PostFix(postfix_expr) => self.evaluate_case_postfix(postfix_expr)
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only simple postfix expressions supported in case constants",
-      )
-  }
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_postfix(
-  self : Self,
-  post_expr : PostFixExpr,
-) -> Int raise CodeGenError {
-  if !post_expr.suffixes.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Postfix operators not supported in case constants",
-    )
-  }
-  match post_expr.head {
-    Left(prim_expr) => self.evaluate_case_primary(prim_expr)
-    Right(_) =>
-      raise CodeGenError::UnSupportFeature(
-        "Compound literals not supported in case constants",
-      )
-  }
-}
-
-///|
-fn FuncCodeGenContext::evaluate_case_primary(
-  self : Self,
-  prim_expr : PrimExpr,
-) -> Int raise CodeGenError {
-  match prim_expr {
-    Constant(constant) =>
-      match constant {
-        Int(value) => value
-        Long(value) => value.to_int()
-        UInt(value) => value.reinterpret_as_int()
-        ULong(value) => value.reinterpret_as_int64().to_int()
-        _ =>
-          raise CodeGenError::UnSupportFeature(
-            "Only integer constants supported in case constants",
-          )
-      }
-    ParenExpr(expr) => {
-      if expr.exprs.length() != 1 {
-        raise CodeGenError::UnSupportFeature(
-          "Complex parenthesized expressions not supported in case constants",
-        )
-      }
-      match expr.exprs[0] {
-        Conditional(cond_expr) => self.evaluate_case_constant(cond_expr)
-        _ =>
-          raise CodeGenError::UnSupportFeature(
-            "Only constant expressions supported in case constants",
-          )
-      }
-    }
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only integer constants supported in case constants",
-      )
   }
 }
 
