@@ -3066,12 +3066,14 @@ fn FuncCodeGenContext::emit_postfix_expr(
   // Evaluate the head of the postfix expression
   let (expr_type_init, expr_value_init) = match post_expr.head {
     Left(prim_expr) =>
-      if has_increment_decrement || has_dot_access {
+      if has_arrow_access {
+        // For arrow access, we MUST use rvalue (load the pointer value)
+        // This takes priority over dot access because ptr->field[idx].member
+        // needs the pointer loaded first
+        self.emit_prim_expr(prim_expr)
+      } else if has_increment_decrement || has_dot_access {
         // For ++/-- operators or dot access, we need the lvalue (address) of the head
         self.emit_prim_expr_as_lvalue(prim_expr)
-      } else if has_arrow_access {
-        // For arrow access, we MUST use rvalue (load the pointer value)
-        self.emit_prim_expr(prim_expr)
       } else if has_function_call {
         // For function calls, don't evaluate the head as an rvalue yet
         // We'll handle it in the Call suffix processing
