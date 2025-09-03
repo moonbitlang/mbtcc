@@ -1,5 +1,7 @@
+typealias @env.Env
+
 ///|
-priv struct TokenInfo {
+pub struct TokenInfo {
   lineno : Int
   column : Int
   codeidx : Int
@@ -7,7 +9,7 @@ priv struct TokenInfo {
 }
 
 ///|
-struct ParserContext {
+pub struct ParserContext {
   source_file : String
   code : String
   mut alltoks : Array[Token]
@@ -17,7 +19,7 @@ struct ParserContext {
 }
 
 ///|
-priv enum WarningError {
+pub enum WarningError {
   Warning
   Error
 }
@@ -170,45 +172,6 @@ fn ParserContext::leave_scope(self : ParserContext) -> Unit {
   }
 }
 
-///|
-priv struct Env[V] {
-  vars : Map[String, V]
-  mut parent : Env[V]?
-}
-
-///|
-fn[V] Env::new() -> Env[V] {
-  Env::{ vars: Map::new(), parent: None }
-}
-
-///|
-fn[V] Env::get(self : Env[V], name : String) -> V? {
-  match self.vars.get(name) {
-    Some(v) => Some(v)
-    None =>
-      match self.parent {
-        Some(parent) => parent.get(name)
-        None => None
-      }
-  }
-}
-
-///|
-fn[V] Env::set(self : Env[V], name : String, value : V) -> Unit {
-  self.vars.set(name, value)
-}
-
-///|
-fn[V] Env::contains(self : Env[V], name : String) -> Bool {
-  match self.vars.get(name) {
-    Some(_) => true
-    None =>
-      match self.parent {
-        Some(parent) => parent.contains(name)
-        None => false
-      }
-  }
-}
 
 ///|
 pub fn ParserContext::create_by_code(code : String) -> ParserContext {

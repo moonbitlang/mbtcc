@@ -20,6 +20,7 @@ pub enum PrimExpr {
   ParenExpr(Expr)
   BuiltinOffsetof(TypeName, UnaryExpr)
   //GenericSelection
+  GCCExtBlock(CompoundStatement)
 } derive(Show, Eq)
 
 ///|
@@ -51,6 +52,16 @@ fn PrimExpr::parse(
         rest_toks => break rest_toks
       }
       (PrimExpr::StringLiteral(str), rest_toks)
+    }
+    [LParen, LBrace, ..] as toks => {
+      let (comp_stmt, rest) = CompoundStatement::parse(toks[1:], ctx)
+      guard rest is [RParen, .. rest_toks] else {
+        let idx = ctx.alltoks.length() - rest.length()
+        raise ParseError(
+          (idx, "Parse Error: Expected ')' to close block statement"),
+        )
+      }
+      (PrimExpr::GCCExtBlock(comp_stmt), rest_toks)
     }
     [LParen, .. rest_toks] => {
       let (expr, rest) = Expr::parse(rest_toks, ctx)
@@ -120,6 +131,7 @@ test "PrimExpr Parsing Test" {
   let code_expect_rest : Map[String, ArrayView[Token]] = {
     "(abc + 123) - 456": [Minus, Constant(Constant::Int(456)), EOF],
     "(a + b) * c": [Star, Identifier("c"), EOF],
+    "({int x = 1, y = 2; x + y;})": [EOF],
   }
   for code, expect_rest in code_expect_rest {
     let ctx = ParserContext::create_by_code(code)
@@ -1325,7 +1337,7 @@ test "Expr Parsing Test" {
 }
 
 ///|
-typealias ConditionalExpr as ConstantExpr
+pub typealias ConditionalExpr as ConstantExpr
 
 //declaration
 //    : declarationSpecifiers initDeclaratorList? ';'
@@ -1402,7 +1414,7 @@ test "Declaration Parsing Test" {
 }
 
 ///|
-pub enum DeclSpec {
+pub(all) enum DeclSpec {
   StorageClassSpec(StorageClassSpec)
   TypeSpec(TypeSpec)
   TypeQualifier(TypeQualifier)
@@ -2384,7 +2396,7 @@ pub struct Declarator {
 } derive(Show, Eq)
 
 ///|
-fn Declarator::get_ident(self : Self) -> String {
+pub fn Declarator::get_ident(self : Self) -> String {
   self.directDeclarator.get_ident()
 }
 
@@ -2449,7 +2461,7 @@ test "Declarator Parsing Test" {
 //  * const * restrict *: [[Const], [Restrict], []]
 
 ///|
-struct Pointer(Array[Array[TypeQualifier]]) derive(Show, Eq)
+pub struct Pointer(Array[Array[TypeQualifier]]) derive(Show, Eq)
 
 ///|
 fn Pointer::parse(toks : ArrayView[Token]) -> (Pointer, ArrayView[Token]) {
@@ -2511,7 +2523,7 @@ pub enum DirectDeclarator {
 } derive(Show, Eq)
 
 ///|
-fn DirectDeclarator::get_ident(self : Self) -> String {
+pub fn DirectDeclarator::get_ident(self : Self) -> String {
   match self {
     DirectDeclarator::Identifier(name) => name
     Array(inner, _, _) => inner.get_ident()
@@ -3125,7 +3137,7 @@ test "EnumSpec Parsing Test" {
 }
 
 ///|
-struct Enumerator(String,ConstantExpr?) derive(Show, Eq)
+pub struct Enumerator(String,ConstantExpr?) derive(Show, Eq)
 
 ///|
 fn Enumerator::parse(

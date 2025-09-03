@@ -2449,7 +2449,7 @@ fn FuncCodeGenContext::emit_unary_expr(
   // Check if we have prefix increment/decrement operators
   let has_increment_decrement = unary_expr.prefix
     .iter()
-    .any(fn(op) { op == PlusPlus || op == MinusMinus })
+    .any(fn(op) { op is PlusPlus || op is MinusMinus })
   let (expr_type_init, expr_value_init) = if has_increment_decrement {
     // For ++/-- operators, we need the lvalue (address) of the body
     match unary_expr.body {
@@ -2715,6 +2715,10 @@ fn FuncCodeGenContext::get_sizeof_type_from_prim_expr(
     BuiltinOffsetof(_, _) =>
       // __builtin_offsetof returns size_t, which we treat as Int(32)
       Int(32)
+    GCCExtBlock(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "GCC extension blocks not supported in sizeof",
+      )
   }
 }
 
@@ -3441,6 +3445,10 @@ fn FuncCodeGenContext::emit_prim_expr(
       raise CodeGenError::UnSupportFeature(
         "Builtin offsetof not implemented yet",
       )
+    GCCExtBlock(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "GCC extension blocks not supported",
+      )
   }
 }
 
@@ -3654,6 +3662,10 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
     Constant(_) | StringLiteral(_) | BuiltinOffsetof(_, _) =>
       raise CodeGenError::UnSupportFeature(
         "Constants and literals are not lvalues",
+      )
+    GCCExtBlock(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "GCC extension blocks cannot be lvalues",
       )
   }
 }

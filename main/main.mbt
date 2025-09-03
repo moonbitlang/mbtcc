@@ -71,7 +71,7 @@ fn main {
   if args.contains("--stop-after=parse") {
     return
   }
-  let codegen = @parser.CodeGenContext::from_parser(ctx)
+  let codegen = @codegen.CodeGenContext::from_parser(ctx)
   codegen.run() catch {
     err => {
       println("Code generation error: \{err}")

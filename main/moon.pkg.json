@@ -2,6 +2,7 @@
   "is-main": true,
   "import": [
     "Kaida-Amethyst/mbtcc/parser",
+    "Kaida-Amethyst/mbtcc/codegen"
   ],
   "link" : {
     "native" : {
