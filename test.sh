@@ -27,8 +27,7 @@ TMP_DIR="tmp"
 passing_tests=(
   "unary1.c"
   "call.c"
-  "ptr1.c"
-  "ptr2.c"
+  "ptr.c"
   "branch.c"
   "loop.c"
   "arr.c"
@@ -43,7 +42,6 @@ passing_tests=(
   "struct4.c"
   "arr_struct.c"
   "sizeof.c"
-  "sizeof2.c"
   "fib.c"
   "linked_list.c"
   "sort.c"
@@ -90,8 +88,8 @@ for test_name in "${passing_tests[@]}"; do
     echo "Expected output (from GCC): $expected_output"
 
     # --- Step 2: Compile with mbtcc, then clang, to produce the mbtcc executable ---
-    moon run main --warn-list -1-2-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll"
-    clang "$TMP_DIR/$base_name.ll" -lm -o "$TMP_DIR/$base_name.mbtcc.out"
+    moon run main --warn-list -1-2-3-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll"
+    clang -w "$TMP_DIR/$base_name.ll" -lm -o "$TMP_DIR/$base_name.mbtcc.out"
 
     # --- Step 3: Run the mbtcc-generated executable and get the actual output ---
     actual_output=$(./"$TMP_DIR/$base_name.mbtcc.out")

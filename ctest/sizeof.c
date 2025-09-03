@@ -40,6 +40,9 @@ int main() {
   passed += is_eq(16, sizeof(S6));
   passed += is_eq(16, sizeof(S7));
 
+  int arr[10];
+  passed += is_eq(40, sizeof(arr));
+
   printf("%d\n", passed);
   return 0;
 }
