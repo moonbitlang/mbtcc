@@ -161,7 +161,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
       tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       break
     }
-    [.."##", .. rest] => {
+    [.. "##", .. rest] => {
       tokens.push(Hash2)
       tokinfos.push(TokenInfo::{ lineno, column, codeidx, source_file })
       column += 2

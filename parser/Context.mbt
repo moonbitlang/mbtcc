@@ -211,11 +211,9 @@ fn[V] Env::contains(self : Env[V], name : String) -> Bool {
 }
 
 ///|
-pub fn ParserContext::create_by_code(
-  code : String,
-) -> ParserContext {
+pub fn ParserContext::create_by_code(code : String) -> ParserContext {
   let ctx = ParserContext::{
-    source_file : "demo",
+    source_file: "demo",
     code,
     alltoks: Array::new(),
     tokinfos: Array::new(),
@@ -228,20 +226,17 @@ pub fn ParserContext::create_by_code(
   ctx
 }
 
-pub fn ParserContext::create_by_file(
-  file_path: String
-) -> ParserContext {
-  let path = @path.Path::new(file_path) 
+///|
+pub fn ParserContext::create_by_file(file_path : String) -> ParserContext {
+  let path = @path.Path::new(file_path)
   if !path.is_exists() {
     println("File not found: \{file_path}")
     panic()
   }
-
   if !path.is_file() {
     println("Not a file: \{file_path}")
     panic()
   }
-
   let path_str = path.to_absolute()
   let code = @fs.read_file_to_string(path_str) catch {
     _ => {
@@ -250,7 +245,7 @@ pub fn ParserContext::create_by_file(
     }
   }
   let ctx = ParserContext::{
-    source_file : path_str,
+    source_file: path_str,
     code,
     alltoks: Array::new(),
     tokinfos: Array::new(),
@@ -260,7 +255,6 @@ pub fn ParserContext::create_by_file(
   // builtin typedefs
   ctx.add_typedef("__builtin_va_list")
   ctx
-
 }
 
 //pub fn ParserContext::create_by_path(file_path: String) -> ParserContext {

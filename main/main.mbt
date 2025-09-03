@@ -19,26 +19,25 @@ fn main {
     return
   }
   let ctx = match args.search_by(a => a is "-file" || a is "--file") {
-    Some(idx) if idx + 1 < args.length() => {
+    Some(idx) if idx + 1 < args.length() =>
       @parser.ParserContext::create_by_file(args[idx + 1])
-    }
     Some(_) => {
       println("Error: No file specified after -file option")
       return
     }
-    None => match args.search_by(a => a is "-code" || a is "--code") {
-      Some(idx) if idx + 1 < args.length() => {
-        @parser.ParserContext::create_by_code(args[idx + 1])
+    None =>
+      match args.search_by(a => a is "-code" || a is "--code") {
+        Some(idx) if idx + 1 < args.length() =>
+          @parser.ParserContext::create_by_code(args[idx + 1])
+        Some(_) => {
+          println("Error: No code specified after -code option")
+          return
+        }
+        None => {
+          println(help_info)
+          return
+        }
       }
-      Some(_) => {
-        println("Error: No code specified after -code option")
-        return
-      }
-      None => {
-        println(help_info)
-        return
-      }
-    }
   }
   ctx.tokenize() catch {
     err => {

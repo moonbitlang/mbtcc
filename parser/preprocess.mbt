@@ -1,13 +1,15 @@
-
 ///|
-pub fn ParserContext::preprocess(self: Self) -> Unit raise {
-  let toks = self.alltoks;
-  let tokinfos = self.tokinfos;
-  let newtoks: Array[Token] = Array::new();
-  let newtokinfos : Array[TokenInfo] = Array::new();
-  let defines: Map[String, (Array[Token], Array[TokenInfo])] = Map::new();
+pub fn ParserContext::preprocess(self : Self) -> Unit raise {
+  let toks = self.alltoks
+  let tokinfos = self.tokinfos
+  let newtoks : Array[Token] = Array::new()
+  let newtokinfos : Array[TokenInfo] = Array::new()
+  let defines : Map[String, (Array[Token], Array[TokenInfo])] = Map::new()
   loop (toks[:], tokinfos[:]) {
-    ([Hash, Identifier("include"), StringLiteral(f), ..rest_toks], [_, _, _, ..rest_infos]) => {
+    (
+      [Hash, Identifier("include"), StringLiteral(f), .. rest_toks],
+      [_, _, _, .. rest_infos],
+    ) => {
       let path = @path.Path::new(self.source_file)
       let path = path.parent().unwrap()
       path.push(f)
@@ -21,13 +23,16 @@ pub fn ParserContext::preprocess(self: Self) -> Unit raise {
       newtokinfos.append(ctx.tokinfos)
       continue (rest_toks, rest_infos)
     }
-    ([Hash, Identifier("define"), Identifier(defname), .. toks], [_, _, name_info, ..infos]) => {
+    (
+      [Hash, Identifier("define"), Identifier(defname), .. toks],
+      [_, _, name_info, .. infos],
+    ) => {
       let lineno = name_info.lineno
-      let def_toks: Array[Token] = Array::new()
-      let def_tokinfos: Array[TokenInfo] = Array::new()
+      let def_toks : Array[Token] = Array::new()
+      let def_tokinfos : Array[TokenInfo] = Array::new()
       let (rest_toks, rest_infos) = loop (toks, infos) {
         ([_, ..], [info, ..]) as r if info.lineno != lineno => break r
-        ([tok, ..rest_toks], [info, ..rest_infos]) => {
+        ([tok, .. rest_toks], [info, .. rest_infos]) => {
           def_toks.push(tok)
           def_tokinfos.push(info)
           continue (rest_toks, rest_infos)
@@ -41,12 +46,13 @@ pub fn ParserContext::preprocess(self: Self) -> Unit raise {
       defines[defname] = (def_toks, def_tokinfos)
       continue (rest_toks, rest_infos)
     }
-    ([Identifier(name), ..rest_toks], [_, ..rest_infos]) if defines.get(name) is Some((toks, infos)) => {
+    ([Identifier(name), .. rest_toks], [_, .. rest_infos]) if defines.get(name)
+      is Some((toks, infos)) => {
       newtoks.append(toks)
       newtokinfos.append(infos)
       continue (rest_toks, rest_infos)
     }
-    ([tok, ..rest_toks], [info, ..rest_infos]) => {
+    ([tok, .. rest_toks], [info, .. rest_infos]) => {
       newtoks.push(tok)
       newtokinfos.push(info)
       continue (rest_toks, rest_infos)
@@ -57,6 +63,6 @@ pub fn ParserContext::preprocess(self: Self) -> Unit raise {
       panic()
     }
   }
-  self.alltoks = newtoks;
-  self.tokinfos = newtokinfos;
+  self.alltoks = newtoks
+  self.tokinfos = newtokinfos
 }
