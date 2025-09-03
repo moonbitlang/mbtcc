@@ -2,7 +2,6 @@
   "import" : [
     "Kaida-Amethyst/mbtcc/color",
     "Kaida-Amethyst/mbtcc/env",
-    "Kaida-Amethyst/llvm/IR",
     "Kaida-Amethyst/path",
     "moonbitlang/x/fs"
   ]

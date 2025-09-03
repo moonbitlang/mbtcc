@@ -4,10 +4,10 @@
 set -e
 
 echo "Running static analysis..."
-moon check --warn-list -1-2-6-28
+moon check --warn-list -1-2-3-6-28
 
 echo "Running parsing tests..."
-moon test --warn-list -1-2-6-28
+moon test --warn-list -1-2-3-6-28
 
 echo "All preliminary checks passed. Starting main tests..."
 
@@ -80,19 +80,18 @@ echo "Running comparison tests for selected files..."
 # Loop through the curated list of passing tests
 for test_name in "${passing_tests[@]}"; do
     c_file="$CTEST_DIR/$test_name"
-    runtime_c="$ROOT_DIR/runtime.c"
     base_name=$(basename "$c_file" .c)
     echo "-------------------------------------------"
     echo "Testing $test_name..."
 
     # --- Step 1: Compile and run with GCC to get the expected output ---
-    gcc "$c_file" "$runtime_c" -lm -o "$TMP_DIR/$base_name.gcc.out"
+    gcc "$c_file" -lm -o "$TMP_DIR/$base_name.gcc.out"
     expected_output=$(./"$TMP_DIR/$base_name.gcc.out")
     echo "Expected output (from GCC): $expected_output"
 
     # --- Step 2: Compile with mbtcc, then clang, to produce the mbtcc executable ---
     moon run main --warn-list -1-2-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll"
-    clang "$TMP_DIR/$base_name.ll" "$runtime_c" -lm -o "$TMP_DIR/$base_name.mbtcc.out"
+    clang "$TMP_DIR/$base_name.ll" -lm -o "$TMP_DIR/$base_name.mbtcc.out"
 
     # --- Step 3: Run the mbtcc-generated executable and get the actual output ---
     actual_output=$(./"$TMP_DIR/$base_name.mbtcc.out")
