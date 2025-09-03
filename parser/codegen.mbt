@@ -91,6 +91,7 @@ struct CodeGenContext {
   llvm_mod : @IR.Module
   function_env : Env[@IR.Function] // Global function symbol table
   function_sig_env : Env[(Type, Array[(String, Type)])] // Function signature table: (return_type, parameters)
+  global_var_env : Env[(@IR.GlobalVariable, Type)] // Global variable symbol table: (LLVM value, type)
   typedef_env : Env[Type] // Type alias symbol table
   struct_env : Env[Type] // Struct type cache
   llvm_struct_env : Env[&LLVMType] // LLVM struct type cache
@@ -108,6 +109,7 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
   let llvm_mod = llvm_ctx.addModule(ctx.source_file)
   let function_env = Env::new()
   let function_sig_env = Env::new()
+  let global_var_env = Env::new()
   let typedef_env = Env::new()
   let struct_env = Env::new()
   let llvm_struct_env = Env::new()
@@ -117,6 +119,7 @@ pub fn CodeGenContext::from_parser(ctx : ParserContext) -> CodeGenContext {
     llvm_mod,
     function_env,
     function_sig_env,
+    global_var_env,
     typedef_env,
     struct_env,
     llvm_struct_env,
@@ -639,6 +642,342 @@ fn CodeGenContext::analysis_direct_abstract_declarator(
 }
 
 ///|
+fn CodeGenContext::analysis_global_declarator_type(
+  self : Self,
+  declarator : Declarator,
+  base_type : Type,
+) -> Type raise CodeGenError {
+  let mut result_type = base_type
+
+  // Handle pointer in declarator
+  match declarator.pointer {
+    Some(pointer) => {
+      let pointer_levels = pointer.inner()
+      for _ in pointer_levels {
+        result_type = Ptr(result_type)
+      }
+    }
+    None => ()
+  }
+
+  // Handle direct declarator (arrays, functions, etc.)
+  result_type = self.analysis_global_direct_declarator_type(
+    declarator.directDeclarator,
+    result_type,
+  )
+  result_type
+}
+
+///|
+fn CodeGenContext::analysis_global_direct_declarator_type(
+  self : Self,
+  direct_declarator : DirectDeclarator,
+  base_type : Type,
+) -> Type raise CodeGenError {
+  match direct_declarator {
+    Identifier(_) => base_type
+    Array(inner_declarator, _type_quals, size_expr) => {
+      // Handle array declarator: int arr[5]
+      let element_type = self.analysis_global_direct_declarator_type(
+        inner_declarator, base_type,
+      )
+      let array_size = match size_expr {
+        Some(assign_expr) =>
+          // Evaluate constant array size expression
+          self.evaluate_global_constant_expr(assign_expr)
+        None =>
+          raise CodeGenError::UnSupportFeature(
+            "Variable length arrays are not supported",
+          )
+      }
+      Array(element_type, array_size)
+    }
+    StaticArray(inner_declarator, _type_quals, _size_expr) => {
+      // Handle static array declarator
+      let element_type = self.analysis_global_direct_declarator_type(
+        inner_declarator, base_type,
+      )
+      // TODO: Implement proper static array handling
+      Array(element_type, 1) // Placeholder
+    }
+    Parenthesized(inner_declarator) =>
+      // Handle parenthesized declarator
+      self.analysis_global_declarator_type(inner_declarator, base_type)
+    _ =>
+      raise CodeGenError::UnSupportFeature("Unsupported direct declarator type")
+  }
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_expr(
+  self : Self,
+  assign_expr : AssignExpr,
+) -> Int raise CodeGenError {
+  // Simple constant expression evaluator for array sizes
+  match assign_expr {
+    Conditional(cond_expr) =>
+      self.evaluate_global_constant_conditional(cond_expr)
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple constant expressions supported for array sizes",
+      )
+  }
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_conditional(
+  self : Self,
+  cond_expr : ConditionalExpr,
+) -> Int raise CodeGenError {
+  let { expr, select } = cond_expr
+  if select is Some(_) {
+    raise CodeGenError::UnSupportFeature(
+      "Conditional expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_logical_or(expr)
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_logical_or(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_logical_and(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_logical_and(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = log_and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex logical expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_inclusive_or(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_inclusive_or(
+  self : Self,
+  incl_or_expr : InclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = incl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_exclusive_or(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_exclusive_or(
+  self : Self,
+  excl_or_expr : ExclusiveOrExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = excl_or_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_and(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_and(
+  self : Self,
+  and_expr : AndExpr,
+) -> Int raise CodeGenError {
+  let { exprs } = and_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex bitwise expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_equality(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_equality(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = eq_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex equality expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_relational(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_relational(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = rel_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex relational expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_shift(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_shift(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = shift_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex shift expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_addsub(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_addsub(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = add_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex arithmetic expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_mult(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_mult(
+  self : Self,
+  mult_expr : MultExpr,
+) -> Int raise CodeGenError {
+  let { exprs, ops } = mult_expr
+  if exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Complex multiplication expressions not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_cast(exprs[0])
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_cast(
+  self : Self,
+  cast_expr : CastExpr,
+) -> Int raise CodeGenError {
+  match cast_expr {
+    UnaryExpr(unary_expr) => self.evaluate_global_constant_unary(unary_expr)
+    Cast(_, _) =>
+      raise CodeGenError::UnSupportFeature(
+        "Cast expressions not supported in array sizes",
+      )
+  }
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_unary(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> Int raise CodeGenError {
+  if !unary_expr.prefix.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Unary prefix operators not supported in array sizes",
+    )
+  }
+  self.evaluate_global_constant_unary_body(unary_expr.body)
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_unary_body(
+  self : Self,
+  unary_body : UnaryExprBody,
+) -> Int raise CodeGenError {
+  match unary_body {
+    PostFix(postfix_expr) => self.evaluate_global_constant_postfix(postfix_expr)
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only simple postfix expressions supported in array sizes",
+      )
+  }
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_postfix(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> Int raise CodeGenError {
+  if !post_expr.suffixes.is_empty() {
+    raise CodeGenError::UnSupportFeature(
+      "Postfix operators not supported in array sizes",
+    )
+  }
+  match post_expr.head {
+    Left(prim_expr) => self.evaluate_global_constant_primary(prim_expr)
+    Right(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals not supported in array sizes",
+      )
+  }
+}
+
+///|
+fn CodeGenContext::evaluate_global_constant_primary(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> Int raise CodeGenError {
+  match prim_expr {
+    Constant(constant) =>
+      match constant {
+        Int(value) => value
+        Long(value) => value.to_int()
+        UInt(value) => value.reinterpret_as_int()
+        ULong(value) => value.reinterpret_as_int64().to_int()
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Only integer constants supported in array sizes",
+          )
+      }
+    ParenExpr(expr) => {
+      if expr.exprs.length() != 1 {
+        raise CodeGenError::UnSupportFeature(
+          "Complex parenthesized expressions not supported in array sizes",
+        )
+      }
+      match expr.exprs[0] {
+        Conditional(cond_expr) =>
+          self.evaluate_global_constant_conditional(cond_expr)
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Only constant expressions supported in array sizes",
+          )
+      }
+    }
+    _ =>
+      raise CodeGenError::UnSupportFeature(
+        "Only integer constants supported in array sizes",
+      )
+  }
+}
+
+///|
 pub fn CodeGenContext::emit_declaration(
   self : Self,
   decl : Declaration,
@@ -733,10 +1072,59 @@ pub fn CodeGenContext::emit_declaration(
             // Store function signature for type checking during calls
             self.function_sig_env.set(func_name, (ret_type, params))
           } else {
-            // Handle variable declaration
-            // For now, skip variable declarations at global scope
-            // TODO: Implement global variable declarations
-            ()
+            // Handle global variable declaration
+            let var_name = declarator.get_ident()
+
+            // Analyze the declarator to get the final type
+            let var_type = self.analysis_global_declarator_type(
+              declarator, base_type,
+            )
+
+            // Convert to LLVM type
+            let llvm_type = self.convert_type_to_llvm(var_type)
+
+            // Create the global variable with zero initialization for now
+            // TODO: Implement proper initializer handling later
+            let global_var = match var_type {
+              Array(element_type, array_size) =>
+                // For arrays of integers, create zero-initialized array constant
+                match element_type {
+                  Int(_) => {
+                    let element_llvm_type = self.convert_type_to_llvm(
+                      element_type,
+                    )
+                    let zero_element = self.llvm_ctx.getConstInt32(0)
+                    let zero_elements : Array[&@IR.Constant] = Array::make(
+                      array_size, zero_element,
+                    )
+                    let zero_init = self.llvm_ctx.getConstArray(
+                      element_llvm_type, zero_elements,
+                    )
+                    self.llvm_mod.addGlobalVariable(
+                      llvm_type,
+                      initializer=zero_init,
+                      name=var_name,
+                    )
+                  }
+                  _ =>
+                    // For other element types, create without initializer for now
+                    self.llvm_mod.addGlobalVariable(llvm_type, name=var_name)
+                }
+              Int(_) => {
+                let zero_init = self.llvm_ctx.getConstInt32(0)
+                self.llvm_mod.addGlobalVariable(
+                  llvm_type,
+                  initializer=zero_init,
+                  name=var_name,
+                )
+              }
+              _ =>
+                // For other types, create without initializer for now
+                self.llvm_mod.addGlobalVariable(llvm_type, name=var_name)
+            }
+
+            // Add to global variable environment
+            self.global_var_env.set(var_name, (global_var, var_type))
           }
         }
       }
@@ -2641,7 +3029,25 @@ fn FuncCodeGenContext::emit_prim_expr(
             (ty, loaded_value)
           }
         None =>
-          raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
+          // Check global variable environment
+          match self.global_ctx.global_var_env.get(name) {
+            Some((global_var, global_type)) =>
+              // For global variables, return the global variable itself (which is a pointer)
+              match global_type {
+                Array(elem_type, _) => {
+                  // For global arrays, decay to pointer to first element
+                  let ptr_type = Ptr(elem_type)
+                  (ptr_type, global_var)
+                }
+                _ =>
+                  // For other global variables, return them as lvalue addresses
+                  (global_type, global_var)
+              }
+            None =>
+              raise CodeGenError::UnSupportFeature(
+                "Undefined variable: \{name}",
+              )
+          }
       }
     Constant(constant) =>
       match constant {
@@ -2887,7 +3293,16 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
       match self.var_env.get(name) {
         Some((ty, alloca_value, is_array)) => (ty, alloca_value) // Return address, not loaded value
         None =>
-          raise CodeGenError::UnSupportFeature("Undefined variable: \{name}")
+          // Check global variable environment
+          match self.global_ctx.global_var_env.get(name) {
+            Some((global_var, global_type)) =>
+              // For global variables, return the global variable as lvalue (it's already an address)
+              (global_type, global_var)
+            None =>
+              raise CodeGenError::UnSupportFeature(
+                "Undefined variable: \{name}",
+              )
+          }
       }
     ParenExpr(expr) =>
       // Parenthesized expression - evaluate as lvalue
