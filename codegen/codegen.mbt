@@ -3094,6 +3094,9 @@ fn FuncCodeGenContext::emit_postfix_expr(
   }
   let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
+  
+  // Track if current expr_value is an address (lvalue) or value (rvalue)
+  let mut is_lvalue = has_increment_decrement || has_dot_access
 
   // Apply postfix operators in order (left to right)
   for suffix in post_expr.suffixes {
@@ -3301,9 +3304,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
-            let loaded_value = self.builder.createLoad(field_llvm_type, gep)
+            
             expr_type = field_type
-            expr_value = loaded_value
+            // Check if we need the address for subsequent operations
+            if has_increment_decrement {
+              // For increment/decrement, we need the address, not the value
+              expr_value = gep
+              is_lvalue = true
+            } else {
+              // For other operations, load the value
+              let loaded_value = self.builder.createLoad(field_llvm_type, gep)
+              expr_value = loaded_value
+              is_lvalue = false
+            }
           }
           _ =>
             raise CodeGenError::UnSupportFeature(
@@ -3314,13 +3327,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // Post-increment: return old value, increment stored value
         match expr_type {
           Int(_) | UInt(_) => {
-            // expr_value is an address for post-increment (from lvalue evaluation)
+            // expr_value should be an address for post-increment
+            if !is_lvalue {
+              raise CodeGenError::UnSupportFeature(
+                "Post-increment requires lvalue, but got rvalue",
+              )
+            }
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let old_val = self.builder.createLoad(llvm_type, expr_value)
             let one = self.global_ctx.llvm_ctx.getConstInt32(1)
             let new_val = self.builder.createAdd(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = old_val // Return old value
+            is_lvalue = false // Result is now a value
           }
           _ =>
             raise CodeGenError::UnSupportFeature(
@@ -3331,12 +3350,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // Post-decrement: return old value, decrement stored value
         match expr_type {
           Int(_) | UInt(_) => {
+            // expr_value should be an address for post-decrement
+            if !is_lvalue {
+              raise CodeGenError::UnSupportFeature(
+                "Post-decrement requires lvalue, but got rvalue",
+              )
+            }
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let old_val = self.builder.createLoad(llvm_type, expr_value)
             let one = self.global_ctx.llvm_ctx.getConstInt32(1)
             let new_val = self.builder.createSub(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = old_val // Return old value
+            is_lvalue = false // Result is now a value
           }
           _ =>
             raise CodeGenError::UnSupportFeature(
