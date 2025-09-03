@@ -2170,8 +2170,30 @@ fn FuncCodeGenContext::emit_equality_expr(
         self.builder.createICmpNE(first_val, val)
 
       // Pointer comparisons (same type)
-      (EQ, Ptr(_), Ptr(_)) => self.builder.createICmpEQ(first_val, val)
-      (NE, Ptr(_), Ptr(_)) => self.builder.createICmpNE(first_val, val)
+      //(EQ, Ptr(_), Ptr(_)) => self.builder.createICmpEQ(first_val, val)
+      (EQ, Ptr(_), Ptr(_)) => {
+        let int_val1 = self.builder.createPtrToInt(
+          first_val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let int_val2 = self.builder.createPtrToInt(
+          val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        self.builder.createICmpEQ(int_val1, int_val2)
+      }
+      //(NE, Ptr(_), Ptr(_)) => self.builder.createICmpNE(first_val, val)
+      (NE, Ptr(_), Ptr(_)) => {
+        let int_val1 = self.builder.createPtrToInt(
+          first_val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let int_val2 = self.builder.createPtrToInt(
+          val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        self.builder.createICmpNE(int_val1, int_val2)
+      }
 
       // Pointer to null (integer 0) comparison - convert pointer to int for comparison
       (EQ, Ptr(_), Int(_)) | (EQ, Ptr(_), UInt(_)) => {

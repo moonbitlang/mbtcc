@@ -48,6 +48,7 @@ passing_tests=(
   "sort.c"
   "matrix.c"
   "dsu.c"
+  "bst.c"
 )
 
 # Clean up and create the temporary directory
