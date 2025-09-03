@@ -81,7 +81,6 @@ fn CodeGenContext::convert_type_to_llvm(
 pub suberror CodeGenError {
   SyntaxError(String)
   UnSupportFeature(String)
-  LLVMError(Error)
 } derive(Show)
 
 ///|
@@ -378,7 +377,7 @@ fn CodeGenContext::analysis_direct_declarator_type_for_param(
       )
       // Get array size
       let array_size = match size_expr {
-        Some(assign_expr) => self.evaluate_constant_expr_simple(assign_expr)
+        Some(assign_expr) => self.evaluate_constant_expr(assign_expr)
         None => 0 // Unsized array
       }
       if array_size > 0 {
@@ -391,7 +390,7 @@ fn CodeGenContext::analysis_direct_declarator_type_for_param(
       let inner_type = self.analysis_direct_declarator_type_for_param(
         inner_declarator, base_type,
       )
-      let array_size = self.evaluate_constant_expr_simple(size_expr)
+      let array_size = self.evaluate_constant_expr(size_expr)
       Type::Array(inner_type, array_size)
     }
     Parenthesized(inner_decl) => {
@@ -402,75 +401,6 @@ fn CodeGenContext::analysis_direct_declarator_type_for_param(
       param_type
     }
     _ => base_type // For other cases, just return base type
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_constant_expr_simple(
-  self : Self,
-  assign_expr : AssignExpr,
-) -> Int {
-  // Simple constant expression evaluator for array sizes
-  // For parameter declarations, we need a simpler version that doesn't require FuncCodeGenContext
-  match assign_expr {
-    Conditional(cond_expr) => {
-      // Try to extract a simple integer constant
-      // This is a hacky way but works for simple cases like [3]
-      let expr = cond_expr.expr
-      if expr.exprs.length() == 1 {
-        let logical_and = expr.exprs[0]
-        if logical_and.exprs.length() == 1 {
-          let inclusive_or = logical_and.exprs[0]
-          if inclusive_or.exprs.length() == 1 {
-            let exclusive_or = inclusive_or.exprs[0]
-            if exclusive_or.exprs.length() == 1 {
-              let and_expr = exclusive_or.exprs[0]
-              if and_expr.exprs.length() == 1 {
-                let equality = and_expr.exprs[0]
-                if equality.exprs.length() == 1 && equality.ops.length() == 0 {
-                  let relational = equality.exprs[0]
-                  if relational.exprs.length() == 1 &&
-                    relational.ops.length() == 0 {
-                    let shift = relational.exprs[0]
-                    if shift.exprs.length() == 1 && shift.ops.length() == 0 {
-                      let add_sub = shift.exprs[0]
-                      if add_sub.exprs.length() == 1 &&
-                        add_sub.ops.length() == 0 {
-                        let mult = add_sub.exprs[0]
-                        if mult.exprs.length() == 1 && mult.ops.length() == 0 {
-                          let cast = mult.exprs[0]
-                          match cast {
-                            UnaryExpr(unary) =>
-                              if unary.prefix.length() == 0 {
-                                match unary.body {
-                                  PostFix(post_expr) =>
-                                    if post_expr.suffixes.length() == 0 {
-                                      match post_expr.head {
-                                        Left(
-                                          PrimExpr::Constant(Constant::Int(val))
-                                        ) => return val
-                                        _ => ()
-                                      }
-                                    }
-                                  _ => ()
-                                }
-                              }
-                            _ => ()
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      // If we couldn't extract a simple constant, default to 0
-      3 // Default size for testing - this is a hack for matrix.c
-    }
-    _ => 0 // Default for non-conditional
   }
 }
 
@@ -529,7 +459,7 @@ fn CodeGenContext::analysis_param_declarator(
       let inner_type = self.analysis_direct_declarator_type_for_param(
         inner_declarator, param_type,
       )
-      let array_size = self.evaluate_constant_expr_simple(size_expr)
+      let array_size = self.evaluate_constant_expr(size_expr)
       let array_type = Type::Array(inner_type, array_size)
       Ptr(array_type)
     }
@@ -4044,9 +3974,15 @@ fn FuncCodeGenContext::analysis_declarator_type(
 }
 
 ///|
+fn FuncCodeGenContext::evaluate_constant_expr(
+  self : Self,
+  assign_expr : AssignExpr,
+) -> Int raise CodeGenError {
+  self.global_ctx.evaluate_constant_expr(assign_expr)
+}
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_expr(
+fn CodeGenContext::evaluate_constant_expr(
   self : Self,
   assign_expr : AssignExpr,
 ) -> Int raise CodeGenError {
@@ -4061,7 +3997,7 @@ fn FuncCodeGenContext::evaluate_constant_expr(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_conditional(
+fn CodeGenContext::evaluate_constant_conditional(
   self : Self,
   cond_expr : ConditionalExpr,
 ) -> Int raise CodeGenError {
@@ -4075,7 +4011,7 @@ fn FuncCodeGenContext::evaluate_constant_conditional(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_logical_or(
+fn CodeGenContext::evaluate_constant_logical_or(
   self : Self,
   log_or_expr : LogicalOrExpr,
 ) -> Int raise CodeGenError {
@@ -4089,7 +4025,7 @@ fn FuncCodeGenContext::evaluate_constant_logical_or(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_logical_and(
+fn CodeGenContext::evaluate_constant_logical_and(
   self : Self,
   log_and_expr : LogicalAndExpr,
 ) -> Int raise CodeGenError {
@@ -4103,7 +4039,7 @@ fn FuncCodeGenContext::evaluate_constant_logical_and(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_inclusive_or(
+fn CodeGenContext::evaluate_constant_inclusive_or(
   self : Self,
   incl_or_expr : InclusiveOrExpr,
 ) -> Int raise CodeGenError {
@@ -4117,7 +4053,7 @@ fn FuncCodeGenContext::evaluate_constant_inclusive_or(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_exclusive_or(
+fn CodeGenContext::evaluate_constant_exclusive_or(
   self : Self,
   excl_or_expr : ExclusiveOrExpr,
 ) -> Int raise CodeGenError {
@@ -4131,7 +4067,7 @@ fn FuncCodeGenContext::evaluate_constant_exclusive_or(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_and(
+fn CodeGenContext::evaluate_constant_and(
   self : Self,
   and_expr : AndExpr,
 ) -> Int raise CodeGenError {
@@ -4145,7 +4081,7 @@ fn FuncCodeGenContext::evaluate_constant_and(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_equality(
+fn CodeGenContext::evaluate_constant_equality(
   self : Self,
   eq_expr : EqualityExpr,
 ) -> Int raise CodeGenError {
@@ -4159,7 +4095,7 @@ fn FuncCodeGenContext::evaluate_constant_equality(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_relational(
+fn CodeGenContext::evaluate_constant_relational(
   self : Self,
   rel_expr : RelationalExpr,
 ) -> Int raise CodeGenError {
@@ -4173,7 +4109,7 @@ fn FuncCodeGenContext::evaluate_constant_relational(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_shift(
+fn CodeGenContext::evaluate_constant_shift(
   self : Self,
   shift_expr : ShiftExpr,
 ) -> Int raise CodeGenError {
@@ -4187,7 +4123,7 @@ fn FuncCodeGenContext::evaluate_constant_shift(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_addsub(
+fn CodeGenContext::evaluate_constant_addsub(
   self : Self,
   add_expr : AddSubExpr,
 ) -> Int raise CodeGenError {
@@ -4201,7 +4137,7 @@ fn FuncCodeGenContext::evaluate_constant_addsub(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_mult(
+fn CodeGenContext::evaluate_constant_mult(
   self : Self,
   mult_expr : MultExpr,
 ) -> Int raise CodeGenError {
@@ -4215,7 +4151,7 @@ fn FuncCodeGenContext::evaluate_constant_mult(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_cast(
+fn CodeGenContext::evaluate_constant_cast(
   self : Self,
   cast_expr : CastExpr,
 ) -> Int raise CodeGenError {
@@ -4229,7 +4165,7 @@ fn FuncCodeGenContext::evaluate_constant_cast(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_unary(
+fn CodeGenContext::evaluate_constant_unary(
   self : Self,
   unary_expr : UnaryExpr,
 ) -> Int raise CodeGenError {
@@ -4242,7 +4178,7 @@ fn FuncCodeGenContext::evaluate_constant_unary(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_unary_body(
+fn CodeGenContext::evaluate_constant_unary_body(
   self : Self,
   unary_body : UnaryExprBody,
 ) -> Int raise CodeGenError {
@@ -4256,7 +4192,7 @@ fn FuncCodeGenContext::evaluate_constant_unary_body(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_postfix(
+fn CodeGenContext::evaluate_constant_postfix(
   self : Self,
   post_expr : PostFixExpr,
 ) -> Int raise CodeGenError {
@@ -4275,7 +4211,7 @@ fn FuncCodeGenContext::evaluate_constant_postfix(
 }
 
 ///|
-fn FuncCodeGenContext::evaluate_constant_primary(
+fn CodeGenContext::evaluate_constant_primary(
   self : Self,
   prim_expr : PrimExpr,
 ) -> Int raise CodeGenError {
