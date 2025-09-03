@@ -2,6 +2,7 @@ target/
 .mooncakes/
 .DS_Store
 .moonagent
+*.ll
 IR.mbti
 llvm_*
 tmp/

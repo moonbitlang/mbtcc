@@ -1036,6 +1036,26 @@ pub fn CodeGenContext::emit_declaration(
                       name=var_name,
                     )
                   }
+                  Ptr(_) => {
+                    // For arrays of pointers, create null-initialized array constant
+                    let element_llvm_type = self.convert_type_to_llvm(
+                      element_type,
+                    )
+                    let null_element = self.llvm_ctx.getConstPointerNull(
+                      element_llvm_type,
+                    )
+                    let null_elements : Array[&@IR.Constant] = Array::make(
+                      array_size, null_element,
+                    )
+                    let null_init = self.llvm_ctx.getConstArray(
+                      element_llvm_type, null_elements,
+                    )
+                    self.llvm_mod.addGlobalVariable(
+                      llvm_type,
+                      initializer=null_init,
+                      name=var_name,
+                    )
+                  }
                   _ =>
                     // For other element types, create without initializer for now
                     self.llvm_mod.addGlobalVariable(llvm_type, name=var_name)
@@ -2512,13 +2532,347 @@ fn FuncCodeGenContext::emit_unary_expr(
       Sizeof => {
         // Sizeof operator: return size in bytes as compile-time constant
         // Calculate size manually for now due to LLVM DataLayout issues
-        let size_bytes = self.calculate_type_size(expr_type)
+        // Special handling: for sizeof, we need the original type before array-to-pointer decay
+        let sizeof_type = self.get_sizeof_type_from_unary_body(unary_expr.body)
+        let size_bytes = self.calculate_type_size(sizeof_type)
         expr_value = self.global_ctx.llvm_ctx.getConstInt32(size_bytes)
         expr_type = Int(32)
       }
     }
   }
   (expr_type, expr_value)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_unary_body(
+  self : Self,
+  unary_body : UnaryExprBody,
+) -> Type raise {
+  // Get the original type of an expression for sizeof calculation
+  // This function does NOT perform array-to-pointer decay
+  match unary_body {
+    PostFix(postfix_expr) =>
+      self.get_sizeof_type_from_postfix_expr(postfix_expr)
+    UnaryOp(op, cast_expr) =>
+      match op {
+        AddressOf => {
+          // &expr: get type of expr and return Ptr(type)
+          let expr_type = self.get_sizeof_type_from_cast_expr(cast_expr)
+          Ptr(expr_type)
+        }
+        Dereference => {
+          // *expr: get type of expr and dereference it
+          let expr_type = self.get_sizeof_type_from_cast_expr(cast_expr)
+          match expr_type {
+            Ptr(pointed_type) => pointed_type
+            Array(elem_type, _) => elem_type
+            _ =>
+              raise CodeGenError::UnSupportFeature(
+                "Cannot dereference non-pointer type \{expr_type}",
+              )
+          }
+        }
+        _ =>
+          // For other operators, get the operand type
+          self.get_sizeof_type_from_cast_expr(cast_expr)
+      }
+    SizeofTypeName(type_name) =>
+      // sizeof(type): get type from type name
+      self.global_ctx.analysis_typename(type_name)
+    AlignOfTypeName(type_name) =>
+      // _Alignof(type): get type from type name
+      self.global_ctx.analysis_typename(type_name)
+  }
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_postfix_expr(
+  self : Self,
+  post_expr : PostFixExpr,
+) -> Type raise {
+  // Get original type from postfix expression (without array-to-pointer decay)
+  let base_type = match post_expr.head {
+    Left(prim_expr) => self.get_sizeof_type_from_prim_expr(prim_expr)
+    Right(_) =>
+      raise CodeGenError::UnSupportFeature(
+        "Compound literals not supported in sizeof",
+      )
+  }
+
+  // Apply suffixes to the type
+  let mut current_type = base_type
+  for suffix in post_expr.suffixes {
+    current_type = match suffix {
+      Indexing(_) =>
+        // arr[index]: if arr is Array(T, n), result is T; if arr is Ptr(T), result is T
+        match current_type {
+          Array(elem_type, _) => elem_type
+          Ptr(pointed_type) => pointed_type
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Cannot index non-array/non-pointer type in sizeof",
+            )
+        }
+      DotAccess(field_name) =>
+        // struct.field: get field type
+        match current_type {
+          Struct(_, fields) => {
+            let mut found_field : (String, Type)? = None
+            for field in fields {
+              if field.0 == field_name {
+                found_field = Some(field)
+                break
+              }
+            }
+            match found_field {
+              Some((_, field_type)) => field_type
+              None =>
+                raise CodeGenError::UnSupportFeature(
+                  "Field \{field_name} not found in struct",
+                )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Cannot access field of non-struct type in sizeof",
+            )
+        }
+      ArrowAccess(field_name) =>
+        // ptr->field: dereference pointer then get field type
+        match current_type {
+          Ptr(Struct(_, fields)) => {
+            let mut found_field : (String, Type)? = None
+            for field in fields {
+              if field.0 == field_name {
+                found_field = Some(field)
+                break
+              }
+            }
+            match found_field {
+              Some((_, field_type)) => field_type
+              None =>
+                raise CodeGenError::UnSupportFeature(
+                  "Field \{field_name} not found in struct",
+                )
+            }
+          }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Cannot arrow-access field of non-pointer-to-struct type in sizeof",
+            )
+        }
+      Call(_) =>
+        // func(): need to look up function return type
+        raise CodeGenError::UnSupportFeature(
+          "Function calls not supported in sizeof",
+        )
+      PlusPlus | MinusMinus =>
+        // ++/-- operators don't change the type
+        current_type
+    }
+  }
+  current_type
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_prim_expr(
+  self : Self,
+  prim_expr : PrimExpr,
+) -> Type raise {
+  // Get original type from primary expression (without array-to-pointer decay)
+  match prim_expr {
+    Identifier(name) =>
+      // Look up variable and return its ORIGINAL type (not decayed)
+      match self.var_env.get(name) {
+        Some((ty, _, _)) => ty // Return original type, not decayed
+        None =>
+          // Check global variable environment
+          match self.global_ctx.global_var_env.get(name) {
+            Some((_, global_type)) => global_type // Return original type
+            None =>
+              raise CodeGenError::UnSupportFeature(
+                "Undefined variable in sizeof: \{name}",
+              )
+          }
+      }
+    Constant(constant) =>
+      // Return type of constant
+      match constant {
+        Int(_) => Int(32)
+        Long(_) => Int(64)
+        UInt(_) => UInt(32)
+        ULong(_) => UInt(64)
+        Float(_) => FP(32)
+        Double(_) => FP(64)
+        Char(_) => Int(8)
+      }
+    StringLiteral(s) =>
+      // String literal: array of char
+      Array(Int(8), s.length() + 1) // +1 for null terminator
+    ParenExpr(expr) =>
+      // Parenthesized expression
+      self.get_sizeof_type_from_expr(expr)
+    BuiltinOffsetof(_, _) =>
+      // __builtin_offsetof returns size_t, which we treat as Int(32)
+      Int(32)
+  }
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_cast_expr(
+  self : Self,
+  cast_expr : CastExpr,
+) -> Type raise {
+  match cast_expr {
+    UnaryExpr(unary_expr) => self.get_sizeof_type_from_unary_expr(unary_expr)
+    Cast(type_name, _) =>
+      // Cast: return the target type
+      self.global_ctx.analysis_typename(type_name)
+  }
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_unary_expr(
+  self : Self,
+  unary_expr : UnaryExpr,
+) -> Type raise {
+  // For sizeof type calculation, ignore prefixes and get type from body
+  self.get_sizeof_type_from_unary_body(unary_expr.body)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_expr(
+  self : Self,
+  expr : Expr,
+) -> Type raise {
+  // Get type from first assignment expression in the expr
+  let first_assign_expr = expr.exprs[0]
+  self.get_sizeof_type_from_assign_expr(first_assign_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_assign_expr(
+  self : Self,
+  assign_expr : AssignExpr,
+) -> Type raise {
+  match assign_expr {
+    Conditional(cond) => self.get_sizeof_type_from_conditional_expr(cond)
+    Assign(_, _, _) =>
+      // For assignment, just get type from the RHS for simplicity
+      raise CodeGenError::UnSupportFeature(
+        "Assignment expressions not supported in sizeof",
+      )
+  }
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_conditional_expr(
+  self : Self,
+  cond_expr : ConditionalExpr,
+) -> Type raise {
+  // For conditional expressions, we need to evaluate further down
+  // For now, just get type from the main expression
+  self.get_sizeof_type_from_logical_or_expr(cond_expr.expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_logical_or_expr(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> Type raise {
+  // Get type from first logical AND expression
+  let first_expr = log_or_expr.exprs[0]
+  self.get_sizeof_type_from_logical_and_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_logical_and_expr(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> Type raise {
+  // Get type from first inclusive OR expression
+  let first_expr = log_and_expr.exprs[0]
+  self.get_sizeof_type_from_inclusive_or_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_inclusive_or_expr(
+  self : Self,
+  inc_or_expr : InclusiveOrExpr,
+) -> Type raise {
+  // Get type from first exclusive OR expression
+  let first_expr = inc_or_expr.exprs[0]
+  self.get_sizeof_type_from_exclusive_or_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_exclusive_or_expr(
+  self : Self,
+  exc_or_expr : ExclusiveOrExpr,
+) -> Type raise {
+  // Get type from first AND expression
+  let first_expr = exc_or_expr.exprs[0]
+  self.get_sizeof_type_from_and_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_and_expr(
+  self : Self,
+  and_expr : AndExpr,
+) -> Type raise {
+  // Get type from first equality expression
+  let first_expr = and_expr.exprs[0]
+  self.get_sizeof_type_from_eq_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_eq_expr(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> Type raise {
+  // Get type from first relational expression
+  let first_expr = eq_expr.exprs[0]
+  self.get_sizeof_type_from_rel_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_rel_expr(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> Type raise {
+  // Get type from first shift expression
+  let first_expr = rel_expr.exprs[0]
+  self.get_sizeof_type_from_shift_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_shift_expr(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> Type raise {
+  // Get type from first additive expression
+  let first_expr = shift_expr.exprs[0]
+  self.get_sizeof_type_from_addsub_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_addsub_expr(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> Type raise {
+  // Get type from first multiplicative expression
+  let first_expr = add_expr.exprs[0]
+  self.get_sizeof_type_from_mult_expr(first_expr)
+}
+
+///|
+fn FuncCodeGenContext::get_sizeof_type_from_mult_expr(
+  self : Self,
+  mult_expr : MultExpr,
+) -> Type raise {
+  // Get type from first cast expression
+  let first_expr = mult_expr.exprs[0]
+  self.get_sizeof_type_from_cast_expr(first_expr)
 }
 
 ///|

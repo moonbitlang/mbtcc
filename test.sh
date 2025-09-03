@@ -43,12 +43,17 @@ passing_tests=(
   "struct4.c"
   "arr_struct.c"
   "sizeof.c"
+  "sizeof2.c"
   "fib.c"
   "linked_list.c"
   "sort.c"
+  "heap_sort.c"
+  "merge_sort.c"
+  "binary_search.c"
   "matrix.c"
   "dsu.c"
   "bst.c"
+  "hash_table.c"
 )
 
 # Clean up and create the temporary directory
