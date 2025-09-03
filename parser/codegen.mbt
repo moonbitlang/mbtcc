@@ -2960,20 +2960,33 @@ fn FuncCodeGenContext::emit_unary_expr_body(
                     "Bitwise NOT not supported for type \{operand_type}",
                   )
               }
-            LogicalNot => {
+            LogicalNot =>
               // Logical NOT: compare with zero
-              let zero = match operand_type {
-                Int(_) | UInt(_) =>
-                  self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
-                FP(_) =>
-                  self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
-                Ptr(_) =>
-                  self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Null pointer
-                _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue // Fallback
+              match operand_type {
+                Ptr(_) => {
+                  // For pointers, convert to integer first, then compare
+                  let ptr_as_int = self.builder.createPtrToInt(
+                    operand_value,
+                    self.global_ctx.llvm_ctx.getInt64Ty(),
+                  )
+                  let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
+                  let is_zero = self.builder.createICmpEQ(ptr_as_int, zero)
+                  (Int(1), is_zero)
+                }
+                FP(_) => {
+                  let zero = self.global_ctx.llvm_ctx.getConstDouble(0.0)
+                    as &LLVMValue
+                  let is_zero = self.builder.createFCmpOEQ(operand_value, zero)
+                  (Int(1), is_zero)
+                }
+                _ => {
+                  // For integers
+                  let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+                    as &LLVMValue
+                  let is_zero = self.builder.createICmpEQ(operand_value, zero)
+                  (Int(1), is_zero)
+                }
               }
-              let is_zero = self.builder.createICmpEQ(operand_value, zero)
-              (Int(1), is_zero)
-            }
           }
         }
       }
@@ -3099,12 +3112,21 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 expr_type = Ptr(elem_type)
                 expr_value = gep
               }
-              _ => {
-                // For pointer to scalar: load the value
-                let loaded_value = self.builder.createLoad(elem_llvm_type, gep)
-                expr_type = pointed_type
-                expr_value = loaded_value
-              }
+              _ =>
+                // For pointer to scalar:
+                // Check if we need address for subsequent dot access
+                if has_dot_access {
+                  // Return address for potential subsequent dot access
+                  expr_type = pointed_type
+                  expr_value = gep
+                } else {
+                  // For pointer to scalar: load the value
+                  let loaded_value = self.builder.createLoad(
+                    elem_llvm_type, gep,
+                  )
+                  expr_type = pointed_type
+                  expr_value = loaded_value
+                }
             }
           }
           Array(elem_type, _) => {
@@ -3124,12 +3146,22 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 expr_type = ptr_to_elem
                 expr_value = gep
               }
-              _ => {
-                // For scalar elements, load the value
-                let loaded_value = self.builder.createLoad(elem_llvm_type, gep)
-                expr_type = elem_type
-                expr_value = loaded_value
-              }
+              _ =>
+                // For scalar elements in arrays:
+                // If this expression has dot access anywhere in its suffixes,
+                // we may need to return address instead of value
+                if has_dot_access {
+                  // Return address for potential subsequent dot access
+                  expr_type = elem_type
+                  expr_value = gep
+                } else {
+                  // For scalar elements, load the value
+                  let loaded_value = self.builder.createLoad(
+                    elem_llvm_type, gep,
+                  )
+                  expr_type = elem_type
+                  expr_value = loaded_value
+                }
             }
           }
           _ =>
@@ -3223,6 +3255,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               expr_type,
             )
+            // Ensure expr_value is a pointer for GEP instruction
             let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
@@ -3233,7 +3266,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
           }
           _ =>
             raise CodeGenError::UnSupportFeature(
-              "Dot access only supported on struct types",
+              "Dot access only supported on struct types, got \{expr_type}",
             )
         }
       ArrowAccess(field_name) =>
@@ -3257,7 +3290,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               Struct(struct_name, field_types),
             )
-            // expr_value is already a pointer value, use it directly for GEP
+            // expr_value is the pointer value, use it directly for GEP
             let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
@@ -3656,8 +3689,32 @@ fn FuncCodeGenContext::emit_while(
 
   // Convert condition to boolean if needed
   let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
-    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-    self.builder.createICmpNE(cond_val, zero)
+    match cond_type {
+      Ptr(_) => {
+        // For pointers, convert to integer first, then compare with zero
+        let ptr_as_int = self.builder.createPtrToInt(
+          cond_val,
+          self.global_ctx.llvm_ctx.getInt64Ty(),
+        )
+        let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
+        self.builder.createICmpNE(ptr_as_int, zero)
+      }
+      Int(_) | UInt(_) => {
+        // For integers, compare with zero
+        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+        self.builder.createICmpNE(cond_val, zero)
+      }
+      FP(_) => {
+        // For floating point, compare with zero
+        let zero = self.global_ctx.llvm_ctx.getConstDouble(0.0)
+        self.builder.createFCmpONE(cond_val, zero)
+      }
+      _ => {
+        // Default: treat as integer
+        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+        self.builder.createICmpNE(cond_val, zero)
+      }
+    }
   } else {
     cond_val
   }
