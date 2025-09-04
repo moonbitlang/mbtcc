@@ -622,7 +622,7 @@ fn lex_string_literal(code : @string.View) -> (Token, @string.View, Int) raise {
       char_count += 1 // 结束的引号
       break rest_str
     }
-    [.."\\0", .. rest_str] => {
+    [.. "\\0", .. rest_str] => {
       str.push('\u0000')
       char_count += 2 // \0 是2个字符
       continue rest_str
@@ -669,7 +669,7 @@ fn lex_string_literal(code : @string.View) -> (Token, @string.View, Int) raise {
 fn lex_char_literal(code : @string.View) -> (Token, @string.View, Int) raise {
   guard code is ['\'', .. code]
   match code {
-    [.."\\0", '\'', .. rest_str] => (Constant(Char('\u0000')), rest_str, 3) // '\0' 的长度是3个字符
+    [.. "\\0", '\'', .. rest_str] => (Constant(Char('\u0000')), rest_str, 3) // '\0' 的长度是3个字符
     [.. "\\n", '\'', .. rest_str] => (Constant(Char('\n')), rest_str, 4) // '\n' 的长度是4个字符
     [.. "\\r", '\'', .. rest_str] => (Constant(Char('\r')), rest_str, 4) // '\r' 的长度是4个字符
     [.. "\\t", '\'', .. rest_str] => (Constant(Char('\t')), rest_str, 4) // '\t' 的长度是4个字符

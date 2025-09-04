@@ -37,4 +37,3 @@ pub fn[V] Env::contains(self : Env[V], name : String) -> Bool {
       }
   }
 }
-

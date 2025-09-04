@@ -1,4 +1,3 @@
-
 ///|
 fn CodeGenContext::evaluate_constant_conditional(
   self : Self,
@@ -34,9 +33,9 @@ fn CodeGenContext::evaluate_constant_logical_and(
 ) -> Int raise CodeGenError {
   let { exprs } = log_and_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_inclusive_or(e) })
-  let result = loop (expr_vals) {
-    ([v1, v2, ..rest]) => continue ([(v1 != 0 && v2 != 0).to_int(), ..rest])
-    ([v]) => break v
+  let result = loop expr_vals {
+    [v1, v2, .. rest] => continue [(v1 != 0 && v2 != 0).to_int(), ..rest]
+    [v] => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions")
   }
   result
@@ -49,9 +48,9 @@ fn CodeGenContext::evaluate_constant_inclusive_or(
 ) -> Int raise CodeGenError {
   let { exprs } = incl_or_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_exclusive_or(e) })
-  let result = loop (expr_vals) {
-    ([v1, v2, ..rest]) => continue ([(v1 | v2), ..rest])
-    ([v]) => break v
+  let result = loop expr_vals {
+    [v1, v2, .. rest] => continue [v1 | v2, ..rest]
+    [v] => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions")
   }
   result
@@ -64,9 +63,9 @@ fn CodeGenContext::evaluate_constant_exclusive_or(
 ) -> Int raise CodeGenError {
   let { exprs } = excl_or_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_and(e) })
-  let result = loop (expr_vals) {
-    ([v1, v2, ..rest]) => continue ([(v1 ^ v2), ..rest])
-    ([v]) => break v
+  let result = loop expr_vals {
+    [v1, v2, .. rest] => continue [v1 ^ v2, ..rest]
+    [v] => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions")
   }
   result
@@ -79,9 +78,9 @@ fn CodeGenContext::evaluate_constant_and(
 ) -> Int raise CodeGenError {
   let { exprs } = and_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_equality(e) })
-  let result = loop (expr_vals) {
-    ([v1, v2, ..rest]) => continue ([(v1 & v2), ..rest])
-    ([v]) => break v
+  let result = loop expr_vals {
+    [v1, v2, .. rest] => continue [v1 & v2, ..rest]
+    [v] => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions")
   }
   result
@@ -95,8 +94,10 @@ fn CodeGenContext::evaluate_constant_equality(
   let { exprs, ops } = eq_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_relational(e) })
   let result = loop (expr_vals, ops[:]) {
-    ([v1, v2, ..rest], [EQ, ..ops]) => continue ([(v1 == v2).to_int(), ..rest], ops)
-    ([v1, v2, ..rest], [NE, ..ops]) => continue ([(v1 != v2).to_int(), ..rest], ops)
+    ([v1, v2, .. rest], [EQ, .. ops]) =>
+      continue ([(v1 == v2).to_int(), ..rest], ops)
+    ([v1, v2, .. rest], [NE, .. ops]) =>
+      continue ([(v1 != v2).to_int(), ..rest], ops)
     ([v], []) => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions and operators")
   }
@@ -111,13 +112,13 @@ fn CodeGenContext::evaluate_constant_relational(
   let { exprs, ops } = rel_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_shift(e) })
   let result = loop (expr_vals, ops[:]) {
-    ([v1, v2, ..rest], [LT, ..ops]) =>
+    ([v1, v2, .. rest], [LT, .. ops]) =>
       continue ([(v1 < v2).to_int(), ..rest], ops)
-    ([v1, v2, ..rest], [GT, ..ops]) =>
+    ([v1, v2, .. rest], [GT, .. ops]) =>
       continue ([(v1 > v2).to_int(), ..rest], ops)
-    ([v1, v2, ..rest], [LE, ..ops]) =>
+    ([v1, v2, .. rest], [LE, .. ops]) =>
       continue ([(v1 <= v2).to_int(), ..rest], ops)
-    ([v1, v2, ..rest], [GE, ..ops]) =>
+    ([v1, v2, .. rest], [GE, .. ops]) =>
       continue ([(v1 >= v2).to_int(), ..rest], ops)
     ([v], []) => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions and operators")
@@ -133,8 +134,8 @@ fn CodeGenContext::evaluate_constant_shift(
   let { exprs, ops } = shift_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_addsub(e) })
   let result = loop (expr_vals, ops[:]) {
-    ([v1, v2, ..rest], [Shl, ..ops]) => continue ([v1 << v2, ..rest], ops)
-    ([v1, v2, ..rest], [Shr, ..ops]) => continue ([v1 >> v2, ..rest], ops)
+    ([v1, v2, .. rest], [Shl, .. ops]) => continue ([v1 << v2, ..rest], ops)
+    ([v1, v2, .. rest], [Shr, .. ops]) => continue ([v1 >> v2, ..rest], ops)
     ([v], []) => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions and operators")
   }
@@ -149,8 +150,8 @@ fn CodeGenContext::evaluate_constant_addsub(
   let { exprs, ops } = add_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_mult(e) })
   let result = loop (expr_vals, ops[:]) {
-    ([v1, v2, ..rest], [Add, ..ops]) => continue ([v1 + v2, ..rest], ops)
-    ([v1, v2, ..rest], [Sub, ..ops]) => continue ([v1 - v2, ..rest], ops)
+    ([v1, v2, .. rest], [Add, .. ops]) => continue ([v1 + v2, ..rest], ops)
+    ([v1, v2, .. rest], [Sub, .. ops]) => continue ([v1 - v2, ..rest], ops)
     ([v], []) => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions and operators")
   }
@@ -165,16 +166,13 @@ fn CodeGenContext::evaluate_constant_mult(
   let { exprs, ops } = mult_expr
   let expr_vals = exprs.map(fn(e) { self.evaluate_constant_cast(e) })
   let result = loop (expr_vals, ops[:]) {
-    ([v1, v2, ..rest], [Mult, ..ops]) =>
-      continue ([v1 * v2, ..rest], ops)
+    ([v1, v2, .. rest], [Mult, .. ops]) => continue ([v1 * v2, ..rest], ops)
     ([_, 0, ..], [Div, ..]) =>
       raise CodeGenError::SyntaxError("Division by zero in constant expression")
-    ([v1, v2, ..rest], [Div, ..ops]) =>
-      continue ([v1 / v2, ..rest], ops)
+    ([v1, v2, .. rest], [Div, .. ops]) => continue ([v1 / v2, ..rest], ops)
     ([_, 0, ..], [Mod, ..]) =>
       raise CodeGenError::SyntaxError("Modulo by zero in constant expression")
-    ([v1, v2, ..rest], [Mod, ..ops]) =>
-      continue ([v1 % v2, ..rest], ops)
+    ([v1, v2, .. rest], [Mod, .. ops]) => continue ([v1 % v2, ..rest], ops)
     ([v], []) => break v
     _ => raise CodeGenError::SyntaxError("Mismatched expressions and operators")
   }
@@ -258,6 +256,20 @@ fn CodeGenContext::evaluate_constant_primary(
             "Only integer constants supported in array sizes",
           )
       }
+    Identifier(name) =>
+      // Check if it's a macro constant
+      match self.typedef_env.get(name) {
+        Some(Type::Int(value)) => value
+        Some(Type::UInt(value)) => value
+        Some(_) =>
+          raise CodeGenError::SyntaxError(
+            "Identifier '\{name}' does not evaluate to an integer constant",
+          )
+        None =>
+          raise CodeGenError::SyntaxError(
+            "Undefined identifier '\{name}' in constant expression",
+          )
+      }
     ParenExpr(expr) => {
       if expr.exprs.length() != 1 {
         raise CodeGenError::UnSupportFeature(
@@ -268,7 +280,7 @@ fn CodeGenContext::evaluate_constant_primary(
     }
     _ =>
       raise CodeGenError::UnSupportFeature(
-        "Only integer constants supported in array sizes",
+        "Only integer constants and identifiers supported in array sizes",
       )
   }
 }

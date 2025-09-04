@@ -132,7 +132,6 @@ fn CodeGenContext::analysis_declarator_type_for_struct(
   declarator : Declarator,
   base_type : Type,
 ) -> (String, Type) raise {
-  ignore(self)
   let mut result_type = base_type
 
   // Handle pointer in declarator
@@ -148,11 +147,58 @@ fn CodeGenContext::analysis_declarator_type_for_struct(
 
   // Handle direct declarator (arrays, functions, etc.)
   // For struct fields, we mainly care about arrays and pointers
-  match declarator.directDeclarator {
-    Identifier(id) => (id, result_type)
+  result_type = self.analysis_direct_declarator_type_for_struct(
+    declarator.directDeclarator,
+    result_type,
+  )
+
+  // Get identifier name from direct declarator
+  let field_name = declarator.directDeclarator.get_ident()
+  (field_name, result_type)
+}
+
+///|
+fn CodeGenContext::analysis_direct_declarator_type_for_struct(
+  self : Self,
+  direct_declarator : DirectDeclarator,
+  base_type : Type,
+) -> Type raise {
+  match direct_declarator {
+    Identifier(_) => base_type
+    Array(inner_declarator, _type_quals, size_expr) => {
+      // Handle array declarator in struct field: int arr[5]
+      let element_type = self.analysis_direct_declarator_type_for_struct(
+        inner_declarator, base_type,
+      )
+      let array_size = match size_expr {
+        Some(assign_expr) =>
+          // Evaluate constant array size expression
+          self.evaluate_constant_expr(assign_expr)
+        None =>
+          raise CodeGenError::UnSupportFeature(
+            "Variable length arrays are not supported in struct fields",
+          )
+      }
+      Array(element_type, array_size)
+    }
+    StaticArray(inner_declarator, _type_quals, size_expr) => {
+      // Handle static array declarator
+      let element_type = self.analysis_direct_declarator_type_for_struct(
+        inner_declarator, base_type,
+      )
+      let array_size = self.evaluate_constant_expr(size_expr)
+      Array(element_type, array_size)
+    }
+    Parenthesized(inner_decl) => {
+      // For parenthesized declarators, analyze the full declarator
+      let (_, field_type) = self.analysis_declarator_type_for_struct(
+        inner_decl, base_type,
+      )
+      field_type
+    }
     _ =>
       raise CodeGenError::UnSupportFeature(
-        "Only simple identifiers are supported in struct field declarators.",
+        "Unsupported declarator type in struct field: functions and complex declarators not supported",
       )
   }
 }
@@ -1646,6 +1692,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(
     if i == logical_and_exprs.length() - 1 {
       // Last expression, just jump to end
       let _ = self.builder.createBr(end_bb)
+
     } else {
       // Create next continue block
       let next_bb = self.func_value.addBasicBlock(name="or.continue.\{i}")
@@ -1714,6 +1761,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(
     if i == inclusive_or_exprs.length() - 1 {
       // Last expression, just jump to end
       let _ = self.builder.createBr(end_bb)
+
     } else {
       // Create next continue block
       let next_bb = self.func_value.addBasicBlock(name="and.continue.\{i}")
@@ -2825,7 +2873,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
   }
   let mut expr_type = expr_type_init
   let mut expr_value = expr_value_init
-  
+
   // Track if current expr_value is an address (lvalue) or value (rvalue)
   let mut is_lvalue = has_increment_decrement || has_dot_access
 
@@ -3000,9 +3048,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
-            let loaded_value = self.builder.createLoad(field_llvm_type, gep)
-            expr_type = field_type
-            expr_value = loaded_value
+            match field_type {
+              Array(elem_type, _) => {
+                // For array fields, return pointer to first element (array decay)
+                expr_type = Ptr(elem_type)
+                expr_value = gep
+              }
+              _ => {
+                // For non-array fields, load the value
+                let loaded_value = self.builder.createLoad(field_llvm_type, gep)
+                expr_type = field_type
+                expr_value = loaded_value
+              }
+            }
           }
           _ =>
             raise CodeGenError::UnSupportFeature(
@@ -3035,18 +3093,29 @@ fn FuncCodeGenContext::emit_postfix_expr(
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
-            
-            expr_type = field_type
-            // Check if we need the address for subsequent operations
-            if has_increment_decrement {
-              // For increment/decrement, we need the address, not the value
-              expr_value = gep
-              is_lvalue = true
-            } else {
-              // For other operations, load the value
-              let loaded_value = self.builder.createLoad(field_llvm_type, gep)
-              expr_value = loaded_value
-              is_lvalue = false
+            match field_type {
+              Array(elem_type, _) => {
+                // For array fields, return pointer to first element (array decay)
+                expr_type = Ptr(elem_type)
+                expr_value = gep
+                is_lvalue = false // Arrays decay to pointers, so they're rvalues
+              }
+              _ => {
+                expr_type = field_type
+                // Check if we need the address for subsequent operations
+                if has_increment_decrement {
+                  // For increment/decrement, we need the address, not the value
+                  expr_value = gep
+                  is_lvalue = true
+                } else {
+                  // For other operations, load the value
+                  let loaded_value = self.builder.createLoad(
+                    field_llvm_type, gep,
+                  )
+                  expr_value = loaded_value
+                  is_lvalue = false
+                }
+              }
             }
           }
           _ =>
@@ -3203,9 +3272,7 @@ fn FuncCodeGenContext::emit_prim_expr(
         "Builtin offsetof not implemented yet",
       )
     GCCExtBlock(_) =>
-      raise CodeGenError::UnSupportFeature(
-        "GCC extension blocks not supported",
-      )
+      raise CodeGenError::UnSupportFeature("GCC extension blocks not supported")
   }
 }
 

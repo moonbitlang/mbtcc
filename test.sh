@@ -54,6 +54,7 @@ passing_tests=(
   "hash_table.c"
   "bfs.c"
   "stack.c"
+  "queue.c"
   "lcs.c"
 )
 
