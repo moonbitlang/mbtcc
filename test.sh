@@ -54,6 +54,7 @@ passing_tests=(
   "hash_table.c"
   "bfs.c"
   "stack.c"
+  "lcs.c"
 )
 
 # Clean up and create the temporary directory

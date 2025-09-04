@@ -614,7 +614,7 @@ fn CodeGenContext::analysis_global_direct_declarator_type(
       let array_size = match size_expr {
         Some(assign_expr) =>
           // Evaluate constant array size expression
-          self.evaluate_global_constant_expr(assign_expr)
+          self.evaluate_constant_expr(assign_expr)
         None =>
           raise CodeGenError::UnSupportFeature(
             "Variable length arrays are not supported",
@@ -635,275 +635,6 @@ fn CodeGenContext::analysis_global_direct_declarator_type(
       self.analysis_global_declarator_type(inner_declarator, base_type)
     _ =>
       raise CodeGenError::UnSupportFeature("Unsupported direct declarator type")
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_expr(
-  self : Self,
-  assign_expr : AssignExpr,
-) -> Int raise CodeGenError {
-  // Simple constant expression evaluator for array sizes
-  match assign_expr {
-    Conditional(cond_expr) =>
-      self.evaluate_global_constant_conditional(cond_expr)
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only simple constant expressions supported for array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_conditional(
-  self : Self,
-  cond_expr : ConditionalExpr,
-) -> Int raise CodeGenError {
-  let { expr, select } = cond_expr
-  if select is Some(_) {
-    raise CodeGenError::UnSupportFeature(
-      "Conditional expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_logical_or(expr)
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_logical_or(
-  self : Self,
-  log_or_expr : LogicalOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_logical_and(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_logical_and(
-  self : Self,
-  log_and_expr : LogicalAndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_inclusive_or(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_inclusive_or(
-  self : Self,
-  incl_or_expr : InclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = incl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_exclusive_or(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_exclusive_or(
-  self : Self,
-  excl_or_expr : ExclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = excl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_and(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_and(
-  self : Self,
-  and_expr : AndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_equality(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_equality(
-  self : Self,
-  eq_expr : EqualityExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = eq_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex equality expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_relational(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_relational(
-  self : Self,
-  rel_expr : RelationalExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = rel_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex relational expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_shift(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_shift(
-  self : Self,
-  shift_expr : ShiftExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = shift_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex shift expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_addsub(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_addsub(
-  self : Self,
-  add_expr : AddSubExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = add_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex arithmetic expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_mult(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_mult(
-  self : Self,
-  mult_expr : MultExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = mult_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex multiplication expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_cast(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_cast(
-  self : Self,
-  cast_expr : CastExpr,
-) -> Int raise CodeGenError {
-  match cast_expr {
-    UnaryExpr(unary_expr) => self.evaluate_global_constant_unary(unary_expr)
-    Cast(_, _) =>
-      raise CodeGenError::UnSupportFeature(
-        "Cast expressions not supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_unary(
-  self : Self,
-  unary_expr : UnaryExpr,
-) -> Int raise CodeGenError {
-  if !unary_expr.prefix.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Unary prefix operators not supported in array sizes",
-    )
-  }
-  self.evaluate_global_constant_unary_body(unary_expr.body)
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_unary_body(
-  self : Self,
-  unary_body : UnaryExprBody,
-) -> Int raise CodeGenError {
-  match unary_body {
-    PostFix(postfix_expr) => self.evaluate_global_constant_postfix(postfix_expr)
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only simple postfix expressions supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_postfix(
-  self : Self,
-  post_expr : PostFixExpr,
-) -> Int raise CodeGenError {
-  if !post_expr.suffixes.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Postfix operators not supported in array sizes",
-    )
-  }
-  match post_expr.head {
-    Left(prim_expr) => self.evaluate_global_constant_primary(prim_expr)
-    Right(_) =>
-      raise CodeGenError::UnSupportFeature(
-        "Compound literals not supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_global_constant_primary(
-  self : Self,
-  prim_expr : PrimExpr,
-) -> Int raise CodeGenError {
-  match prim_expr {
-    Constant(constant) =>
-      match constant {
-        Int(value) => value
-        Long(value) => value.to_int()
-        UInt(value) => value.reinterpret_as_int()
-        ULong(value) => value.reinterpret_as_int64().to_int()
-        _ =>
-          raise CodeGenError::UnSupportFeature(
-            "Only integer constants supported in array sizes",
-          )
-      }
-    ParenExpr(expr) => {
-      if expr.exprs.length() != 1 {
-        raise CodeGenError::UnSupportFeature(
-          "Complex parenthesized expressions not supported in array sizes",
-        )
-      }
-      match expr.exprs[0] {
-        Conditional(cond_expr) =>
-          self.evaluate_global_constant_conditional(cond_expr)
-        _ =>
-          raise CodeGenError::UnSupportFeature(
-            "Only constant expressions supported in array sizes",
-          )
-      }
-    }
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only integer constants supported in array sizes",
-      )
   }
 }
 
@@ -1895,8 +1626,8 @@ fn FuncCodeGenContext::emit_logical_or_expr(
   }
 
   // Store the result and check if we should short-circuit
-  ignore(self.builder.createStore(bool_val, result_alloca))
-  ignore(self.builder.createCondBr(bool_val, end_bb, continue_bb))
+  let _ = self.builder.createStore(bool_val, result_alloca)
+  let _ = self.builder.createCondBr(bool_val, end_bb, continue_bb)
 
   // Continue block for remaining expressions
   let mut current_bb = continue_bb
@@ -1911,14 +1642,14 @@ fn FuncCodeGenContext::emit_logical_or_expr(
     }
 
     // Store the result
-    ignore(self.builder.createStore(bool_val, result_alloca))
+    let _ = self.builder.createStore(bool_val, result_alloca)
     if i == logical_and_exprs.length() - 1 {
       // Last expression, just jump to end
-      ignore(self.builder.createBr(end_bb))
+      let _ = self.builder.createBr(end_bb)
     } else {
       // Create next continue block
       let next_bb = self.func_value.addBasicBlock(name="or.continue.\{i}")
-      ignore(self.builder.createCondBr(bool_val, end_bb, next_bb))
+      let _ = self.builder.createCondBr(bool_val, end_bb, next_bb)
       current_bb = next_bb
     }
   }
@@ -1979,14 +1710,14 @@ fn FuncCodeGenContext::emit_logical_and_expr(
     }
 
     // Store the result
-    ignore(self.builder.createStore(bool_val, result_alloca))
+    let _ = self.builder.createStore(bool_val, result_alloca)
     if i == inclusive_or_exprs.length() - 1 {
       // Last expression, just jump to end
-      ignore(self.builder.createBr(end_bb))
+      let _ = self.builder.createBr(end_bb)
     } else {
       // Create next continue block
       let next_bb = self.func_value.addBasicBlock(name="and.continue.\{i}")
-      ignore(self.builder.createCondBr(bool_val, next_bb, end_bb))
+      let _ = self.builder.createCondBr(bool_val, next_bb, end_bb)
       current_bb = next_bb
     }
   }
@@ -4207,257 +3938,12 @@ fn CodeGenContext::evaluate_constant_expr(
   assign_expr : AssignExpr,
 ) -> Int raise CodeGenError {
   // Simple constant expression evaluator for array sizes
+  // impl of evaluate_constant_conditional is in `constant.mbt`
   match assign_expr {
     Conditional(cond_expr) => self.evaluate_constant_conditional(cond_expr)
     _ =>
       raise CodeGenError::UnSupportFeature(
         "Only simple constant expressions supported for array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_constant_conditional(
-  self : Self,
-  cond_expr : ConditionalExpr,
-) -> Int raise CodeGenError {
-  let { expr, select } = cond_expr
-  if select is Some(_) {
-    raise CodeGenError::UnSupportFeature(
-      "Conditional expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_logical_or(expr)
-}
-
-///|
-fn CodeGenContext::evaluate_constant_logical_or(
-  self : Self,
-  log_or_expr : LogicalOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_logical_and(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_logical_and(
-  self : Self,
-  log_and_expr : LogicalAndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = log_and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex logical expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_inclusive_or(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_inclusive_or(
-  self : Self,
-  incl_or_expr : InclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = incl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_exclusive_or(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_exclusive_or(
-  self : Self,
-  excl_or_expr : ExclusiveOrExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = excl_or_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_and(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_and(
-  self : Self,
-  and_expr : AndExpr,
-) -> Int raise CodeGenError {
-  let { exprs } = and_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex bitwise expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_equality(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_equality(
-  self : Self,
-  eq_expr : EqualityExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = eq_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex equality expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_relational(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_relational(
-  self : Self,
-  rel_expr : RelationalExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = rel_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex relational expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_shift(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_shift(
-  self : Self,
-  shift_expr : ShiftExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = shift_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex shift expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_addsub(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_addsub(
-  self : Self,
-  add_expr : AddSubExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = add_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex arithmetic expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_mult(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_mult(
-  self : Self,
-  mult_expr : MultExpr,
-) -> Int raise CodeGenError {
-  let { exprs, ops } = mult_expr
-  if exprs.length() != 1 {
-    raise CodeGenError::UnSupportFeature(
-      "Complex multiplication expressions not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_cast(exprs[0])
-}
-
-///|
-fn CodeGenContext::evaluate_constant_cast(
-  self : Self,
-  cast_expr : CastExpr,
-) -> Int raise CodeGenError {
-  match cast_expr {
-    UnaryExpr(unary_expr) => self.evaluate_constant_unary(unary_expr)
-    Cast(_, _) =>
-      raise CodeGenError::UnSupportFeature(
-        "Cast expressions not supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_constant_unary(
-  self : Self,
-  unary_expr : UnaryExpr,
-) -> Int raise CodeGenError {
-  if !unary_expr.prefix.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Unary prefix operators not supported in array sizes",
-    )
-  }
-  self.evaluate_constant_unary_body(unary_expr.body)
-}
-
-///|
-fn CodeGenContext::evaluate_constant_unary_body(
-  self : Self,
-  unary_body : UnaryExprBody,
-) -> Int raise CodeGenError {
-  match unary_body {
-    PostFix(postfix_expr) => self.evaluate_constant_postfix(postfix_expr)
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only simple postfix expressions supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_constant_postfix(
-  self : Self,
-  post_expr : PostFixExpr,
-) -> Int raise CodeGenError {
-  if !post_expr.suffixes.is_empty() {
-    raise CodeGenError::UnSupportFeature(
-      "Postfix operators not supported in array sizes",
-    )
-  }
-  match post_expr.head {
-    Left(prim_expr) => self.evaluate_constant_primary(prim_expr)
-    Right(_) =>
-      raise CodeGenError::UnSupportFeature(
-        "Compound literals not supported in array sizes",
-      )
-  }
-}
-
-///|
-fn CodeGenContext::evaluate_constant_primary(
-  self : Self,
-  prim_expr : PrimExpr,
-) -> Int raise CodeGenError {
-  match prim_expr {
-    Constant(constant) =>
-      match constant {
-        Int(value) => value
-        Long(value) => value.to_int()
-        UInt(value) => value.reinterpret_as_int()
-        ULong(value) => value.reinterpret_as_int64().to_int()
-        _ =>
-          raise CodeGenError::UnSupportFeature(
-            "Only integer constants supported in array sizes",
-          )
-      }
-    ParenExpr(expr) => {
-      if expr.exprs.length() != 1 {
-        raise CodeGenError::UnSupportFeature(
-          "Complex parenthesized expressions not supported in array sizes",
-        )
-      }
-      self.evaluate_constant_expr(expr.exprs[0])
-    }
-    _ =>
-      raise CodeGenError::UnSupportFeature(
-        "Only integer constants supported in array sizes",
       )
   }
 }
