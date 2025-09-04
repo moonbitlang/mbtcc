@@ -2862,11 +2862,10 @@ fn FuncCodeGenContext::emit_postfix_expr(
           Identifier(name) =>
             // Check if this is a pointer parameter that needs special handling
             match self.var_env.get(name) {
-              Some((Ptr(_), _, false)) => {
+              Some((Ptr(_), _, false)) =>
                 // This is a pointer parameter stored in alloca
                 // Even with dot access, we need to load the pointer first for array indexing
                 self.emit_prim_expr(prim_expr)
-              }
               _ => self.emit_prim_expr_as_lvalue(prim_expr)
             }
           _ => self.emit_prim_expr_as_lvalue(prim_expr)
@@ -2942,11 +2941,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
               index_value, // Index into array
             ])
             match elem_type {
-              Array(_, _) => {
-                // If element is also an array, decay to pointer
-                let ptr_to_elem = Ptr(elem_type)
-                expr_type = ptr_to_elem
-                expr_value = gep
+              Array(inner_elem_type, _) => {
+                // If element is also an array, decay to pointer to the inner element type
+                // For char strs[][16], strs[0] should be char*, not char(*)[16]
+                let ptr_to_inner = Ptr(inner_elem_type)
+                expr_type = ptr_to_inner
+
+                // Need an additional GEP to get pointer to first element of the sub-array
+                let sub_array_gep = self.builder.createGEP(
+                  gep,
+                  elem_llvm_type,
+                  [self.global_ctx.llvm_ctx.getConstInt32(0)], // First element of sub-array
+                )
+                expr_value = sub_array_gep
               }
               _ =>
                 // For scalar elements in arrays:
@@ -3219,11 +3226,10 @@ fn FuncCodeGenContext::emit_prim_expr(
             Some((global_var, global_type)) =>
               // For global variables, return the global variable itself (which is a pointer)
               match global_type {
-                Array(elem_type, _) => {
+                Array(elem_type, _) =>
                   // For global arrays, don't decay to pointer immediately
                   // Keep the array type so GEP can use correct indexing
                   (global_type, global_var)
-                }
                 _ =>
                   // For other global variables, return them as lvalue addresses
                   (global_type, global_var)
@@ -4127,30 +4133,75 @@ fn FuncCodeGenContext::analysis_direct_declarator_type_with_initializer(
   base_type : Type,
   initializer : Initializer?,
 ) -> Type raise CodeGenError {
+  // Helper function to collect dimensions and handle proper ordering
+  self.build_array_type_recursive(direct_declarator, base_type, initializer)
+}
+
+///|
+fn FuncCodeGenContext::build_array_type_recursive(
+  self : Self,
+  direct_declarator : DirectDeclarator,
+  base_type : Type,
+  initializer : Initializer?,
+) -> Type raise CodeGenError {
   match direct_declarator {
-    Identifier(_) => base_type
-    Array(inner_declarator, _type_quals, size_expr) => {
-      // Handle array declarator: int arr[5] or int arr[] = {...}
-      let element_type = self.analysis_direct_declarator_type_with_initializer(
-        inner_declarator,
-        base_type,
-        None,
-      )
-      let array_size = match size_expr {
-        Some(assign_expr) =>
-          // Evaluate constant array size expression
-          self.evaluate_constant_expr(assign_expr)
-        None =>
-          // Infer size from initializer if available
-          match initializer {
-            Some(init) => self.count_initializer_elements(init)
-            None =>
-              raise CodeGenError::UnSupportFeature(
-                "Array declaration without size and without initializer",
-              )
+    Array(_, _, _) => {
+      // Collect all array dimensions in a list
+      let dimensions : Array[Int] = []
+      let mut current_declarator = direct_declarator
+      let mut remaining_initializer = initializer
+
+      // Extract all array dimensions from nested AST
+      while true {
+        match current_declarator {
+          Identifier(_) => break
+          Array(inner_declarator, _, size_expr) => {
+            let dimension_size = match size_expr {
+              Some(assign_expr) =>
+                // Evaluate constant array size expression
+                self.evaluate_constant_expr(assign_expr)
+              None =>
+                // Infer size from initializer if available
+                match remaining_initializer {
+                  Some(init) => {
+                    let size = self.count_initializer_elements(init)
+                    remaining_initializer = None // Mark initializer as used
+                    size
+                  }
+                  None =>
+                    raise CodeGenError::UnSupportFeature(
+                      "Array declaration without size and without initializer",
+                    )
+                }
+            }
+            dimensions.push(dimension_size)
+            current_declarator = inner_declarator
           }
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Complex declarators not yet supported",
+            )
+        }
       }
-      Array(element_type, array_size)
+
+      // Now build the type with dimensions in reverse order
+      // dimensions[0] is the rightmost dimension in C syntax (should be innermost in type)  
+      // dimensions[n-1] is the leftmost dimension in C syntax (should be outermost in type)
+      let mut result_type = base_type
+      for i = 0; i < dimensions.length(); i = i + 1 {
+        let size = dimensions[i]
+        result_type = Array(result_type, size)
+      }
+
+      // Special handling for string arrays: convert char[][] to char*[]
+      // This is a temporary fix to make string literals work
+      match result_type {
+        Array(Array(Int(8), _), outer_size) =>
+          // This is a 2D char array, likely for strings
+          // Convert to array of char pointers for easier handling
+          Array(Ptr(Int(8)), outer_size)
+        _ => result_type
+      }
     }
     StaticArray(inner_declarator, _type_quals, _size_expr) => {
       // Handle static array declarator
@@ -4167,6 +4218,7 @@ fn FuncCodeGenContext::analysis_direct_declarator_type_with_initializer(
       self.analysis_declarator_type_with_initializer(
         inner_declarator, base_type, initializer,
       )
+    Identifier(_) => base_type
     _ =>
       raise CodeGenError::UnSupportFeature("Unsupported direct declarator type")
   }
