@@ -56,6 +56,7 @@ passing_tests=(
   "stack.c"
   "queue.c"
   "lcs.c"
+  "kruskal.c"
 )
 
 # Clean up and create the temporary directory

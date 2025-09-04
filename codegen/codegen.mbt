@@ -2856,7 +2856,21 @@ fn FuncCodeGenContext::emit_postfix_expr(
         self.emit_prim_expr(prim_expr)
       } else if has_increment_decrement || has_dot_access {
         // For ++/-- operators or dot access, we need the lvalue (address) of the head
-        self.emit_prim_expr_as_lvalue(prim_expr)
+        // However, for pointer types, we should first check if this is a pointer parameter
+        // that needs to be loaded before proceeding with array access
+        match prim_expr {
+          Identifier(name) =>
+            // Check if this is a pointer parameter that needs special handling
+            match self.var_env.get(name) {
+              Some((Ptr(_), _, false)) => {
+                // This is a pointer parameter stored in alloca
+                // Even with dot access, we need to load the pointer first for array indexing
+                self.emit_prim_expr(prim_expr)
+              }
+              _ => self.emit_prim_expr_as_lvalue(prim_expr)
+            }
+          _ => self.emit_prim_expr_as_lvalue(prim_expr)
+        }
       } else if has_function_call {
         // For function calls, don't evaluate the head as an rvalue yet
         // We'll handle it in the Call suffix processing
@@ -3206,9 +3220,9 @@ fn FuncCodeGenContext::emit_prim_expr(
               // For global variables, return the global variable itself (which is a pointer)
               match global_type {
                 Array(elem_type, _) => {
-                  // For global arrays, decay to pointer to first element
-                  let ptr_type = Ptr(elem_type)
-                  (ptr_type, global_var)
+                  // For global arrays, don't decay to pointer immediately
+                  // Keep the array type so GEP can use correct indexing
+                  (global_type, global_var)
                 }
                 _ =>
                   // For other global variables, return them as lvalue addresses
