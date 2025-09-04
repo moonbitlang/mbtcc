@@ -1,18 +1,5 @@
 #include "test.h"
 
-
-void bubble_sort(int arr[], int n) {
-  for (int i = 0; i < n - 1; i++) {
-    for (int j = 0; j < n - i - 1; j++) {
-      if (arr[j] > arr[j + 1]) {
-        int temp = arr[j];
-        arr[j] = arr[j + 1];
-        arr[j + 1] = temp;
-      }
-    }
-  }
-}
-
 int partition(int arr[], int low, int high) {
     int pivot = arr[high];
     int i = (low - 1);
@@ -44,14 +31,11 @@ void print_array(int arr[], int n) {
   }
 }
 
-int main() {
-  int arr[5] = { 5, 3, 4 , 1, 2 };
-  bubble_sort(arr, 5);
-  print_array(arr, 5);
 
-  int arr2[6] = { 5, 2, 6, 1, 4, 3 };
-  quick_sort(arr2, 0, 5);
-  print_array(arr2, 6);
+int main() {
+  int arr[6] = { 5, 2, 6, 1, 4, 3 };
+  quick_sort(arr, 0, 5);
+  print_array(arr, 6);
   printf("\n");
   return 0;
 }
