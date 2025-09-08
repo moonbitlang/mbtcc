@@ -824,8 +824,8 @@ pub fn CodeGenContext::emit_declaration(
                     )
                     self.llvm_mod.addGlobalVariable(
                       llvm_type,
+                      var_name,
                       initializer=zero_init,
-                      name=var_name,
                     )
                   }
                   Ptr(_) => {
@@ -844,25 +844,25 @@ pub fn CodeGenContext::emit_declaration(
                     )
                     self.llvm_mod.addGlobalVariable(
                       llvm_type,
+                      var_name,
                       initializer=null_init,
-                      name=var_name,
                     )
                   }
                   _ =>
                     // For other element types, create without initializer for now
-                    self.llvm_mod.addGlobalVariable(llvm_type, name=var_name)
+                    self.llvm_mod.addGlobalVariable(llvm_type, var_name)
                 }
               Int(_) => {
                 let zero_init = self.llvm_ctx.getConstInt32(0)
                 self.llvm_mod.addGlobalVariable(
                   llvm_type,
+                  var_name,
                   initializer=zero_init,
-                  name=var_name,
                 )
               }
               _ =>
                 // For other types, create without initializer for now
-                self.llvm_mod.addGlobalVariable(llvm_type, name=var_name)
+                self.llvm_mod.addGlobalVariable(llvm_type, var_name)
             }
 
             // Add to global variable environment
