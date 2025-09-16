@@ -2,6 +2,6 @@
   "import" : [
     "Kaida-Amethyst/mbtcc/parser",
     "Kaida-Amethyst/mbtcc/env",
-    "Kaida-Amethyst/llvm/IR"
+    "Kaida-Amethyst/MoonLLVm/IR"
   ]
 }

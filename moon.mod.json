@@ -4,12 +4,7 @@
   "deps": {
     "moonbitlang/x": "0.4.31",
     "Kaida-Amethyst/MoonLLVM": "0.1.4",
-    "Kaida-Amethyst/llvm": {
-      "path": "../llvm.mbt"
-    },
-    "Kaida-Amethyst/path" : {
-      "path": "../path.mbt"
-    }
+    "Kaida-Amethyst/path": "0.1.0"
   },
   "readme": "README.md",
   "repository": "",
@@ -17,5 +12,5 @@
   "keywords": [],
   "description": "",
   "source": ".",
-  "preferred-target" : "native"
+  "preferred-target": "native"
 }
