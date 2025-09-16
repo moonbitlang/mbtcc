@@ -76,7 +76,6 @@ fn CodeGenContext::convert_type_to_llvm(
           // Try both packed and unpacked to see what's happening
           let llvm_struct_type = self.llvm_ctx.getStructType(
             llvm_field_types,
-            name=full_struct_name,
             isPacked=false, // Test: try unpacked
           )
           // Cache the LLVM struct type
@@ -1672,10 +1671,9 @@ fn FuncCodeGenContext::emit_logical_or_expr(
   // Create result variable and basic blocks
   let result_alloca = self.builder.createAlloca(
     self.global_ctx.llvm_ctx.getInt1Ty(),
-    name="or_result",
   )
-  let continue_bb = self.func_value.addBasicBlock(name="or.continue")
-  let end_bb = self.func_value.addBasicBlock(name="or.end")
+  let continue_bb = self.func_value.addBasicBlock()
+  let end_bb = self.func_value.addBasicBlock()
 
   // Evaluate first expression
   let (first_ty, first_val) = self.emit_logical_and_expr(logical_and_exprs[0])
@@ -1710,7 +1708,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(
 
     } else {
       // Create next continue block
-      let next_bb = self.func_value.addBasicBlock(name="or.continue.\{i}")
+      let next_bb = self.func_value.addBasicBlock()
       let _ = self.builder.createCondBr(bool_val, end_bb, next_bb)
       current_bb = next_bb
     }
@@ -1741,10 +1739,9 @@ fn FuncCodeGenContext::emit_logical_and_expr(
   // Create result variable and basic blocks
   let result_alloca = self.builder.createAlloca(
     self.global_ctx.llvm_ctx.getInt1Ty(),
-    name="and_result",
   )
-  let continue_bb = self.func_value.addBasicBlock(name="and.continue")
-  let end_bb = self.func_value.addBasicBlock(name="and.end")
+  let continue_bb = self.func_value.addBasicBlock()
+  let end_bb = self.func_value.addBasicBlock()
 
   // Evaluate first expression
   let (first_ty, first_val) = self.emit_inclusive_or_expr(inclusive_or_exprs[0])
@@ -1779,7 +1776,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(
 
     } else {
       // Create next continue block
-      let next_bb = self.func_value.addBasicBlock(name="and.continue.\{i}")
+      let next_bb = self.func_value.addBasicBlock()
       let _ = self.builder.createCondBr(bool_val, next_bb, end_bb)
       current_bb = next_bb
     }
@@ -3548,10 +3545,10 @@ fn FuncCodeGenContext::emit_while(
   stmt : Statement,
 ) -> Unit raise {
   // Create basic blocks for the while loop with unique names
-  let block_id = self.get_next_block_id()
-  let cond_bb = self.func_value.addBasicBlock(name="while.cond.\{block_id}")
-  let body_bb = self.func_value.addBasicBlock(name="while.body.\{block_id}")
-  let exit_bb = self.func_value.addBasicBlock(name="while.exit.\{block_id}")
+  //let block_id = self.get_next_block_id()
+  let cond_bb = self.func_value.addBasicBlock()
+  let body_bb = self.func_value.addBasicBlock()
+  let exit_bb = self.func_value.addBasicBlock()
 
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
@@ -3636,10 +3633,10 @@ fn FuncCodeGenContext::emit_for(
 
   // Create basic blocks for the for loop with unique names
   let block_id = self.get_next_block_id()
-  let cond_bb = self.func_value.addBasicBlock(name="for.cond.\{block_id}")
-  let body_bb = self.func_value.addBasicBlock(name="for.body.\{block_id}")
-  let inc_bb = self.func_value.addBasicBlock(name="for.inc.\{block_id}")
-  let exit_bb = self.func_value.addBasicBlock(name="for.exit.\{block_id}")
+  let cond_bb = self.func_value.addBasicBlock()
+  let body_bb = self.func_value.addBasicBlock()
+  let inc_bb =  self.func_value.addBasicBlock()
+  let exit_bb = self.func_value.addBasicBlock()
 
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
@@ -3735,9 +3732,9 @@ fn FuncCodeGenContext::emit_selection_statement(
 
       // Generate unique names for basic blocks
       let block_id = self.get_next_block_id()
-      let then_bb = self.func_value.addBasicBlock(name="if.then.\{block_id}")
-      let else_bb = self.func_value.addBasicBlock(name="if.else.\{block_id}")
-      let merge_bb = self.func_value.addBasicBlock(name="if.merge.\{block_id}")
+      let then_bb =  self.func_value.addBasicBlock()
+      let else_bb =  self.func_value.addBasicBlock()
+      let merge_bb = self.func_value.addBasicBlock()
 
       // Create conditional branch
       ignore(self.builder.createCondBr(bool_cond, then_bb, else_bb))
@@ -3788,9 +3785,8 @@ fn FuncCodeGenContext::emit_switch_statement(
   // Generate unique names for basic blocks
   let block_id = self.get_next_block_id()
   let default_bb = self.func_value.addBasicBlock(
-    name="switch.default.\{block_id}",
   )
-  let exit_bb = self.func_value.addBasicBlock(name="switch.exit.\{block_id}")
+  let exit_bb = self.func_value.addBasicBlock()
 
   // Create the switch instruction
   let switch_inst = self.builder.createSwitch(switch_val, default_bb)
@@ -3846,20 +3842,18 @@ fn FuncCodeGenContext::collect_switch_cases(
           Case(const_expr, _) => {
             // Evaluate the case constant
             let (_, case_value) = self.emit_conditional_expr(const_expr)
-            let case_bb = self.func_value.addBasicBlock(
-              name="switch.case.\{case_value}.\{block_id}",
-            )
-            guard case_value.tryAsConst() is Some(case_value) else {
+            let case_bb = self.func_value.addBasicBlock()
+            guard case_value.tryAsConstant() is Some(case_value) else {
               raise CodeGenError::SyntaxError(
                 "Case label must be a constant integer",
               )
             }
-            guard case_value.asConstEnum() is ConstantInt(case_value) else {
+            guard case_value.asConstantEnum() is ConstantInt(case_value) else {
               raise CodeGenError::SyntaxError(
                 "Case label must be a constant integer",
               )
             }
-            let case_value = case_value.to_int()
+            let case_value = case_value.getValueAsInt64().to_int()
             case_blocks.push((case_value, case_bb))
           }
           Default(_) => has_default.val = true
@@ -3901,17 +3895,17 @@ fn FuncCodeGenContext::emit_switch_body(
                 // Switch to the appropriate case block
                 //let case_value = self.evaluate_case_constant(const_expr)
                 let (_, case_value) = self.emit_conditional_expr(const_expr)
-                guard case_value.tryAsConst() is Some(case_value) else {
+                guard case_value.tryAsConstant() is Some(case_value) else {
                   raise CodeGenError::SyntaxError(
                     "Case label must be a constant integer",
                   )
                 }
-                guard case_value.asConstEnum() is ConstantInt(case_value) else {
+                guard case_value.asConstantEnum() is ConstantInt(case_value) else {
                   raise CodeGenError::SyntaxError(
                     "Case label must be a constant integer",
                   )
                 }
-                let case_value = case_value.to_int()
+                let case_value = case_value.getValueAsInt64().to_int()
                 let case_bb = case_map.get(case_value).unwrap()
                 self.builder.setInsertPoint(case_bb)
                 current_bb = Some(case_bb)
@@ -4265,7 +4259,6 @@ fn FuncCodeGenContext::emit_decl(
         let array_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
         let array_alloca = self.builder.createAlloca(
           array_llvm_type,
-          name=var_name,
         )
 
         // Array variable: store the original array type in environment
@@ -4274,7 +4267,7 @@ fn FuncCodeGenContext::emit_decl(
       }
       _ => {
         let llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
-        let alloca = self.builder.createAlloca(llvm_type, name=var_name)
+        let alloca = self.builder.createAlloca(llvm_type)
         (llvm_type, var_type, alloca, false)
       }
     }
