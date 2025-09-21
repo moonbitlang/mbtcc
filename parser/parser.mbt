@@ -1310,7 +1310,7 @@ pub enum AssignOp {
 //    ;
 
 ///|
-pub struct Expr {
+pub(all) struct Expr {
   exprs : Array[AssignExpr]
 } derive(Show, Eq)
 
