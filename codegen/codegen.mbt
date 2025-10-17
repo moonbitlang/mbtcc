@@ -3758,8 +3758,14 @@ fn FuncCodeGenContext::emit_selection_statement(
         ignore(self.builder.createBr(merge_bb))
       }
 
+      if then_has_terminator && else_has_terminator {
+        // Both branches have terminators, no need for merge block
+        merge_bb.removeFromParent()
+      } else {
+        self.builder.setInsertPoint(merge_bb)
+      }
+
       // Continue with merge block
-      self.builder.setInsertPoint(merge_bb)
     }
     Switch(switch_expr, switch_stmt) =>
       self.emit_switch_statement(switch_expr, switch_stmt)
