@@ -98,7 +98,7 @@ pub suberror CodeGenError {
 } derive(Show)
 
 ///|
-struct CodeGenContext {
+pub struct CodeGenContext {
   external_decls : Array[ExternalDeclaration]
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
