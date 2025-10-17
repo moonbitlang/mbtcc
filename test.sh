@@ -41,6 +41,7 @@ passing_tests=(
   "struct3.c"
   "struct4.c"
   "arr_struct.c"
+  "struct_array.c"
   "sizeof.c"
   "fib.c"
   "linked_list.c"

@@ -3078,7 +3078,7 @@ test "EnumSpec Parsing Test" {
 }
 
 ///|
-pub struct Enumerator(String,ConstantExpr?) derive(Show, Eq)
+pub struct Enumerator(String, ConstantExpr?) derive(Show, Eq)
 
 ///|
 fn Enumerator::parse(

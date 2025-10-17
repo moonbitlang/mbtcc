@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 ///|
 traitalias @IR.Type as LLVMType
 
@@ -2903,7 +2902,8 @@ fn FuncCodeGenContext::emit_postfix_expr(
   let mut is_lvalue = has_increment_decrement || has_dot_access
 
   // Apply postfix operators in order (left to right)
-  for suffix in post_expr.suffixes {
+  for i, suffix in post_expr.suffixes.iter2() {
+    let is_last_suffix = i == post_expr.suffixes.length() - 1
     match suffix {
       Indexing(index_expr) => {
         // Array indexing: base[index]
@@ -2925,11 +2925,20 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 expr_type = Ptr(elem_type)
                 expr_value = gep
               }
-              _ =>
+              _ => {
                 // For pointer to scalar:
-                // Check if we need address for subsequent dot access
-                if has_dot_access {
-                  // Return address for potential subsequent dot access
+                // Check if we need address for subsequent operations
+                let has_subsequent_dot_access = !is_last_suffix &&
+                  post_expr.suffixes[i + 1:]
+                  .iter()
+                  .any(fn(s) {
+                    match s {
+                      DotAccess(_) => true
+                      _ => false
+                    }
+                  })
+                if has_subsequent_dot_access {
+                  // Return address for subsequent dot access
                   expr_type = pointed_type
                   expr_value = gep
                 } else {
@@ -2940,6 +2949,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   expr_type = pointed_type
                   expr_value = loaded_value
                 }
+              }
             }
           }
           Array(elem_type, _) => {
@@ -2967,12 +2977,20 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 )
                 expr_value = sub_array_gep
               }
-              _ =>
+              _ => {
                 // For scalar elements in arrays:
-                // If this expression has dot access anywhere in its suffixes,
-                // we may need to return address instead of value
-                if has_dot_access {
-                  // Return address for potential subsequent dot access
+                // Check if we need address for subsequent operations
+                let has_subsequent_dot_access = !is_last_suffix &&
+                  post_expr.suffixes[i + 1:]
+                  .iter()
+                  .any(fn(s) {
+                    match s {
+                      DotAccess(_) => true
+                      _ => false
+                    }
+                  })
+                if has_subsequent_dot_access {
+                  // Return address for subsequent dot access
                   expr_type = elem_type
                   expr_value = gep
                 } else {
@@ -2983,6 +3001,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   expr_type = elem_type
                   expr_value = loaded_value
                 }
+              }
             }
           }
           _ =>
@@ -3635,7 +3654,7 @@ fn FuncCodeGenContext::emit_for(
   let block_id = self.get_next_block_id()
   let cond_bb = self.func_value.addBasicBlock()
   let body_bb = self.func_value.addBasicBlock()
-  let inc_bb =  self.func_value.addBasicBlock()
+  let inc_bb = self.func_value.addBasicBlock()
   let exit_bb = self.func_value.addBasicBlock()
 
   // Jump to condition block
@@ -3732,8 +3751,8 @@ fn FuncCodeGenContext::emit_selection_statement(
 
       // Generate unique names for basic blocks
       let block_id = self.get_next_block_id()
-      let then_bb =  self.func_value.addBasicBlock()
-      let else_bb =  self.func_value.addBasicBlock()
+      let then_bb = self.func_value.addBasicBlock()
+      let else_bb = self.func_value.addBasicBlock()
       let merge_bb = self.func_value.addBasicBlock()
 
       // Create conditional branch
@@ -3757,7 +3776,6 @@ fn FuncCodeGenContext::emit_selection_statement(
       if !else_has_terminator {
         ignore(self.builder.createBr(merge_bb))
       }
-
       if then_has_terminator && else_has_terminator {
         // Both branches have terminators, no need for merge block
         merge_bb.removeFromParent()
@@ -3790,8 +3808,7 @@ fn FuncCodeGenContext::emit_switch_statement(
 
   // Generate unique names for basic blocks
   let block_id = self.get_next_block_id()
-  let default_bb = self.func_value.addBasicBlock(
-  )
+  let default_bb = self.func_value.addBasicBlock()
   let exit_bb = self.func_value.addBasicBlock()
 
   // Create the switch instruction
@@ -4263,9 +4280,7 @@ fn FuncCodeGenContext::emit_decl(
       Array(elem_type, size) => {
         // For array variables, allocate the array and store the pointer type in environment
         let array_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
-        let array_alloca = self.builder.createAlloca(
-          array_llvm_type,
-        )
+        let array_alloca = self.builder.createAlloca(array_llvm_type)
 
         // Array variable: store the original array type in environment
         // This is important for proper lvalue handling of array indexing

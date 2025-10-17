@@ -1,0 +1,67 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/codegen"
+
+import(
+  "Kaida-Amethyst/MoonLLVM/IR"
+  "Kaida-Amethyst/mbtcc/env"
+  "Kaida-Amethyst/mbtcc/parser"
+)
+
+// Values
+
+// Errors
+pub suberror CodeGenError {
+  SyntaxError(String)
+  UnSupportFeature(String)
+}
+fn CodeGenError::output(Self, &Logger) -> Unit // from trait `Show`
+fn CodeGenError::to_string(Self) -> String // from trait `Show`
+impl Show for CodeGenError
+
+// Types and methods
+pub struct CodeGenContext {
+  external_decls : Array[@parser.ExternalDeclaration]
+  llvm_ctx : @IR.Context
+  llvm_mod : @IR.Module
+  function_env : @env.Env[@IR.Function]
+  function_sig_env : @env.Env[(Type, Array[(String, Type)])]
+  global_var_env : @env.Env[(@IR.GlobalVariable, Type)]
+  typedef_env : @env.Env[Type]
+  struct_env : @env.Env[Type]
+  llvm_struct_env : @env.Env[&@IR.Type]
+  mut anon_struct_counter : Int
+}
+fn CodeGenContext::analysis_declspecs(Self, Array[@parser.DeclSpec]) -> Type raise
+fn CodeGenContext::dump(Self) -> Unit
+fn CodeGenContext::emit_declaration(Self, @parser.Declaration) -> Unit raise
+fn CodeGenContext::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise
+fn CodeGenContext::emit_function_definition(Self, @parser.FunctionDefinition) -> Unit raise
+fn CodeGenContext::from_parser(@parser.ParserContext) -> Self
+fn CodeGenContext::run(Self) -> Unit raise
+
+type FuncCodeGenContext
+fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value raise
+
+pub enum Type {
+  Void
+  Int(Int)
+  UInt(Int)
+  FP(Int)
+  Ptr(Type)
+  Array(Type, Int)
+  Struct(String, Array[(String, Type)])
+  Union(Array[(String, Type)])
+  Enum(Array[(String, Int64)])
+}
+fn Type::equal(Self, Self) -> Bool // from trait `Eq`
+#deprecated
+fn Type::op_equal(Self, Self) -> Bool // from trait `Eq`
+fn Type::output(Self, &Logger) -> Unit // from trait `Show`
+fn Type::to_string(Self) -> String // from trait `Show`
+impl Eq for Type
+impl Show for Type
+
+// Type aliases
+
+// Traits
+
