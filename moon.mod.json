@@ -4,7 +4,7 @@
   "deps": {
     "moonbitlang/x": "0.4.31",
     "Kaida-Amethyst/path": "0.1.1",
-    "Kaida-Amethyst/MoonLLVM": "0.1.7"
+    "Kaida-Amethyst/MoonLLVM": "0.1.8"
   },
   "readme": "README.md",
   "repository": "",
