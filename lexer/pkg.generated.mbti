@@ -1,0 +1,121 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/lexer"
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Context {
+  code : String
+  source_file : String
+  tokens : Array[Token]
+  err_toks : Array[Token]
+}
+fn Context::new(code~ : String, source_file~ : String) -> Self
+fn Context::tokenize(Self) -> Array[Token]
+
+pub enum Keyword {
+  Void
+  Char
+  Short
+  Int
+  Long
+  Float
+  Double
+  Signed
+  Unsigned
+  Bool
+  Complex
+  Imaginary
+  Auto
+  Register
+  Static
+  Extern
+  Typedef
+  Thread
+  ThreadLocal
+  If
+  Else
+  Switch
+  Case
+  Default
+  For
+  While
+  Do
+  Goto
+  Break
+  Continue
+  Return
+  Const
+  Volatile
+  Restrict
+  Atomic
+  Inline
+  Noreturn
+  Struct
+  Union
+  Enum
+  Sizeof
+  Typeof
+  Alignas
+  Alignof
+  StaticAssert
+  Generic
+  Attribute
+  BuiltinOffsetof
+}
+fn Keyword::equal(Self, Self) -> Bool // from trait `Eq`
+#deprecated
+fn Keyword::op_equal(Self, Self) -> Bool // from trait `Eq`
+fn Keyword::output(Self, &Logger) -> Unit // from trait `Show`
+fn Keyword::to_string(Self) -> String // from trait `Show`
+impl Eq for Keyword
+impl Show for Keyword
+
+pub struct Token {
+  kind : TokenKind
+  line : Int
+  column : Int
+  idx : Int
+  raw : String
+  err_msg : String
+}
+
+pub enum TokenKind {
+  Keyword(Keyword)
+  Bracket(Char)
+  Operator(String)
+  Comma
+  Dot
+  Arrow
+  Colon
+  Semi
+  Ellipsis
+  Question
+  Identifier(String)
+  Int(Int)
+  Long(Int64)
+  UInt(UInt)
+  ULong(UInt64)
+  Float(Float)
+  Double(Double)
+  Char(Char)
+  String(String)
+  ErrorChar(Char)
+  Hash
+  Hash2
+  EOF
+}
+fn TokenKind::equal(Self, Self) -> Bool // from trait `Eq`
+#deprecated
+fn TokenKind::op_equal(Self, Self) -> Bool // from trait `Eq`
+fn TokenKind::output(Self, &Logger) -> Unit // from trait `Show`
+fn TokenKind::to_string(Self) -> String // from trait `Show`
+impl Eq for TokenKind
+impl Show for TokenKind
+
+// Type aliases
+
+// Traits
+

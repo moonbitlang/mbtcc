@@ -1,23 +1,20 @@
-
+///|
 pub struct Context {
-  code: String
-  source_file: String
-  tokens: Array[Token]
-  err_toks: Array[Token]
+  code : String
+  source_file : String
+  tokens : Array[Token]
+  err_toks : Array[Token]
 }
 
-pub fn Context::new(code~: String, source_file~: String) -> Context {
-  Context::{
-    code,
-    source_file,
-    tokens: Array::new(),
-    err_toks: Array::new()
-  }
+///|
+pub fn Context::new(code~ : String, source_file~ : String) -> Context {
+  Context::{ code, source_file, tokens: Array::new(), err_toks: Array::new() }
 }
 
-pub fn Context::tokenize(self: Self) -> Array[Token] {
+///|
+pub fn Context::tokenize(self : Self) -> Array[Token] {
   let code = self.code[:]
-  let tokens: Array[Token] = self.tokens
+  let tokens : Array[Token] = self.tokens
   let mut line = 1
   let mut col = 1
   let mut idx = 0
@@ -26,351 +23,349 @@ pub fn Context::tokenize(self: Self) -> Array[Token] {
       tokens.push(Token::new(TokenKind::EOF, line, col, idx, ""))
       break
     }
-    [.."##", .. rest] => {
+    [.. "##", .. rest] => {
       tokens.push(Token::new(TokenKind::Hash2, line, col, idx, "##"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."#", ..rest] => {
+    [.. "#", .. rest] => {
       tokens.push(Token::new(TokenKind::Hash, line, col, idx, "#"))
       idx += 1
       col += 1
       continue rest
     }
-    ['\n', ..rest] => {
+    ['\n', .. rest] => {
       line += 1
       col = 1
       idx += 1
       continue rest
     }
-    [' '| '\t'| '\r', ..rest] => {
+    [' ' | '\t' | '\r', .. rest] => {
       idx += 1
       col += 1
       continue rest
     }
-    [.."//", ..rest] => {
+    [.. "//", .. rest] =>
       // Single line comment
       loop rest {
-        ['\n', ..rest2] => {
+        ['\n', .. rest2] => {
           line += 1
           col = 1
           idx += 1
           continue rest2
         }
-        [_ , ..rest2] => {
+        [_, .. rest2] => {
           idx += 1
           col += 1
           continue rest2
         }
         [] => break
       }
-    }
-    [.."/*", ..rest] => {
+    [.. "/*", .. rest] =>
       // Multi-line comment
       loop rest {
-        [.."*/", ..rest2] => {
+        [.. "*/", .. rest2] => {
           idx += 2
           col += 2
           continue rest2
         }
-        ['\n', ..rest2] => {
+        ['\n', .. rest2] => {
           line += 1
           col = 1
           idx += 1
           continue rest2
         }
-        [_ , ..rest2] => {
+        [_, .. rest2] => {
           idx += 1
           col += 1
           continue rest2
         }
         [] => break
       }
-    }
-    [.."<<=", ..rest] => {
+    [.. "<<=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("<<="), line, col, idx, "<<="))
       idx += 3
       col += 3
       continue rest
     }
-    [..">>=", ..rest] => {
+    [.. ">>=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator(">>="), line, col, idx, ">>="))
       idx += 3
       col += 3
       continue rest
     }
-    [.."&&=", ..rest] => {
+    [.. "&&=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("&&="), line, col, idx, "&&="))
       idx += 3
       col += 3
       continue rest
     }
-    [.."||=", ..rest] => {
+    [.. "||=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("||="), line, col, idx, "||="))
       idx += 3
       col += 3
       continue rest
     }
-    [.."...", ..rest] => {
+    [.. "...", .. rest] => {
       tokens.push(Token::new(TokenKind::Ellipsis, line, col, idx, "..."))
       idx += 3
       col += 3
       continue rest
     }
-    [.."&&", ..rest] => {
+    [.. "&&", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("&&"), line, col, idx, "&&"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."||", ..rest] => {
+    [.. "||", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("||"), line, col, idx, "||"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."<<", ..rest] => {
+    [.. "<<", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("<<"), line, col, idx, "<<"))
       idx += 2
       col += 2
       continue rest
     }
-    [..">>", ..rest] => {
+    [.. ">>", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator(">>"), line, col, idx, ">>"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."++", ..rest] => {
+    [.. "++", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("++"), line, col, idx, "++"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."--", ..rest] => {
+    [.. "--", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("--"), line, col, idx, "--"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."->", ..rest] => {
+    [.. "->", .. rest] => {
       tokens.push(Token::new(TokenKind::Arrow, line, col, idx, "->"))
       idx += 2
       col += 2
       continue rest
     }
-    [.."+=", ..rest] => {
+    [.. "+=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("+="), line, col, idx, "+="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."-=", ..rest] => {
+    [.. "-=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("-="), line, col, idx, "-="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."*=", ..rest] => {
+    [.. "*=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("*="), line, col, idx, "*="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."/=", ..rest] => {
+    [.. "/=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("/="), line, col, idx, "/="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."%=", ..rest] => {
+    [.. "%=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("%="), line, col, idx, "%="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."&=", ..rest] => {
+    [.. "&=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("&="), line, col, idx, "&="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."|=", ..rest] => {
+    [.. "|=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("|="), line, col, idx, "|="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."^=", ..rest] => {
+    [.. "^=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("^="), line, col, idx, "^="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."==", ..rest] => {
+    [.. "==", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("=="), line, col, idx, "=="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."!=", ..rest] => {
+    [.. "!=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("!="), line, col, idx, "!="))
       idx += 2
       col += 2
       continue rest
     }
-    [..">=", ..rest] => {
+    [.. ">=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator(">="), line, col, idx, ">="))
       idx += 2
       col += 2
       continue rest
     }
-    [.."<=", ..rest] => {
+    [.. "<=", .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("<="), line, col, idx, "<="))
       idx += 2
       col += 2
       continue rest
     }
-    ['(', ..rest] => {
+    ['(', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket('('), line, col, idx, "("))
       idx += 1
       col += 1
       continue rest
     }
-    [')', ..rest] => {
+    [')', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket(')'), line, col, idx, ")"))
       idx += 1
       col += 1
       continue rest
     }
-    ['[', ..rest] => {
+    ['[', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket('['), line, col, idx, "["))
       idx += 1
       col += 1
       continue rest
     }
-    [']', ..rest] => {
+    [']', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket(']'), line, col, idx, "]"))
       idx += 1
       col += 1
       continue rest
     }
-    ['{', ..rest] => {
+    ['{', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket('{'), line, col, idx, "{"))
       idx += 1
       col += 1
       continue rest
     }
-    ['}', ..rest] => {
+    ['}', .. rest] => {
       tokens.push(Token::new(TokenKind::Bracket('}'), line, col, idx, "}"))
       idx += 1
       col += 1
       continue rest
     }
-    [';', ..rest] => {
+    [';', .. rest] => {
       tokens.push(Token::new(TokenKind::Semi, line, col, idx, ";"))
       idx += 1
       col += 1
       continue rest
     }
-    [',', ..rest] => {
+    [',', .. rest] => {
       tokens.push(Token::new(TokenKind::Comma, line, col, idx, ","))
       idx += 1
       col += 1
       continue rest
     }
-    ['.', ..rest] => {
+    ['.', .. rest] => {
       tokens.push(Token::new(TokenKind::Dot, line, col, idx, "."))
       idx += 1
       col += 1
       continue rest
     }
-    ['?', ..rest] => {
+    ['?', .. rest] => {
       tokens.push(Token::new(TokenKind::Question, line, col, idx, "?"))
       idx += 1
       col += 1
       continue rest
     }
-    [':', ..rest] => {
+    [':', .. rest] => {
       tokens.push(Token::new(TokenKind::Colon, line, col, idx, ":"))
       idx += 1
       col += 1
       continue rest
     }
-    ['+', ..rest] => {
+    ['+', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("+"), line, col, idx, "+"))
       idx += 1
       col += 1
       continue rest
     }
-    ['-', ..rest] => {
+    ['-', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("-"), line, col, idx, "-"))
       idx += 1
       col += 1
       continue rest
     }
-    ['*', ..rest] => {
+    ['*', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("*"), line, col, idx, "*"))
       idx += 1
       col += 1
       continue rest
     }
-    ['/', ..rest] => {
+    ['/', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("/"), line, col, idx, "/"))
       idx += 1
       col += 1
       continue rest
     }
-    ['%', ..rest] => {
+    ['%', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("%"), line, col, idx, "%"))
       idx += 1
       col += 1
       continue rest
     }
-    ['|', ..rest] => {
+    ['|', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("|"), line, col, idx, "|"))
       idx += 1
       col += 1
       continue rest
     }
-    ['&', ..rest] => {
+    ['&', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("&"), line, col, idx, "&"))
       idx += 1
       col += 1
       continue rest
     }
-    ['^', ..rest] => {
+    ['^', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("^"), line, col, idx, "^"))
       idx += 1
       col += 1
       continue rest
     }
-    ['~', ..rest] => {
+    ['~', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("~"), line, col, idx, "~"))
       idx += 1
       col += 1
       continue rest
     }
-    ['=', ..rest] => {
+    ['=', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("="), line, col, idx, "="))
       idx += 1
       col += 1
       continue rest
     }
-    ['<', ..rest] => {
+    ['<', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("<"), line, col, idx, "<"))
       idx += 1
       col += 1
       continue rest
     }
-    ['>', ..rest] => {
+    ['>', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator(">"), line, col, idx, ">"))
       idx += 1
       col += 1
       continue rest
     }
-    ['!', ..rest] => {
+    ['!', .. rest] => {
       tokens.push(Token::new(TokenKind::Operator("!"), line, col, idx, "!"))
       idx += 1
       col += 1
@@ -408,7 +403,7 @@ pub fn Context::tokenize(self: Self) -> Array[Token] {
       col += token_len
       continue rest
     }
-    [c, ..rest] => {
+    [c, .. rest] => {
       let token_kind = TokenKind::ErrorChar(c)
       let err_msg = "Invalid character literal \{c}"
       let token = Token::new(token_kind, line, col, idx, "\{c}", err_msg~)
@@ -422,58 +417,63 @@ pub fn Context::tokenize(self: Self) -> Array[Token] {
   tokens
 }
 
+///|
 fn Context::lex_string_literal(
-  self: Self, code: StringView, line: Int, col: Int, idx: Int
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
 ) -> (Token, StringView) {
   guard code is ['"', .. code]  // skip first '"'
   let mut err_msg = ""
   let raw_str_builder = StringBuilder::new()
   let str_builder = StringBuilder::new()
   let rest = loop code {
-    ['"', ..rest_str] => {
+    ['"', .. rest_str] => {
       raw_str_builder.write_char('"')
       break rest_str
     }
-    [.."\\0", ..rest_str] => {
+    [.. "\\0", .. rest_str] => {
       raw_str_builder.write_char('\u0000')
       str_builder.write_char('\u0000')
       continue rest_str
     }
-    [.."\\n", ..rest_str] => {
+    [.. "\\n", .. rest_str] => {
       raw_str_builder.write_char('\n')
       str_builder.write_char('\n')
       continue rest_str
     }
-    [.."\\t", ..rest_str] => {
+    [.. "\\t", .. rest_str] => {
       raw_str_builder.write_char('\t')
       str_builder.write_char('\t')
       continue rest_str
     }
-    [.."\\r", ..rest_str] => {
+    [.. "\\r", .. rest_str] => {
       raw_str_builder.write_char('\r')
       str_builder.write_char('\r')
       continue rest_str
     }
-    [.."\\\"", ..rest_str] => {
+    [.. "\\\"", .. rest_str] => {
       raw_str_builder.write_char('"')
       str_builder.write_char('"')
       continue rest_str
     }
-    [.."\\\\", ..rest_str] => {
+    [.. "\\\\", .. rest_str] => {
       raw_str_builder.write_char('\\')
       str_builder.write_char('\\')
       continue rest_str
     }
-    [.."\\\'", ..rest_str] => {
+    [.. "\\\'", .. rest_str] => {
       raw_str_builder.write_string("\\\'")
       str_builder.write_string("\\\'")
       continue rest_str
     }
-    ['\n', ..rest_str] => {
+    ['\n', .. rest_str] => {
       err_msg = "Unterminated string literal"
       break rest_str // Unterminated string literal
     }
-    [c, ..rest_str] => {
+    [c, .. rest_str] => {
       raw_str_builder.write_char(c)
       str_builder.write_char(c)
       continue rest_str
@@ -494,35 +494,40 @@ fn Context::lex_string_literal(
   (token, rest)
 }
 
+///|
 fn Context::lex_char_literal(
-  self: Self, code: StringView, line: Int, col: Int, idx: Int
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
 ) -> (Token, StringView) {
   let raw_str_builder = StringBuilder::new()
   guard code is ['\'', .. code]  // skip first '\''
   raw_str_builder.write_char('\'')
   let mut err_msg = ""
   let (token_kind, rest) = match code {
-    [.."\\0", '\'', .. rest_str] => {
+    [.. "\\0", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\0'")
       (TokenKind::Char('\u0000'), rest_str)
     }
-    [.."\\n", '\'', .. rest_str] => {
+    [.. "\\n", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\n'")
       (TokenKind::Char('\n'), rest_str)
     }
-    [.."\\r", '\'', .. rest_str] => {
+    [.. "\\r", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\r'")
       (TokenKind::Char('\r'), rest_str)
     }
-    [.."\\t", '\'', .. rest_str] => {
+    [.. "\\t", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\t'")
       (TokenKind::Char('\t'), rest_str)
     }
-    [.."\\\'", '\'', .. rest_str] => {
+    [.. "\\\'", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\''")
       (TokenKind::Char('\''), rest_str)
     }
-    [.."\\\\", '\'', .. rest_str] => {
+    [.. "\\\\", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\\'")
       (TokenKind::Char('\\'), rest_str)
     }
@@ -531,12 +536,12 @@ fn Context::lex_char_literal(
       raw_str_builder.write_char('\'')
       (TokenKind::Char(c), rest_str)
     }
-    ['\'', ..rest_str] => {
+    ['\'', .. rest_str] => {
       raw_str_builder.write_char('\'')
       err_msg = "Empty char literal"
       (TokenKind::Char('\u0000'), rest_str)
     }
-    [c, ..rest_str] => {
+    [c, .. rest_str] => {
       raw_str_builder.write_char(c)
       err_msg = "Unterminated char literal"
       (TokenKind::Char('\u0000'), rest_str)
@@ -554,12 +559,22 @@ fn Context::lex_char_literal(
   (token, rest)
 }
 
+///|
 fn Context::lex_number_literal(
-  self: Self, code: StringView, line: Int, col: Int, idx: Int
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
 ) -> (Token, StringView) {
-  lexmatch code using longest {
+  lexmatch code with longest {
     // Case 1. Hexadecimal floating-point literal
-    (("0[xX]") ("([0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+)[pP][\+\-]?[0-9]+" as hf) ("[fFlL]?" as s), rest) => {
+    (
+      "0[xX]"
+      ("([0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+)[pP][\+\-]?[0-9]+" as hf)
+      ("[fFlL]?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(hf.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -580,7 +595,11 @@ fn Context::lex_number_literal(
       (token, rest)
     }
     // Case 2-1. Decimal floating-point literal with decimal point
-    (("([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([eE][\+\-]?[0-9]+)?" as df_dot) ("[fFlL]?" as s), rest) => {
+    (
+      ("([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([eE][\+\-]?[0-9]+)?" as df_dot)
+      ("[fFlL]?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(df_dot.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -618,9 +637,14 @@ fn Context::lex_number_literal(
         self.err_toks.push(token)
       }
       (token, rest)
-    } 
+    }
     // Case 3. Hexadecimal integer literal
-    (("0[xX]") ("[0-9a-fA-F]+" as h) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+    (
+      "0[xX]"
+      ("[0-9a-fA-F]+" as h)
+      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(h.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -642,7 +666,12 @@ fn Context::lex_number_literal(
       (token, rest)
     }
     // Case 4. Binary integer literal
-    (("0[bB]") ("[01]+" as b) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+    (
+      "0[bB]"
+      ("[01]+" as b)
+      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(b.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -664,7 +693,11 @@ fn Context::lex_number_literal(
       (token, rest)
     }
     // Case 5. Octal integer literal
-    (("0[0-7]+" as o) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+    (
+      ("0[0-7]+" as o)
+      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(o.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -686,7 +719,11 @@ fn Context::lex_number_literal(
       (token, rest)
     }
     // Case 6. Decimal integer literal
-    (("([1-9][0-9]*|0)" as d) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+    (
+      ("([1-9][0-9]*|0)" as d)
+      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
+      rest
+    ) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(d.to_string())
       raw_str_builder.write_string(s.to_string())
@@ -707,16 +744,21 @@ fn Context::lex_number_literal(
       }
       (token, rest)
     }
-    _ => { abort("") }
+    _ => abort("")
   }
 }
 
+///|
 fn Context::lex_identifier_or_keyword(
-  self: Self, code: StringView, line: Int, col: Int, idx: Int
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
 ) -> (Token, StringView) {
   ignore(self)
   lexmatch code {
-    (("[a-zA-Z_$][a-zA-Z0-9_$]*" as ident), rest) => {
+    ("[a-zA-Z_$][a-zA-Z0-9_$]*" as ident, rest) => {
       let raw_str = ident.to_string()
       let token_kind = match keywords.get(ident.to_string()) {
         Some(kw) => TokenKind::Keyword(kw)
@@ -725,6 +767,6 @@ fn Context::lex_identifier_or_keyword(
       let token = Token::new(token_kind, line, col, idx, raw_str)
       (token, rest)
     }
-    _ => { abort("") }
+    _ => abort("")
   }
 }

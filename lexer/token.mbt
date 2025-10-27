@@ -1,4 +1,4 @@
-
+///|
 pub enum Keyword {
   // Keywords
   Void
@@ -51,6 +51,7 @@ pub enum Keyword {
   BuiltinOffsetof // __builtin_offsetof
 } derive(Eq)
 
+///|
 pub impl Show for Keyword with output(self, logger) {
   match self {
     Void => logger.write_string("void")
@@ -131,7 +132,6 @@ pub enum TokenKind {
   Double(Double)
   Char(Char)
   String(String)
-
   ErrorChar(Char)
 
   // For Preprocessor
@@ -140,6 +140,7 @@ pub enum TokenKind {
   EOF
 } derive(Eq)
 
+///|
 pub impl Show for TokenKind with output(self, logger) {
   match self {
     Keyword(k) => logger.write_object(k)
@@ -168,29 +169,27 @@ pub impl Show for TokenKind with output(self, logger) {
   }
 }
 
+///|
 pub struct Token {
-  kind: TokenKind
-  line: Int
-  column: Int
-  idx: Int
-  raw: String
-  err_msg: String
+  kind : TokenKind
+  line : Int
+  column : Int
+  idx : Int
+  raw : String
+  err_msg : String
 }
 
+///|
 fn Token::new(
-  kind: TokenKind, line: Int, column: Int, idx: Int, raw: String,
-  err_msg?: String = ""
+  kind : TokenKind,
+  line : Int,
+  column : Int,
+  idx : Int,
+  raw : String,
+  err_msg? : String = "",
 ) -> Token {
-  Token::{
-    kind,
-    line,
-    column,
-    idx,
-    raw,
-    err_msg
-  }
+  Token::{ kind, line, column, idx, raw, err_msg }
 }
-
 
 ///|
 let keywords : Map[String, Keyword] = {

@@ -1,0 +1,45 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/parser"
+
+import(
+  "Kaida-Amethyst/mbtcc/lexer"
+)
+
+// Values
+
+// Errors
+pub suberror ParseError {
+  ParseError(@lexer.Token, String)
+}
+
+// Types and methods
+pub struct Context {
+  code : String
+  source_file : String
+  tokens : Array[@lexer.Token]
+}
+fn Context::from_lexer(@lexer.Context) -> Self
+fn Context::new(code~ : String, source_file~ : String) -> Self
+fn Context::parse_prim_expr(ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
+
+pub struct PrimExpr {
+  kind : PrimExprKind
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub enum PrimExprKind {
+  Ident(String)
+  Char(Char)
+  Int(Int)
+  UInt(UInt)
+  Long(Int64)
+  ULong(UInt64)
+  Float(Float)
+  Double(Double)
+  Strings(Array[String])
+}
+
+// Type aliases
+
+// Traits
+

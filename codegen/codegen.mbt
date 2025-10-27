@@ -1624,6 +1624,96 @@ pub fn FuncCodeGenContext::emit_cast(
 }
 
 ///|
+fn FuncCodeGenContext::const_zero_for(
+  self : Self,
+  ty : Type,
+  // Return a zero constant matching the given type as closely as possible
+) -> &LLVMValue {
+  match ty {
+    Int(1) | UInt(1) => self.global_ctx.llvm_ctx.getConstFalse() as &LLVMValue
+    Int(8) | UInt(8) => self.global_ctx.llvm_ctx.getConstInt8(0) as &LLVMValue
+    Int(16) | UInt(16) =>
+      self.global_ctx.llvm_ctx.getConstInt16(0) as &LLVMValue
+    Int(32) | UInt(32) =>
+      self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
+    Int(64) | UInt(64) =>
+      self.global_ctx.llvm_ctx.getConstInt64(0) as &LLVMValue
+    FP(32) => self.global_ctx.llvm_ctx.getConstFloat(0) as &LLVMValue
+    FP(64) => self.global_ctx.llvm_ctx.getConstDouble(0.0) as &LLVMValue
+    Ptr(_) => self.global_ctx.llvm_ctx.getConstInt64(0) as &LLVMValue // compare pointers via ptrtoint
+    _ => self.global_ctx.llvm_ctx.getConstInt32(0) as &LLVMValue
+  }
+}
+
+///|
+fn FuncCodeGenContext::to_bool(
+  self : Self,
+  ty : Type,
+  val : &LLVMValue,
+) -> &LLVMValue raise {
+  match ty {
+    // Already boolean
+    Int(1) | UInt(1) => val
+    // Integers: compare to zero with matching bit width
+    Int(_) | UInt(_) => {
+      let zero = self.const_zero_for(ty)
+      self.builder.createICmpNE(val, zero)
+    }
+    // Floating point: compare to 0.0
+    FP(_) => {
+      let zero = self.const_zero_for(ty)
+      self.builder.createFCmpONE(val, zero)
+    }
+    // Pointers: cast to i64 then compare to zero
+    Ptr(_) => {
+      let i64 = self.global_ctx.llvm_ctx.getInt64Ty()
+      let as_int = self.builder.createPtrToInt(val, i64)
+      let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
+      self.builder.createICmpNE(as_int, zero)
+    }
+    _ => {
+      // Fallback: cast to i32 and compare
+      let casted = self.emit_cast(from_type=ty, to_type=Int(32), val)
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      self.builder.createICmpNE(casted, zero)
+    }
+  }
+}
+
+///|
+fn FuncCodeGenContext::is_zero(
+  self : Self,
+  ty : Type,
+  val : &LLVMValue,
+) -> &LLVMValue raise {
+  match ty {
+    Int(1) | UInt(1) => {
+      let zero = self.global_ctx.llvm_ctx.getConstFalse()
+      self.builder.createICmpEQ(val, zero)
+    }
+    Int(_) | UInt(_) => {
+      let zero = self.const_zero_for(ty)
+      self.builder.createICmpEQ(val, zero)
+    }
+    FP(_) => {
+      let zero = self.const_zero_for(ty)
+      self.builder.createFCmpOEQ(val, zero)
+    }
+    Ptr(_) => {
+      let i64 = self.global_ctx.llvm_ctx.getInt64Ty()
+      let as_int = self.builder.createPtrToInt(val, i64)
+      let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
+      self.builder.createICmpEQ(as_int, zero)
+    }
+    _ => {
+      let casted = self.emit_cast(from_type=ty, to_type=Int(32), val)
+      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
+      self.builder.createICmpEQ(casted, zero)
+    }
+  }
+}
+
+///|
 fn FuncCodeGenContext::emit_conditional_expr(
   self : Self,
   cond_expr : ConditionalExpr,
@@ -1674,8 +1764,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(
   // Evaluate first expression
   let (first_ty, first_val) = self.emit_logical_and_expr(logical_and_exprs[0])
   let bool_val = if first_ty != Int(1) && first_ty != UInt(1) {
-    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-    self.builder.createICmpNE(first_val, zero)
+    self.to_bool(first_ty, first_val)
   } else {
     first_val
   }
@@ -1690,8 +1779,7 @@ fn FuncCodeGenContext::emit_logical_or_expr(
     self.builder.setInsertPoint(current_bb)
     let (ty, val) = self.emit_logical_and_expr(logical_and_exprs[i])
     let bool_val = if ty != Int(1) && ty != UInt(1) {
-      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-      self.builder.createICmpNE(val, zero)
+      self.to_bool(ty, val)
     } else {
       val
     }
@@ -1742,8 +1830,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(
   // Evaluate first expression
   let (first_ty, first_val) = self.emit_inclusive_or_expr(inclusive_or_exprs[0])
   let bool_val = if first_ty != Int(1) && first_ty != UInt(1) {
-    let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-    self.builder.createICmpNE(first_val, zero)
+    self.to_bool(first_ty, first_val)
   } else {
     first_val
   }
@@ -1758,8 +1845,7 @@ fn FuncCodeGenContext::emit_logical_and_expr(
     self.builder.setInsertPoint(current_bb)
     let (ty, val) = self.emit_inclusive_or_expr(inclusive_or_exprs[i])
     let bool_val = if ty != Int(1) && ty != UInt(1) {
-      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-      self.builder.createICmpNE(val, zero)
+      self.to_bool(ty, val)
     } else {
       val
     }
@@ -2751,33 +2837,10 @@ fn FuncCodeGenContext::emit_unary_expr_body(
                     "Bitwise NOT not supported for type \{operand_type}",
                   )
               }
-            LogicalNot =>
-              // Logical NOT: compare with zero
-              match operand_type {
-                Ptr(_) => {
-                  // For pointers, convert to integer first, then compare
-                  let ptr_as_int = self.builder.createPtrToInt(
-                    operand_value,
-                    self.global_ctx.llvm_ctx.getInt64Ty(),
-                  )
-                  let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
-                  let is_zero = self.builder.createICmpEQ(ptr_as_int, zero)
-                  (Int(1), is_zero)
-                }
-                FP(_) => {
-                  let zero = self.global_ctx.llvm_ctx.getConstDouble(0.0)
-                    as &LLVMValue
-                  let is_zero = self.builder.createFCmpOEQ(operand_value, zero)
-                  (Int(1), is_zero)
-                }
-                _ => {
-                  // For integers
-                  let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-                    as &LLVMValue
-                  let is_zero = self.builder.createICmpEQ(operand_value, zero)
-                  (Int(1), is_zero)
-                }
-              }
+            LogicalNot => {
+              let is_zero = self.is_zero(operand_type, operand_value)
+              (Int(1), is_zero)
+            }
           }
         }
       }
@@ -3575,32 +3638,7 @@ fn FuncCodeGenContext::emit_while(
 
   // Convert condition to boolean if needed
   let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
-    match cond_type {
-      Ptr(_) => {
-        // For pointers, convert to integer first, then compare with zero
-        let ptr_as_int = self.builder.createPtrToInt(
-          cond_val,
-          self.global_ctx.llvm_ctx.getInt64Ty(),
-        )
-        let zero = self.global_ctx.llvm_ctx.getConstInt64(0)
-        self.builder.createICmpNE(ptr_as_int, zero)
-      }
-      Int(_) | UInt(_) => {
-        // For integers, compare with zero
-        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-        self.builder.createICmpNE(cond_val, zero)
-      }
-      FP(_) => {
-        // For floating point, compare with zero
-        let zero = self.global_ctx.llvm_ctx.getConstDouble(0.0)
-        self.builder.createFCmpONE(cond_val, zero)
-      }
-      _ => {
-        // Default: treat as integer
-        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-        self.builder.createICmpNE(cond_val, zero)
-      }
-    }
+    self.to_bool(cond_type, cond_val)
   } else {
     cond_val
   }
@@ -3665,8 +3703,7 @@ fn FuncCodeGenContext::emit_for(
 
     // Convert condition to boolean if needed
     let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
-      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-      self.builder.createICmpNE(cond_val, zero)
+      self.to_bool(cond_type, cond_val)
     } else {
       cond_val
     }
@@ -3739,9 +3776,8 @@ fn FuncCodeGenContext::emit_selection_statement(
       let (cond_type, cond_val) = self.emit_expr(cond_expr)
 
       // Convert condition to boolean if needed
-      let bool_cond = if cond_type != Int(1) {
-        let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-        self.builder.createICmpNE(cond_val, zero)
+      let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
+        self.to_bool(cond_type, cond_val)
       } else {
         cond_val
       }

@@ -1,6 +1,6 @@
-
+///|
 test "Tokenize Keyword test" {
-  let code = 
+  let code =
     #|void char short int long float double signed
     #|unsigned _Bool _Complex _Imaginary auto register
     #|static extern typedef typeof __thread _Thread_local 
@@ -9,7 +9,6 @@ test "Tokenize Keyword test" {
     #|__restrict__ __restrict _Atomic atomic inline 
     #|__inline__ _Noreturn struct union enum sizeof _Alignas
     #|_Alignof _Static_assert _Generic __attribute__ __builtin_offsetof
-
   let lexer_ctx = Context::new(code~, source_file="demo")
   let tokens = lexer_ctx.tokenize()
   inspect(tokens.length(), content="53")
@@ -68,8 +67,9 @@ test "Tokenize Keyword test" {
   inspect(tokens[52].kind, content="<EOF>")
 }
 
+///|
 test "Tokenize Operator and Symbols Test" {
-  let code = 
+  let code =
     #| () [] {}
     #| + - * / % >> <<
     #| ++ -- ->
@@ -132,6 +132,7 @@ test "Tokenize Operator and Symbols Test" {
   inspect(tokens[48].kind, content="<EOF>")
 }
 
+///|
 test "Tokenize Identifier Test" {
   let code =
     #|myVar another_var _privateVar Var123 __init__ main
@@ -155,8 +156,9 @@ test "Tokenize Identifier Test" {
   inspect(tokens[12].kind, content="<EOF>")
 }
 
+///|
 test "Tokenize Number Literal Test" {
-  let code = 
+  let code =
     #|1 2 3 12 34 12345678
     #|0x1 0x2a 0xfF 0XABCDEF
     #|0b101 0B1101 0b11111111
@@ -205,11 +207,11 @@ test "Tokenize Number Literal Test" {
   inspect(tokens[32].kind, content="2.5")
   inspect(tokens[33].kind, content="3.5")
   inspect(tokens[34].kind, content="<EOF>")
-
 }
 
+///|
 test "Tokenize String Literal Test" {
-  let code = 
+  let code =
     #|"Hello, World!" "This is a test." ""
     #|"String with \n new line"
     #|"Escaped quote: \" inside"
@@ -220,20 +222,26 @@ test "Tokenize String Literal Test" {
   inspect(tokens[0].kind, content="Hello, World!")
   inspect(tokens[1].kind, content="This is a test.")
   inspect(tokens[2].kind, content="")
-  inspect(tokens[3].kind, content=(
-    
-    #|String with 
-    #| new line
-  ))
-  inspect(tokens[4].kind, content=(
-    #|Escaped quote: " inside
-  ))
+  inspect(
+    tokens[3].kind,
+    content=(
+      #|String with 
+      #| new line
+    ),
+  )
+  inspect(
+    tokens[4].kind,
+    content=(
+      #|Escaped quote: " inside
+    ),
+  )
   inspect(tokens[5].kind, content="Backslash: \\ inside")
   inspect(tokens[6].kind, content="<EOF>")
 }
 
+///|
 test "Tokenize Character Literal Test" {
-  let code = 
+  let code =
     #|'a' 'Z' '0' '\n' '\'' '"' '\\' '\0' '\t' '\r'
   let lexer_ctx = Context::new(code~, source_file="demo")
   let tokens = lexer_ctx.tokenize()

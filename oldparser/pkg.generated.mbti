@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Kaida-Amethyst/mbtcc/parser"
+package "Kaida-Amethyst/mbtcc/oldparser"
 
 import(
-  "Kaida-Amethyst/mbtcc/env"
+  "Kaida-Amethyst/mbtcc/oldenv"
 )
 
 // Values
@@ -612,7 +612,7 @@ pub struct ParserContext {
   code : String
   mut alltoks : Array[Token]
   mut tokinfos : Array[TokenInfo]
-  mut typedefs : @env.Env[Int]
+  mut typedefs : @oldenv.Env[Int]
   external_decls : Array[ExternalDeclaration]
 }
 fn ParserContext::create_by_code(String) -> Self

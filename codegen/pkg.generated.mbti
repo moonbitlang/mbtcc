@@ -3,8 +3,8 @@ package "Kaida-Amethyst/mbtcc/codegen"
 
 import(
   "Kaida-Amethyst/MoonLLVM/IR"
-  "Kaida-Amethyst/mbtcc/env"
-  "Kaida-Amethyst/mbtcc/parser"
+  "Kaida-Amethyst/mbtcc/oldenv"
+  "Kaida-Amethyst/mbtcc/oldparser"
 )
 
 // Values
@@ -20,23 +20,23 @@ impl Show for CodeGenError
 
 // Types and methods
 pub struct CodeGenContext {
-  external_decls : Array[@parser.ExternalDeclaration]
+  external_decls : Array[@oldparser.ExternalDeclaration]
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
-  function_env : @env.Env[@IR.Function]
-  function_sig_env : @env.Env[(Type, Array[(String, Type)])]
-  global_var_env : @env.Env[(@IR.GlobalVariable, Type)]
-  typedef_env : @env.Env[Type]
-  struct_env : @env.Env[Type]
-  llvm_struct_env : @env.Env[&@IR.Type]
+  function_env : @oldenv.Env[@IR.Function]
+  function_sig_env : @oldenv.Env[(Type, Array[(String, Type)])]
+  global_var_env : @oldenv.Env[(@IR.GlobalVariable, Type)]
+  typedef_env : @oldenv.Env[Type]
+  struct_env : @oldenv.Env[Type]
+  llvm_struct_env : @oldenv.Env[&@IR.Type]
   mut anon_struct_counter : Int
 }
-fn CodeGenContext::analysis_declspecs(Self, Array[@parser.DeclSpec]) -> Type raise
+fn CodeGenContext::analysis_declspecs(Self, Array[@oldparser.DeclSpec]) -> Type raise
 fn CodeGenContext::dump(Self) -> Unit
-fn CodeGenContext::emit_declaration(Self, @parser.Declaration) -> Unit raise
-fn CodeGenContext::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise
-fn CodeGenContext::emit_function_definition(Self, @parser.FunctionDefinition) -> Unit raise
-fn CodeGenContext::from_parser(@parser.ParserContext) -> Self
+fn CodeGenContext::emit_declaration(Self, @oldparser.Declaration) -> Unit raise
+fn CodeGenContext::emit_external_decl(Self, @oldparser.ExternalDeclaration) -> Unit raise
+fn CodeGenContext::emit_function_definition(Self, @oldparser.FunctionDefinition) -> Unit raise
+fn CodeGenContext::from_parser(@oldparser.ParserContext) -> Self
 fn CodeGenContext::run(Self) -> Unit raise
 
 type FuncCodeGenContext
@@ -50,7 +50,6 @@ pub enum Type {
   Ptr(Type)
   Array(Type, Int)
   Struct(String, Array[(String, Type)])
-  Union(Array[(String, Type)])
   Enum(Array[(String, Int64)])
 }
 fn Type::equal(Self, Self) -> Bool // from trait `Eq`
