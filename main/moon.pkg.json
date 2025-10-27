@@ -1,7 +1,10 @@
 {
   "is-main": true,
   "import": [
-    "Kaida-Amethyst/mbtcc/parser",
+    {
+      "path" : "Kaida-Amethyst/mbtcc/oldparser",
+      "alias" : "parser"
+    },
     "Kaida-Amethyst/mbtcc/codegen"
   ],
   "link" : {

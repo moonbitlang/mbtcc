@@ -462,6 +462,11 @@ fn Context::lex_string_literal(
       str_builder.write_char('\\')
       continue rest_str
     }
+    [.."\\\'", ..rest_str] => {
+      raw_str_builder.write_string("\\\'")
+      str_builder.write_string("\\\'")
+      continue rest_str
+    }
     ['\n', ..rest_str] => {
       err_msg = "Unterminated string literal"
       break rest_str // Unterminated string literal
@@ -515,6 +520,10 @@ fn Context::lex_char_literal(
       raw_str_builder.write_string("\\\''")
       (TokenKind::CharLit('\''), rest_str)
     }
+    [.."\\\\", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\\\'")
+      (TokenKind::CharLit('\\'), rest_str)
+    }
     [c, '\'', .. rest_str] => {
       raw_str_builder.write_char(c)
       raw_str_builder.write_char('\'')
@@ -546,13 +555,14 @@ fn Context::lex_char_literal(
 fn Context::lex_number_literal(
   self: Self, code: StringView, line: Int, col: Int, idx: Int
 ) -> (Token, StringView) {
-  lexmatch code {
+  lexmatch code using longest {
     // Case 1. Hexadecimal floating-point literal
-    (("0[xX]([0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+)[pP][\+\-]?[0-9]+" as hf) ("[fFlL]?" as s), rest) => {
+    (("0[xX]") ("([0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+)[pP][\+\-]?[0-9]+" as hf) ("[fFlL]?" as s), rest) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(hf.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
+      println("Hex float literal: '\{hf}'")
       let (number, err_msg) = match (try? @strconv.parse_double(hf)) {
         Ok(n) => (n, "")
         Err(_) => (0.0, "Invalid hexadecimal floating-point literal")
@@ -608,14 +618,14 @@ fn Context::lex_number_literal(
       (token, rest)
     } 
     // Case 3. Hexadecimal integer literal
-    (("0[xX][0-9a-fA-F]+" as h) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+    (("0[xX]") ("[0-9a-fA-F]+" as h) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(h.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
       let (number, err_msg) = match (try? @strconv.parse_uint(h, base=16)) {
         Ok(n) => (n, "")
-        Err(_) => (0, "Invalid hexadecimal integer literal")
+        Err(_) => (0, "Invalid hexadecimal integer literal\{h} ")
       }
       let token_kind = match s.to_lower() {
         "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
@@ -629,7 +639,29 @@ fn Context::lex_number_literal(
       }
       (token, rest)
     }
-    // Case 4. Octal integer literal
+    // Case 4. Binary integer literal
+    (("0[bB]") ("[01]+" as b) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
+      let raw_str_builder = StringBuilder::new()
+      raw_str_builder.write_string(b.to_string())
+      raw_str_builder.write_string(s.to_string())
+      let raw_str = raw_str_builder.to_string()
+      let (number, err_msg) = match (try? @strconv.parse_uint(b, base=2)) {
+        Ok(n) => (n, "")
+        Err(_) => (0, "Invalid binary integer literal")
+      }
+      let token_kind = match s.to_lower() {
+        "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
+        "ul" | "lu" | "u" => TokenKind::UIntLit(number)
+        "ll" | "l" => TokenKind::LongLit(number.to_int64())
+        _ => TokenKind::IntLit(number.reinterpret_as_int())
+      }
+      let token = Token::new(token_kind, line, col, idx, raw_str)
+      if !err_msg.is_empty() {
+        self.err_toks.push(token)
+      }
+      (token, rest)
+    }
+    // Case 5. Octal integer literal
     (("0[0-7]+" as o) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(o.to_string())
@@ -651,7 +683,7 @@ fn Context::lex_number_literal(
       }
       (token, rest)
     }
-    // Case 5. Decimal integer literal
+    // Case 6. Decimal integer literal
     (("([1-9][0-9]*|0)" as d) ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s), rest) => {
       let raw_str_builder = StringBuilder::new()
       raw_str_builder.write_string(d.to_string())

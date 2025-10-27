@@ -1,6 +1,9 @@
 {
   "import" : [
-    "Kaida-Amethyst/mbtcc/parser",
+    {  
+      "path":"Kaida-Amethyst/mbtcc/oldparser",
+      "alias": "parser"
+    },
     "Kaida-Amethyst/mbtcc/env",
     "Kaida-Amethyst/MoonLLVM/IR"
   ],
