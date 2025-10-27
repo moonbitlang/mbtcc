@@ -161,7 +161,8 @@ fn ParserContext::get_code_line(self : Self, codeidx : Int) -> String {
 
   // 提取代码行
   if line_start < line_end {
-    code.substring(start=line_start, end=line_end)
+    let s = try! code[line_start:line_end]
+    s.to_string()
   } else {
     ""
   }

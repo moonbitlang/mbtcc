@@ -627,7 +627,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
 }
 
 ///|
-fn lex_string_literal(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_string_literal(code : StringView) -> (Token, StringView, Int) raise {
   guard code is ['"', .. code]  // skip first '"'
   let str = Array::new()
   let mut char_count = 1 // 开始的引号
@@ -680,7 +680,7 @@ fn lex_string_literal(code : @string.View) -> (Token, @string.View, Int) raise {
 }
 
 ///|
-fn lex_char_literal(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_char_literal(code : StringView) -> (Token, StringView, Int) raise {
   guard code is ['\'', .. code]
   match code {
     [.. "\\0", '\'', .. rest_str] => (Constant(Char('\u0000')), rest_str, 3) // '\0' 的长度是3个字符
@@ -783,7 +783,7 @@ fn hex_char_value_from_int(char_code : Int) -> Int? {
 // @strconv.parse_double: (String, Int) -> Double, input is string and base, return an int
 
 ///|
-fn lex_number(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_number(code : StringView) -> (Token, StringView, Int) raise {
   match code {
     // 十六进制数字 (0x 或 0X 开头)
     [.. "0x", ..] | [.. "0X", ..] => lex_hex_number(code)
@@ -801,7 +801,7 @@ fn lex_number(code : @string.View) -> (Token, @string.View, Int) raise {
 // 解析十六进制数字（可能是整数或浮点数）
 
 ///|
-fn lex_hex_number(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_hex_number(code : StringView) -> (Token, StringView, Int) raise {
   let hex_digits = Array::new()
   let mut char_count = 2 // "0x" 或 "0X"
   let mut has_dot = false
@@ -927,7 +927,7 @@ fn lex_hex_number(code : @string.View) -> (Token, @string.View, Int) raise {
 // 解析八进制数字
 
 ///|
-fn lex_octal_number(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_octal_number(code : StringView) -> (Token, StringView, Int) raise {
   let octal_digits = Array::new()
   let mut char_count = 0
   let rest = loop code {
@@ -975,7 +975,7 @@ fn lex_octal_number(code : @string.View) -> (Token, @string.View, Int) raise {
 // 解析十进制数字（可能是整数或浮点数）
 
 ///|
-fn lex_decimal_number(code : @string.View) -> (Token, @string.View, Int) raise {
+fn lex_decimal_number(code : StringView) -> (Token, StringView, Int) raise {
   let digits = Array::new()
   let mut char_count = 0
   let mut has_dot = false
@@ -1101,7 +1101,7 @@ fn lex_decimal_number(code : @string.View) -> (Token, @string.View, Int) raise {
 // 解析整数后缀 (u, l, ul, etc.)
 
 ///|
-fn parse_integer_suffix(code : @string.View) -> (String, @string.View, Int) {
+fn parse_integer_suffix(code : StringView) -> (String, StringView, Int) {
   match code {
     [.. "LL", .. rest] => ("LL", rest, 2)
     [.. "ll", .. rest] => ("ll", rest, 2)
@@ -1122,7 +1122,7 @@ fn parse_integer_suffix(code : @string.View) -> (String, @string.View, Int) {
 // 解析浮点数后缀 (f, l)
 
 ///|
-fn parse_float_suffix(code : @string.View) -> (String, @string.View, Int) {
+fn parse_float_suffix(code : StringView) -> (String, StringView, Int) {
   match code {
     ['f' | 'F' | 'l' | 'L' as c, .. rest] => (String::from_array([c]), rest, 1)
     _ => ("", code, 0)
@@ -1186,7 +1186,7 @@ let keywords : Map[String, Token] = {
 }
 
 ///|
-fn lex_ident(code : @string.View) -> (Token, @string.View, Int) {
+fn lex_ident(code : StringView) -> (Token, StringView, Int) {
   let ident = Array::new()
   let rest_str = loop code {
     ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '$' as c, .. rest_str] => {

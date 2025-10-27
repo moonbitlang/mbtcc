@@ -1,0 +1,249 @@
+
+pub enum Keyword {
+  // Keywords
+  Void
+  Char
+  Short
+  Int
+  Long
+  Float
+  Double
+  Signed
+  Unsigned
+  Bool // _Bool
+  Complex // _Complex
+  Imaginary // _Imaginary
+  Auto
+  Register
+  Static
+  Extern
+  Typedef
+  Thread
+  ThreadLocal // _Thread_local
+  If
+  Else
+  Switch
+  Case
+  Default
+  For
+  While
+  Do
+  Goto
+  Break
+  Continue
+  Return
+  Const
+  Volatile
+  Restrict
+  Atomic
+  Inline
+  Noreturn // _Noreturn
+  Struct
+  Union
+  Enum
+  Sizeof
+  Typeof
+  Alignas // _Alignas
+  Alignof // _Alignof
+  StaticAssert // _Static_assert
+  Generic
+  Attribute // __attribute__
+  BuiltinOffsetof // __builtin_offsetof
+} derive(Eq)
+
+pub impl Show for Keyword with output(self, logger) {
+  match self {
+    Void => logger.write_string("void")
+    Char => logger.write_string("char")
+    Short => logger.write_string("short")
+    Int => logger.write_string("int")
+    Long => logger.write_string("long")
+    Float => logger.write_string("float")
+    Double => logger.write_string("double")
+    Signed => logger.write_string("signed")
+    Unsigned => logger.write_string("unsigned")
+    Bool => logger.write_string("_Bool")
+    Complex => logger.write_string("_Complex")
+    Imaginary => logger.write_string("_Imaginary")
+    Auto => logger.write_string("auto")
+    Register => logger.write_string("register")
+    Static => logger.write_string("static")
+    Extern => logger.write_string("extern")
+    Typedef => logger.write_string("typedef")
+    Thread => logger.write_string("__thread")
+    ThreadLocal => logger.write_string("_Thread_local")
+    If => logger.write_string("if")
+    Else => logger.write_string("else")
+    Switch => logger.write_string("switch")
+    Case => logger.write_string("case")
+    Default => logger.write_string("default")
+    For => logger.write_string("for")
+    While => logger.write_string("while")
+    Do => logger.write_string("do")
+    Goto => logger.write_string("goto")
+    Break => logger.write_string("break")
+    Continue => logger.write_string("continue")
+    Return => logger.write_string("return")
+    Const => logger.write_string("const")
+    Volatile => logger.write_string("volatile")
+    Restrict => logger.write_string("restrict")
+    Atomic => logger.write_string("atomic")
+    Inline => logger.write_string("inline")
+    Noreturn => logger.write_string("_Noreturn")
+    Struct => logger.write_string("struct")
+    Union => logger.write_string("union")
+    Enum => logger.write_string("enum")
+    Sizeof => logger.write_string("sizeof")
+    Typeof => logger.write_string("typeof")
+    Alignas => logger.write_string("_Alignas")
+    Alignof => logger.write_string("_Alignof")
+    StaticAssert => logger.write_string("_Static_assert")
+    Generic => logger.write_string("_Generic")
+    Attribute => logger.write_string("__attribute__")
+    BuiltinOffsetof => logger.write_string("__builtin_offsetof")
+  }
+}
+
+///|
+pub enum TokenKind {
+  Keyword(Keyword)
+
+  // Brackets
+  Bracket(Char) // (, ), [, ], {, }
+
+  // Operators
+  Operator(String)
+
+  // Symbols
+  Comma // ,
+  Dot // .
+  Arrow // ->
+  Colon // :
+  Semi // ;
+  Ellipsis // ...
+  Question // ?
+  Identifier(String)
+  IntLit(Int)
+  LongLit(Int64)
+  UIntLit(UInt)
+  ULongLit(UInt64)
+  FloatLit(Float)
+  DoubleLit(Double)
+  CharLit(Char)
+  StringLit(String)
+
+  ErrorChar(Char)
+
+  // For Preprocessor
+  Hash // #
+  Hash2 // ##
+  EOF
+} derive(Eq)
+
+pub impl Show for TokenKind with output(self, logger) {
+  match self {
+    Keyword(k) => logger.write_object(k)
+    Bracket(c) => logger.write_char(c)
+    Operator(op) => logger.write_string(op)
+    Comma => logger.write_string(",")
+    Dot => logger.write_string(".")
+    Arrow => logger.write_string("->")
+    Colon => logger.write_string(":")
+    Semi => logger.write_string(";")
+    Ellipsis => logger.write_string("...")
+    Question => logger.write_string("?")
+    Identifier(name) => logger.write_string(name)
+    IntLit(val) => logger.write_object(val)
+    LongLit(val) => logger.write_object(val)
+    UIntLit(val) => logger.write_object(val)
+    ULongLit(val) => logger.write_object(val)
+    FloatLit(val) => logger.write_object(val)
+    DoubleLit(val) => logger.write_object(val)
+    CharLit(c) => logger.write_char(c)
+    StringLit(s) => logger.write_string(s)
+    ErrorChar(c) => logger.write_char(c)
+    Hash => logger.write_string("#")
+    Hash2 => logger.write_string("##")
+    EOF => logger.write_string("<EOF>")
+  }
+}
+
+pub struct Token {
+  kind: TokenKind
+  line: Int
+  column: Int
+  idx: Int
+  raw: String
+  err_msg: String
+}
+
+fn Token::new(
+  kind: TokenKind, line: Int, column: Int, idx: Int, raw: String,
+  err_msg?: String = ""
+) -> Token {
+  Token::{
+    kind,
+    line,
+    column,
+    idx,
+    raw,
+    err_msg
+  }
+}
+
+
+///|
+let keywords : Map[String, Keyword] = {
+  "void": Void,
+  "char": Char,
+  "short": Short,
+  "int": Int,
+  "long": Long,
+  "float": Float,
+  "double": Double,
+  "signed": Signed,
+  "unsigned": Unsigned,
+  "_Bool": Bool,
+  "_Complex": Complex,
+  "_Imaginary": Imaginary,
+  "auto": Auto,
+  "register": Register,
+  "static": Static,
+  "extern": Extern,
+  "typedef": Typedef,
+  "typeof": Typeof,
+  "__thread": Thread,
+  "_Thread_local": ThreadLocal,
+  "if": If,
+  "else": Else,
+  "switch": Switch,
+  "case": Case,
+  "default": Default,
+  "for": For,
+  "while": While,
+  "do": Do,
+  "goto": Goto,
+  "break": Break,
+  "continue": Continue,
+  "return": Return,
+  "const": Const,
+  "volatile": Volatile,
+  "restrict": Restrict,
+  "__restrict__": Restrict,
+  "__restrict": Restrict,
+  "_Atomic": Atomic,
+  "atomic": Atomic,
+  "inline": Inline,
+  "__inline__": Inline, // GNU extension
+  "_Noreturn": Noreturn,
+  "struct": Struct,
+  "union": Union,
+  "enum": Enum,
+  "sizeof": Sizeof,
+  "_Alignas": Alignas,
+  "_Alignof": Alignof,
+  "_Static_assert": StaticAssert,
+  "_Generic": Generic,
+  "__attribute__": Attribute,
+  "__builtin_offsetof": BuiltinOffsetof,
+}

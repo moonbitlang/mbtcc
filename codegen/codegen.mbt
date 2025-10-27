@@ -27,7 +27,6 @@ pub enum Type {
   Ptr(Type)
   Array(Type, Int) // Element type, size
   Struct(String, Array[(String, Type)]) // name, (field_name, field_type)
-  Union(Array[(String, Type)])
   Enum(Array[(String, Int64)])
 } derive(Show, Eq)
 
@@ -83,8 +82,6 @@ fn CodeGenContext::convert_type_to_llvm(
         }
       }
     }
-    Union(_) =>
-      raise CodeGenError::UnSupportFeature("Union types not implemented yet")
     Enum(_) =>
       raise CodeGenError::UnSupportFeature("Enum types not implemented yet")
   }
@@ -150,7 +147,7 @@ fn CodeGenContext::analysis_declarator_type_for_struct(
   // Handle pointer in declarator
   match declarator.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -477,7 +474,7 @@ fn CodeGenContext::analysis_param_declarator(
       // Handle multiple levels of pointers
       // Each element in pointer.inner() represents one level of pointer
       let mut result_type = basic_type
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -496,7 +493,7 @@ fn CodeGenContext::analysis_param_declarator(
       )
       inner_type
     }
-    Array(inner_declarator, _, size_expr) => {
+    Array(inner_declarator, _, _) => {
       // For array parameters like int a[3][3], only the FIRST dimension decays.
       // So int a[3][3] becomes int (*a)[3], not int (*a)[3][3].
 
@@ -583,7 +580,7 @@ fn CodeGenContext::analysis_abstract_declarator(
   // Handle pointer in abstract declarator
   match abstract_decl.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -641,7 +638,7 @@ fn CodeGenContext::analysis_global_declarator_type(
   // Handle pointer in declarator
   match declarator.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -737,7 +734,7 @@ pub fn CodeGenContext::emit_declaration(
           let mut typedef_type = base_type
           match declarator.pointer {
             Some(pointer) => {
-              let pointer_levels = pointer.inner()
+              let pointer_levels = pointer.0
               for _ in pointer_levels {
                 typedef_type = Ptr(typedef_type)
               }
@@ -954,7 +951,7 @@ fn CodeGenContext::analysis_func_declarator(
   let mut ret_type = basic_type
   match decl.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         ret_type = Ptr(ret_type)
       }
@@ -2222,7 +2219,7 @@ fn FuncCodeGenContext::emit_cast_expr_as_lvalue(
 ) -> (Type, &LLVMValue) raise {
   match cast_expr {
     UnaryExpr(unary_expr) => self.emit_unary_expr_as_lvalue(unary_expr)
-    Cast(type_name, expr) =>
+    Cast(_) =>
       // For cast expressions as lvalue, we need to handle this carefully
       // For now, we'll raise an error since casting to lvalue is complex
       raise CodeGenError::UnSupportFeature(
@@ -2890,7 +2887,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
         // For other operators, evaluate normally as rvalue
         self.emit_prim_expr(prim_expr)
       }
-    Right((type_name, init_list)) =>
+    Right(_) =>
       raise CodeGenError::UnSupportFeature(
         "Compound literals not supported yet",
       )
@@ -2907,7 +2904,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
     match suffix {
       Indexing(index_expr) => {
         // Array indexing: base[index]
-        let (index_type, index_value) = self.emit_expr(index_expr)
+        let (_, index_value) = self.emit_expr(index_expr)
         match expr_type {
           Ptr(pointed_type) => {
             // For pointer arithmetic: ptr + index
@@ -3257,7 +3254,7 @@ fn FuncCodeGenContext::emit_prim_expr(
             Some((global_var, global_type)) =>
               // For global variables, return the global variable itself (which is a pointer)
               match global_type {
-                Array(elem_type, _) =>
+                Array(_, _) =>
                   // For global arrays, don't decay to pointer immediately
                   // Keep the array type so GEP can use correct indexing
                   (global_type, global_var)
@@ -3515,7 +3512,7 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
     Identifier(name) =>
       // Look up variable in environment and return its address (alloca)
       match self.var_env.get(name) {
-        Some((ty, alloca_value, is_array)) => (ty, alloca_value) // Return address, not loaded value
+        Some((ty, alloca_value, _)) => (ty, alloca_value) // Return address, not loaded value
         None =>
           // Check global variable environment
           match self.global_ctx.global_var_env.get(name) {
@@ -3528,7 +3525,7 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
               )
           }
       }
-    ParenExpr(expr) =>
+    ParenExpr(_) =>
       // Parenthesized expression - evaluate as lvalue
       // This requires implementing lvalue version of expr emission
       raise CodeGenError::UnSupportFeature(
@@ -3651,7 +3648,7 @@ fn FuncCodeGenContext::emit_for(
   }
 
   // Create basic blocks for the for loop with unique names
-  let block_id = self.get_next_block_id()
+  let _ = self.get_next_block_id()
   let cond_bb = self.func_value.addBasicBlock()
   let body_bb = self.func_value.addBasicBlock()
   let inc_bb = self.func_value.addBasicBlock()
@@ -4009,7 +4006,7 @@ fn FuncCodeGenContext::emit_labeled_statement(
       // For default statements, the block switching is handled by emit_switch_body
       // Here we just emit the statement content  
       self.emit_statement(stmt)
-    Label(label_name, stmt) =>
+    Label(_, stmt) =>
       // Regular labels - for now, just emit the statement
       // TODO: Implement proper label/goto support
       self.emit_statement(stmt)
@@ -4027,7 +4024,7 @@ fn FuncCodeGenContext::analysis_declarator_type(
   // Handle pointer in declarator
   match declarator.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -4141,7 +4138,7 @@ fn FuncCodeGenContext::analysis_declarator_type_with_initializer(
   // Handle pointer in declarator
   match declarator.pointer {
     Some(pointer) => {
-      let pointer_levels = pointer.inner()
+      let pointer_levels = pointer.0
       for _ in pointer_levels {
         result_type = Ptr(result_type)
       }
@@ -4276,8 +4273,8 @@ fn FuncCodeGenContext::emit_decl(
     )
 
     // Allocate space for the variable
-    let (llvm_type, env_type, alloca, is_array) = match var_type {
-      Array(elem_type, size) => {
+    let (_, env_type, alloca, is_array) = match var_type {
+      Array(_, _) => {
         // For array variables, allocate the array and store the pointer type in environment
         let array_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
         let array_alloca = self.builder.createAlloca(array_llvm_type)
@@ -4328,10 +4325,10 @@ fn FuncCodeGenContext::emit_init_declarator(
       match var_type {
         Array(elem_type, size) => {
           // Initialize array elements one by one
-          let elem_llvm_type = self.global_ctx.convert_type_to_llvm(elem_type)
+          let _ = self.global_ctx.convert_type_to_llvm(elem_type)
           let mut index = 0
           for pair in init_pairs {
-            let (designators, initializer) = pair
+            let (_, initializer) = pair
             // For simple array initialization, ignore designators for now
             if index >= size {
               break // Don't initialize beyond array bounds
@@ -4451,7 +4448,7 @@ fn FuncCodeGenContext::emit_init_declarator(
                       let (designators, nested_initializer) = nested_pair
 
                       // Determine field name and index based on designators
-                      let (field_name, field_idx) = if designators.length() == 0 {
+                      let (_, field_idx) = if designators.length() == 0 {
                         // Simple initialization like { 3.0, 4.0 } - use field order
                         if nested_idx >= struct_field_types.length() {
                           raise CodeGenError::SyntaxError(
@@ -4541,7 +4538,7 @@ fn FuncCodeGenContext::emit_init_declarator(
             let (designators, initializer) = pair
 
             // Determine field name and index based on designators
-            let (field_name, field_idx) = if designators.length() == 0 {
+            let (_, field_idx) = if designators.length() == 0 {
               // Simple initialization like { 3.0, 4.0 } - use field order
               if i >= field_types.length() {
                 raise CodeGenError::SyntaxError(
