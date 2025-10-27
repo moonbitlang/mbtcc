@@ -4,7 +4,10 @@
       "path":"Kaida-Amethyst/mbtcc/oldparser",
       "alias": "parser"
     },
-    "Kaida-Amethyst/mbtcc/env",
+    {
+      "path" : "Kaida-Amethyst/mbtcc/oldenv", 
+      "alias": "env"
+    },
     "Kaida-Amethyst/MoonLLVM/IR"
   ],
   "warn-list": "-2-3"

@@ -2,6 +2,7 @@
 pub struct Context {
   code: String
   source_file: String
+  tokens: Array[Token]
   err_toks: Array[Token]
 }
 
@@ -9,13 +10,14 @@ pub fn Context::new(code~: String, source_file~: String) -> Context {
   Context::{
     code,
     source_file,
+    tokens: Array::new(),
     err_toks: Array::new()
   }
 }
 
 pub fn Context::tokenize(self: Self) -> Array[Token] {
   let code = self.code[:]
-  let tokens: Array[Token] = Array::new()
+  let tokens: Array[Token] = self.tokens
   let mut line = 1
   let mut col = 1
   let mut idx = 0
@@ -483,7 +485,7 @@ fn Context::lex_string_literal(
   }
   let str = str_builder.to_string()
   raw_str_builder.write_string(str) // exclude surrounding quotes
-  let toeken_kind = TokenKind::StringLit(str) // remove surrounding quotes
+  let toeken_kind = TokenKind::String(str) // remove surrounding quotes
   let raw_str = raw_str_builder.to_string()
   let token = Token::new(toeken_kind, line, col, idx, raw_str, err_msg~)
   if !err_msg.is_empty() {
@@ -502,46 +504,46 @@ fn Context::lex_char_literal(
   let (token_kind, rest) = match code {
     [.."\\0", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\0'")
-      (TokenKind::CharLit('\u0000'), rest_str)
+      (TokenKind::Char('\u0000'), rest_str)
     }
     [.."\\n", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\n'")
-      (TokenKind::CharLit('\n'), rest_str)
+      (TokenKind::Char('\n'), rest_str)
     }
     [.."\\r", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\r'")
-      (TokenKind::CharLit('\r'), rest_str)
+      (TokenKind::Char('\r'), rest_str)
     }
     [.."\\t", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\t'")
-      (TokenKind::CharLit('\t'), rest_str)
+      (TokenKind::Char('\t'), rest_str)
     }
     [.."\\\'", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\''")
-      (TokenKind::CharLit('\''), rest_str)
+      (TokenKind::Char('\''), rest_str)
     }
     [.."\\\\", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\\'")
-      (TokenKind::CharLit('\\'), rest_str)
+      (TokenKind::Char('\\'), rest_str)
     }
     [c, '\'', .. rest_str] => {
       raw_str_builder.write_char(c)
       raw_str_builder.write_char('\'')
-      (TokenKind::CharLit(c), rest_str)
+      (TokenKind::Char(c), rest_str)
     }
     ['\'', ..rest_str] => {
       raw_str_builder.write_char('\'')
       err_msg = "Empty char literal"
-      (TokenKind::CharLit('\u0000'), rest_str)
+      (TokenKind::Char('\u0000'), rest_str)
     }
     [c, ..rest_str] => {
       raw_str_builder.write_char(c)
       err_msg = "Unterminated char literal"
-      (TokenKind::CharLit('\u0000'), rest_str)
+      (TokenKind::Char('\u0000'), rest_str)
     }
     [] as rest_str => {
       err_msg = "Unterminated char literal"
-      (TokenKind::CharLit('\u0000'), rest_str)
+      (TokenKind::Char('\u0000'), rest_str)
     }
   }
   let raw_str = raw_str_builder.to_string()
@@ -568,8 +570,8 @@ fn Context::lex_number_literal(
         Err(_) => (0.0, "Invalid hexadecimal floating-point literal")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::FloatLit(number.to_float())
-        _ => TokenKind::DoubleLit(number)
+        "f" | "F" => TokenKind::Float(number.to_float())
+        _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -588,8 +590,8 @@ fn Context::lex_number_literal(
         Err(_) => (0.0, "Invalid decimal floating-point literal")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::FloatLit(number.to_float())
-        _ => TokenKind::DoubleLit(number)
+        "f" | "F" => TokenKind::Float(number.to_float())
+        _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -608,8 +610,8 @@ fn Context::lex_number_literal(
         Err(_) => (0.0, "Invalid decimal floating-point literal")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::FloatLit(number.to_float())
-        _ => TokenKind::DoubleLit(number)
+        "f" | "F" => TokenKind::Float(number.to_float())
+        _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -628,10 +630,10 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid hexadecimal integer literal\{h} ")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UIntLit(number)
-        "ll" | "l" => TokenKind::LongLit(number.to_int64())
-        _ => TokenKind::IntLit(number.reinterpret_as_int())
+        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
+        "ul" | "lu" | "u" => TokenKind::UInt(number)
+        "ll" | "l" => TokenKind::Long(number.to_int64())
+        _ => TokenKind::Int(number.reinterpret_as_int())
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -650,10 +652,10 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid binary integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UIntLit(number)
-        "ll" | "l" => TokenKind::LongLit(number.to_int64())
-        _ => TokenKind::IntLit(number.reinterpret_as_int())
+        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
+        "ul" | "lu" | "u" => TokenKind::UInt(number)
+        "ll" | "l" => TokenKind::Long(number.to_int64())
+        _ => TokenKind::Int(number.reinterpret_as_int())
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -672,10 +674,10 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid octal integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UIntLit(number)
-        "ll" | "l" => TokenKind::LongLit(number.to_int64())
-        _ => TokenKind::IntLit(number.reinterpret_as_int())
+        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
+        "ul" | "lu" | "u" => TokenKind::UInt(number)
+        "ll" | "l" => TokenKind::Long(number.to_int64())
+        _ => TokenKind::Int(number.reinterpret_as_int())
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -694,10 +696,10 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid decimal integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULongLit(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UIntLit(number)
-        "ll" | "l" => TokenKind::LongLit(number.to_int64())
-        _ => TokenKind::IntLit(number.reinterpret_as_int())
+        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
+        "ul" | "lu" | "u" => TokenKind::UInt(number)
+        "ll" | "l" => TokenKind::Long(number.to_int64())
+        _ => TokenKind::Int(number.reinterpret_as_int())
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       if !err_msg.is_empty() {

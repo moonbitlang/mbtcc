@@ -1,7 +1,10 @@
 {
   "import" : [
     "Kaida-Amethyst/mbtcc/color",
-    "Kaida-Amethyst/mbtcc/env",
+    {
+      "path": "Kaida-Amethyst/mbtcc/oldenv", 
+      "alias": "env"
+    },
     "Kaida-Amethyst/path",
     "moonbitlang/x/fs"
   ]
