@@ -28,6 +28,7 @@ pub enum Type {
   Array(Type, Int) // Element type, size
   Struct(String, Array[(String, Type)]) // name, (field_name, field_type)
   Enum(Array[(String, Int64)])
+  Union(String, Array[(String, Type)]) // name, (field_name, field_type)
 } derive(Show, Eq)
 
 ///|
@@ -84,6 +85,8 @@ fn CodeGenContext::convert_type_to_llvm(
     }
     Enum(_) =>
       raise CodeGenError::UnSupportFeature("Enum types not implemented yet")
+    Union(_) =>
+      raise CodeGenError::UnSupportFeature("Union types not implemented yet")
   }
 }
 
@@ -315,8 +318,7 @@ pub fn CodeGenContext::analysis_declspecs(
             raise CodeGenError::UnSupportFeature("Atomic types not supported")
           StructSpec(struct_spec) =>
             base_type = Some(self.analysis_struct_spec(struct_spec))
-          UnionSpec(_) =>
-            raise CodeGenError::UnSupportFeature("Union specs not supported")
+          UnionSpec(_) => base_type = Some(Union("", []))
           EnumSpec(_) => base_type = Some(Enum([]))
           TypedefName(typedef_name) =>
             match self.typedef_env.get(typedef_name) {
@@ -1274,9 +1276,17 @@ fn FuncCodeGenContext::emit_assign_expr(
         AddAssign => {
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
-          let result = match lty {
-            Int(_) | UInt(_) => self.builder.createAdd(left_val, right)
-            FP(_) => self.builder.createFAdd(left_val, right)
+          // unify types
+          let (uty, lval, rval) = match (lty, rty) {
+            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
+            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
+            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
+            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            _ => (lty, left_val, right)
+          }
+          let result = match uty {
+            Int(_) | UInt(_) => self.builder.createAdd(lval, rval)
+            FP(_) => self.builder.createFAdd(lval, rval)
             ty =>
               raise CodeGenError::UnSupportFeature(
                 "Unsupported type for AddAssign. \{ty}",
@@ -1288,9 +1298,16 @@ fn FuncCodeGenContext::emit_assign_expr(
         SubAssign => {
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
-          let result = match lty {
-            Int(_) | UInt(_) => self.builder.createSub(left_val, right)
-            FP(_) => self.builder.createFSub(left_val, right)
+          let (uty, lval, rval) = match (lty, rty) {
+            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
+            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
+            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
+            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            _ => (lty, left_val, right)
+          }
+          let result = match uty {
+            Int(_) | UInt(_) => self.builder.createSub(lval, rval)
+            FP(_) => self.builder.createFSub(lval, rval)
             ty =>
               raise CodeGenError::UnSupportFeature(
                 "Unsupported type for SubAssign. \{ty}",
@@ -1301,9 +1318,16 @@ fn FuncCodeGenContext::emit_assign_expr(
         MultAssign => {
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
-          let result = match lty {
-            Int(_) | UInt(_) => self.builder.createMul(left_val, right)
-            FP(_) => self.builder.createFMul(left_val, right)
+          let (uty, lval, rval) = match (lty, rty) {
+            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
+            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
+            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
+            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            _ => (lty, left_val, right)
+          }
+          let result = match uty {
+            Int(_) | UInt(_) => self.builder.createMul(lval, rval)
+            FP(_) => self.builder.createFMul(lval, rval)
             _ =>
               raise CodeGenError::UnSupportFeature(
                 "Unsupported type for MultAssign.",
@@ -1314,10 +1338,17 @@ fn FuncCodeGenContext::emit_assign_expr(
         DivAssign => {
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
-          let result = match lty {
-            Int(_) => self.builder.createSDiv(left_val, right)
-            UInt(_) => self.builder.createUDiv(left_val, right)
-            FP(_) => self.builder.createFDiv(left_val, right)
+          let (uty, lval, rval) = match (lty, rty) {
+            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
+            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
+            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
+            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            _ => (lty, left_val, right)
+          }
+          let result = match uty {
+            Int(_) => self.builder.createSDiv(lval, rval)
+            UInt(_) => self.builder.createUDiv(lval, rval)
+            FP(_) => self.builder.createFDiv(lval, rval)
             _ =>
               raise CodeGenError::UnSupportFeature(
                 "Unsupported type for DivAssign.",
@@ -2247,26 +2278,26 @@ fn FuncCodeGenContext::emit_addsub_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_mult_expr(exprs[i])
-    first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
+    let (lhs_val, op_ty) = if first_ty != ty {
+      (self.emit_cast(from_type=first_ty, to_type=ty, first_val), ty)
     } else {
-      first_val
+      (first_val, first_ty)
     }
     let op = ops[i - 1]
     let result = match op {
       Add =>
-        match first_ty {
-          Int(_) | UInt(_) => self.builder.createAdd(first_val, val)
-          FP(_) => self.builder.createFAdd(first_val, val)
+        match op_ty {
+          Int(_) | UInt(_) => self.builder.createAdd(lhs_val, val)
+          FP(_) => self.builder.createFAdd(lhs_val, val)
           _ =>
             raise CodeGenError::UnSupportFeature(
-              "Unsupported type for Plus operation: \{first_ty}",
+              "Unsupported type for Plus operation: \{op_ty}",
             )
         }
       Sub =>
-        match first_ty {
-          Int(_) | UInt(_) => self.builder.createSub(first_val, val)
-          FP(_) => self.builder.createFSub(first_val, val)
+        match op_ty {
+          Int(_) | UInt(_) => self.builder.createSub(lhs_val, val)
+          FP(_) => self.builder.createFSub(lhs_val, val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Minus operation.",
@@ -2274,7 +2305,7 @@ fn FuncCodeGenContext::emit_addsub_expr(
         }
     }
     first_val = result
-    first_ty = ty
+    first_ty = op_ty
   }
   (first_ty, first_val)
 }
@@ -2290,36 +2321,36 @@ fn FuncCodeGenContext::emit_mult_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_cast_expr(exprs[i])
-    first_val = if first_ty != ty {
-      self.emit_cast(from_type=first_ty, to_type=ty, first_val)
+    let (lhs_val, op_ty) = if first_ty != ty {
+      (self.emit_cast(from_type=first_ty, to_type=ty, first_val), ty)
     } else {
-      first_val
+      (first_val, first_ty)
     }
     let op = ops[i - 1]
     let result = match op {
       Mult =>
-        match first_ty {
-          Int(_) | UInt(_) => self.builder.createMul(first_val, val)
-          FP(_) => self.builder.createFMul(first_val, val)
+        match op_ty {
+          Int(_) | UInt(_) => self.builder.createMul(lhs_val, val)
+          FP(_) => self.builder.createFMul(lhs_val, val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Multiplication operation.",
             )
         }
       Div =>
-        match first_ty {
-          Int(_) => self.builder.createSDiv(first_val, val)
-          UInt(_) => self.builder.createUDiv(first_val, val)
-          FP(_) => self.builder.createFDiv(first_val, val)
+        match op_ty {
+          Int(_) => self.builder.createSDiv(lhs_val, val)
+          UInt(_) => self.builder.createUDiv(lhs_val, val)
+          FP(_) => self.builder.createFDiv(lhs_val, val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Division operation.",
             )
         }
       Mod =>
-        match first_ty {
-          Int(_) => self.builder.createSRem(first_val, val)
-          UInt(_) => self.builder.createURem(first_val, val)
+        match op_ty {
+          Int(_) => self.builder.createSRem(lhs_val, val)
+          UInt(_) => self.builder.createURem(lhs_val, val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Modulus operation.",
@@ -2327,7 +2358,7 @@ fn FuncCodeGenContext::emit_mult_expr(
         }
     }
     first_val = result
-    first_ty = ty
+    first_ty = op_ty
   }
   (first_ty, first_val)
 }
