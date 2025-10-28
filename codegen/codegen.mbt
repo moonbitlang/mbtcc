@@ -3237,8 +3237,15 @@ fn FuncCodeGenContext::emit_postfix_expr(
             let struct_llvm_type = self.global_ctx.convert_type_to_llvm(
               expr_type,
             )
-            // Ensure expr_value is a pointer for GEP instruction
-            let gep = self.builder.createGEP(expr_value, struct_llvm_type, [
+            // Ensure base is a pointer for GEP: if we currently hold a value (rvalue), spill to stack
+            let base_ptr = if is_lvalue {
+              expr_value
+            } else {
+              let tmp = self.builder.createAlloca(struct_llvm_type)
+              ignore(self.builder.createStore(expr_value, tmp))
+              tmp as &LLVMValue
+            }
+            let gep = self.builder.createGEP(base_ptr, struct_llvm_type, [
               self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
               self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
             ])
@@ -3247,6 +3254,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 // For array fields, return pointer to first element (array decay)
                 expr_type = Ptr(elem_type)
                 expr_value = gep
+                is_lvalue = false
               }
               _ =>
                 // For non-array fields: if we have ++/-- in suffixes, keep address (lvalue)
@@ -3260,6 +3268,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   )
                   expr_type = field_type
                   expr_value = loaded_value
+                  is_lvalue = false
                 }
             }
           }
@@ -3682,12 +3691,16 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
               )
           }
       }
-    ParenExpr(_) =>
-      // Parenthesized expression - evaluate as lvalue
-      // This requires implementing lvalue version of expr emission
-      raise CodeGenError::UnSupportFeature(
-        "Parenthesized lvalues not implemented",
-      )
+    ParenExpr(expr) => {
+      // Parenthesized lvalue: inner expr must yield a pointer value; return it as the address.
+      let (ety, eval) = self.emit_expr(expr)
+      match ety {
+        Ptr(pointed_type) => (pointed_type, eval)
+        _ => raise CodeGenError::UnSupportFeature(
+          "Parenthesized lvalue expects pointer-producing inner expression, got \{ety}",
+        )
+      }
+    }
     Constant(_) | StringLiteral(_) | BuiltinOffsetof(_, _) =>
       raise CodeGenError::UnSupportFeature(
         "Constants and literals are not lvalues",
@@ -4816,3 +4829,6 @@ fn FuncCodeGenContext::emit_init_declarator(
       }
   }
 }
+
+///|
+// removed helper; handled inline in ParenExpr lvalue branch above
