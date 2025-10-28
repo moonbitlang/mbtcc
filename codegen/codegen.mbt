@@ -1624,6 +1624,33 @@ pub fn FuncCodeGenContext::emit_cast(
 }
 
 ///|
+fn FuncCodeGenContext::apply_default_arg_promotions(
+  self : Self,
+  ty : Type,
+  val : &LLVMValue,
+) -> &LLVMValue raise {
+  match ty {
+    // float promotes to double in varargs
+    FP(32) => self.emit_cast(from_type=FP(32), to_type=FP(64), val)
+    // bool/char/short and their unsigned variants promote to int/unsigned int
+    Int(width) =>
+      if width < 32 {
+        self.emit_cast(from_type=ty, to_type=Int(32), val)
+      } else {
+        val
+      }
+    UInt(width) =>
+      if width < 32 {
+        self.emit_cast(from_type=ty, to_type=UInt(32), val)
+      } else {
+        val
+      }
+    // pointers, double, 32/64-bit ints remain as-is
+    _ => val
+  }
+}
+
+///|
 fn FuncCodeGenContext::const_zero_for(
   self : Self,
   ty : Type,
@@ -3122,8 +3149,8 @@ fn FuncCodeGenContext::emit_postfix_expr(
               arg_value
             }
           } else {
-            // For variadic functions or incorrect call, use as-is
-            arg_value
+            // Variadic: apply default argument promotions
+            self.apply_default_arg_promotions(arg_type, arg_value)
           }
           arg_values.push(converted_value)
         }
@@ -4213,6 +4240,7 @@ fn FuncCodeGenContext::build_array_type_recursive(
     Array(_, _, _) => {
       // Collect all array dimensions in a list
       let dimensions : Array[Int] = []
+      let mut has_dynamic : Bool = false
       let mut current_declarator = direct_declarator
       let mut remaining_initializer = initializer
 
@@ -4223,8 +4251,13 @@ fn FuncCodeGenContext::build_array_type_recursive(
           Array(inner_declarator, _, size_expr) => {
             let dimension_size = match size_expr {
               Some(assign_expr) =>
-                // Evaluate constant array size expression
-                self.evaluate_constant_expr(assign_expr)
+                // Try constant evaluation first; if fails, mark as dynamic VLA
+                self.evaluate_constant_expr(assign_expr) catch {
+                  _ => {
+                    has_dynamic = true
+                    -1 // sentinel for dynamic
+                  }
+                }
               None =>
                 // Infer size from initializer if available
                 match remaining_initializer {
@@ -4249,13 +4282,20 @@ fn FuncCodeGenContext::build_array_type_recursive(
         }
       }
 
-      // Now build the type with dimensions in reverse order
-      // dimensions[0] is the rightmost dimension in C syntax (should be innermost in type)  
-      // dimensions[n-1] is the leftmost dimension in C syntax (should be outermost in type)
-      let mut result_type = base_type
-      for i = 0; i < dimensions.length(); i = i + 1 {
-        let size = dimensions[i]
-        result_type = Array(result_type, size)
+      // If any dynamic dimension exists, treat as pointer type at this stage
+      // and defer allocation to runtime (e.g., via malloc).
+      let result_type = if has_dynamic {
+        // Decay entire array to pointer to base element type
+        Ptr(base_type)
+      } else {
+        // Build the type with dimensions in reverse order
+        // dimensions[0] is the rightmost dimension in C syntax (innermost in type)
+        let mut ty_acc = base_type
+        for i = 0; i < dimensions.length(); i = i + 1 {
+          let size = dimensions[i]
+          ty_acc = Array(ty_acc, size)
+        }
+        ty_acc
       }
 
       // Special handling for string arrays: convert char[][] to char*[]
