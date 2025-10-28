@@ -2352,6 +2352,137 @@ fn FuncCodeGenContext::emit_shift_expr(
 }
 
 ///|
+// Perform usual arithmetic conversions according to C standard
+fn FuncCodeGenContext::usual_arithmetic_conversions(
+  self : Self,
+  lty : Type,
+  lval : &LLVMValue,
+  rty : Type,
+  rval : &LLVMValue,
+) -> (Type, &LLVMValue, &LLVMValue) raise {
+  // If types are the same, no conversion needed
+  if lty == rty {
+    return (lty, lval, rval)
+  }
+
+  // Rule 1: If either operand is double, convert the other to double
+  match (lty, rty) {
+    (FP(64), _) =>
+      (FP(64), lval, self.emit_cast(from_type=rty, to_type=FP(64), rval))
+    (_, FP(64)) =>
+      (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), lval), rval)
+
+    // Rule 2: If either operand is float, convert the other to float
+    (FP(32), _) =>
+      (FP(32), lval, self.emit_cast(from_type=rty, to_type=FP(32), rval))
+    (_, FP(32)) =>
+      (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), lval), rval)
+
+    // Rule 3: For integer types, promote to the larger type
+    // First, apply integer promotions (promote types smaller than int to int)
+    _ => {
+      let promoted_lty = match lty {
+        Int(w) if w < 32 => Int(32)
+        UInt(w) if w < 32 => Int(32)
+        _ => lty
+      }
+      let promoted_rty = match rty {
+        Int(w) if w < 32 => Int(32)
+        UInt(w) if w < 32 => Int(32)
+        _ => rty
+      }
+      let promoted_lval = if promoted_lty != lty {
+        self.emit_cast(from_type=lty, to_type=promoted_lty, lval)
+      } else {
+        lval
+      }
+      let promoted_rval = if promoted_rty != rty {
+        self.emit_cast(from_type=rty, to_type=promoted_rty, rval)
+      } else {
+        rval
+      }
+
+      // Now determine the common type
+      match (promoted_lty, promoted_rty) {
+        (UInt(lw), UInt(rw)) => {
+          let target_width = if lw > rw { lw } else { rw }
+          let target_ty = UInt(target_width)
+          let final_lval = if promoted_lty != target_ty {
+            self.emit_cast(
+              from_type=promoted_lty,
+              to_type=target_ty,
+              promoted_lval,
+            )
+          } else {
+            promoted_lval
+          }
+          let final_rval = if promoted_rty != target_ty {
+            self.emit_cast(
+              from_type=promoted_rty,
+              to_type=target_ty,
+              promoted_rval,
+            )
+          } else {
+            promoted_rval
+          }
+          (target_ty, final_lval, final_rval)
+        }
+        (Int(lw), Int(rw)) => {
+          let target_width = if lw > rw { lw } else { rw }
+          let target_ty = Int(target_width)
+          let final_lval = if promoted_lty != target_ty {
+            self.emit_cast(
+              from_type=promoted_lty,
+              to_type=target_ty,
+              promoted_lval,
+            )
+          } else {
+            promoted_lval
+          }
+          let final_rval = if promoted_rty != target_ty {
+            self.emit_cast(
+              from_type=promoted_rty,
+              to_type=target_ty,
+              promoted_rval,
+            )
+          } else {
+            promoted_rval
+          }
+          (target_ty, final_lval, final_rval)
+        }
+        // Mixed signed/unsigned: convert to unsigned of the larger size
+        (Int(lw), UInt(rw)) | (UInt(rw), Int(lw)) => {
+          let target_width = if lw > rw { lw } else { rw }
+          let target_ty = UInt(target_width)
+          let final_lval = self.emit_cast(
+            from_type=promoted_lty,
+            to_type=target_ty,
+            promoted_lval,
+          )
+          let final_rval = self.emit_cast(
+            from_type=promoted_rty,
+            to_type=target_ty,
+            promoted_rval,
+          )
+          (target_ty, final_lval, final_rval)
+        }
+        _ =>
+          // For other cases (e.g., pointer arithmetic), just convert left to right type
+          (
+            promoted_rty,
+            self.emit_cast(
+              from_type=promoted_lty,
+              to_type=promoted_rty,
+              promoted_lval,
+            ),
+            promoted_rval,
+          )
+      }
+    }
+  }
+}
+
+///|
 fn FuncCodeGenContext::emit_addsub_expr(
   self : Self,
   add_expr : AddSubExpr,
@@ -2362,17 +2493,15 @@ fn FuncCodeGenContext::emit_addsub_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_mult_expr(exprs[i])
-    let (lhs_val, op_ty) = if first_ty != ty {
-      (self.emit_cast(from_type=first_ty, to_type=ty, first_val), ty)
-    } else {
-      (first_val, first_ty)
-    }
+    let (op_ty, lhs_val, rhs_val) = self.usual_arithmetic_conversions(
+      first_ty, first_val, ty, val,
+    )
     let op = ops[i - 1]
     let result = match op {
       Add =>
         match op_ty {
-          Int(_) | UInt(_) => self.builder.createAdd(lhs_val, val)
-          FP(_) => self.builder.createFAdd(lhs_val, val)
+          Int(_) | UInt(_) => self.builder.createAdd(lhs_val, rhs_val)
+          FP(_) => self.builder.createFAdd(lhs_val, rhs_val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Plus operation: \{op_ty}",
@@ -2380,8 +2509,8 @@ fn FuncCodeGenContext::emit_addsub_expr(
         }
       Sub =>
         match op_ty {
-          Int(_) | UInt(_) => self.builder.createSub(lhs_val, val)
-          FP(_) => self.builder.createFSub(lhs_val, val)
+          Int(_) | UInt(_) => self.builder.createSub(lhs_val, rhs_val)
+          FP(_) => self.builder.createFSub(lhs_val, rhs_val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Minus operation.",
@@ -2405,17 +2534,15 @@ fn FuncCodeGenContext::emit_mult_expr(
   let mut first_val = first_val
   for i in 1..<exprs.length() {
     let (ty, val) = self.emit_cast_expr(exprs[i])
-    let (lhs_val, op_ty) = if first_ty != ty {
-      (self.emit_cast(from_type=first_ty, to_type=ty, first_val), ty)
-    } else {
-      (first_val, first_ty)
-    }
+    let (op_ty, lhs_val, rhs_val) = self.usual_arithmetic_conversions(
+      first_ty, first_val, ty, val,
+    )
     let op = ops[i - 1]
     let result = match op {
       Mult =>
         match op_ty {
-          Int(_) | UInt(_) => self.builder.createMul(lhs_val, val)
-          FP(_) => self.builder.createFMul(lhs_val, val)
+          Int(_) | UInt(_) => self.builder.createMul(lhs_val, rhs_val)
+          FP(_) => self.builder.createFMul(lhs_val, rhs_val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Multiplication operation.",
@@ -2423,9 +2550,9 @@ fn FuncCodeGenContext::emit_mult_expr(
         }
       Div =>
         match op_ty {
-          Int(_) => self.builder.createSDiv(lhs_val, val)
-          UInt(_) => self.builder.createUDiv(lhs_val, val)
-          FP(_) => self.builder.createFDiv(lhs_val, val)
+          Int(_) => self.builder.createSDiv(lhs_val, rhs_val)
+          UInt(_) => self.builder.createUDiv(lhs_val, rhs_val)
+          FP(_) => self.builder.createFDiv(lhs_val, rhs_val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Division operation.",
@@ -2433,8 +2560,8 @@ fn FuncCodeGenContext::emit_mult_expr(
         }
       Mod =>
         match op_ty {
-          Int(_) => self.builder.createSRem(lhs_val, val)
-          UInt(_) => self.builder.createURem(lhs_val, val)
+          Int(_) => self.builder.createSRem(lhs_val, rhs_val)
+          UInt(_) => self.builder.createURem(lhs_val, rhs_val)
           _ =>
             raise CodeGenError::UnSupportFeature(
               "Unsupported type for Modulus operation.",
@@ -3167,6 +3294,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   // Return address for subsequent dot access
                   expr_type = pointed_type
                   expr_value = gep
+                  is_lvalue = true // Mark as lvalue since we're returning an address
                 } else {
                   // For pointer to scalar: load the value
                   let loaded_value = self.builder.createLoad(
@@ -3174,6 +3302,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   )
                   expr_type = pointed_type
                   expr_value = loaded_value
+                  is_lvalue = false // Mark as rvalue since we loaded the value
                 }
               }
             }
@@ -3220,6 +3349,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   // Return address for subsequent dot access
                   expr_type = elem_type
                   expr_value = gep
+                  is_lvalue = true // Mark as lvalue since we're returning an address
                 } else {
                   // For scalar elements, load the value
                   let loaded_value = self.builder.createLoad(
@@ -3227,6 +3357,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
                   )
                   expr_type = elem_type
                   expr_value = loaded_value
+                  is_lvalue = false // Mark as rvalue since we loaded the value
                 }
               }
             }
@@ -3437,10 +3568,11 @@ fn FuncCodeGenContext::emit_postfix_expr(
             ])
             match field_type {
               Array(elem_type, _) => {
-                // For array fields, return pointer to first element (array decay)
-                expr_type = Ptr(elem_type)
+                // For array fields, keep as array type to preserve correct GEP generation
+                // The array will decay when used in appropriate contexts
+                expr_type = field_type
                 expr_value = gep
-                is_lvalue = false // Arrays decay to pointers, so they're rvalues
+                is_lvalue = true // Arrays are lvalues (have addresses)
               }
               _ => {
                 expr_type = field_type
@@ -5014,6 +5146,19 @@ fn FuncCodeGenContext::emit_init_declarator(
                     )
                 }
             }
+            index = index + 1
+          }
+          // Zero-initialize remaining array elements (C standard behavior)
+          // In C, if an array is partially initialized, remaining elements are zero-initialized
+          while index < size {
+            let zero_val = self.const_zero_for(elem_type)
+            let index_val = self.global_ctx.llvm_ctx.getConstInt32(index)
+            let array_llvm_type = self.global_ctx.convert_type_to_llvm(var_type)
+            let gep = self.builder.createGEP(alloca, array_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // Array base
+              index_val, // Index for array element
+            ])
+            ignore(self.builder.createStore(zero_val, gep))
             index = index + 1
           }
         }
