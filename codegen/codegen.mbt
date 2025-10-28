@@ -3140,19 +3140,20 @@ fn FuncCodeGenContext::emit_postfix_expr(
         let func : @IR.Function = match
           self.global_ctx.function_env.get(func_name) {
           Some(f) => f
-          None => {
+          None =>
             // Lazily declare known libc functions used in tests
             if func_name == "qsort" {
-              // Declare qsort as variadic: void qsort(void*, size_t, size_t, ...)
+              // Declare qsort as: void qsort(void*, size_t, size_t, void*)
               let ret_ty = self.global_ctx.convert_type_to_llvm(Void)
               let param_types : Array[&LLVMType] = []
               param_types.push(self.global_ctx.llvm_ctx.getPtrTy()) // void*
               param_types.push(self.global_ctx.llvm_ctx.getInt64Ty()) // size_t
               param_types.push(self.global_ctx.llvm_ctx.getInt64Ty()) // size_t
+              param_types.push(self.global_ctx.llvm_ctx.getPtrTy()) // comparator pointer
               let fn_ty = self.global_ctx.llvm_ctx.getFunctionType(
                 ret_ty,
                 param_types,
-                isVarArg=true,
+                isVarArg=false,
               )
               let qf = self.global_ctx.llvm_mod.addFunction(fn_ty, func_name)
               // Register signature for casting
@@ -3160,16 +3161,19 @@ fn FuncCodeGenContext::emit_postfix_expr(
                 ("base", Ptr(Int(8))),
                 ("nmemb", Int(64)),
                 ("size", Int(64)),
+                ("compar", Ptr(Int(8))),
               ]
               self.global_ctx.function_env.set(func_name, qf)
-              self.global_ctx.function_sig_env.set(func_name, (Void, sig_params))
+              self.global_ctx.function_sig_env.set(
+                func_name,
+                (Void, sig_params),
+              )
               qf
             } else {
               raise CodeGenError::UnSupportFeature(
                 "Undefined function: \{func_name}",
               )
             }
-          }
         }
 
         // Get function signature for type checking
@@ -3410,19 +3414,15 @@ fn FuncCodeGenContext::emit_prim_expr(
                   // For other global variables, return them as lvalue addresses
                   (global_type, global_var)
               }
-            None => {
+            None =>
               // Check if identifier is a function name (function pointer decay)
               match self.global_ctx.function_env.get(name) {
-                Some(func) => {
-                  // Pass function value directly for variadic position; caller will use it
-                  (Ptr(Int(8)), func)
-                }
+                Some(func) => (Ptr(Int(8)), func as &LLVMValue)
                 None =>
                   raise CodeGenError::UnSupportFeature(
                     "Undefined variable: \{name}",
                   )
               }
-            }
           }
       }
     Constant(constant) =>
@@ -4436,6 +4436,63 @@ fn FuncCodeGenContext::emit_decl(
     // Store the variable in the environment
     self.var_env.set(var_name, (env_type, alloca, is_array))
 
+    // Handle runtime allocation for VLA-like locals (e.g., int a[n]; -> Ptr(Int32))
+    // Heuristic: if the analyzed type became Ptr(T) due to dynamic array size, and the declarator
+    // is an Array with a non-constant size expression, allocate with malloc and store the pointer.
+    match var_type {
+      Ptr(elem_type) => {
+        // Try to detect top-level dynamic array declarator to get the element count expression
+        let mut needs_runtime_alloc = false
+        let mut count_expr_opt : AssignExpr? = None
+        match declarator.directDeclarator {
+          Array(inner_decl, _, size_expr_opt) => {
+            // Presence of size expression suggests an array; if it wasn't folded to constant,
+            // our analysis returned Ptr(elem_type). We'll allocate at runtime.
+            match size_expr_opt {
+              Some(sz) => { needs_runtime_alloc = true; count_expr_opt = Some(sz) }
+              None => ()
+            }
+          }
+          _ => ()
+        }
+        if needs_runtime_alloc {
+          // Evaluate element count at runtime
+          let (cnt_ty, cnt_val) = match count_expr_opt {
+            Some(sz) => self.emit_assign_expr(sz)
+            None => (Int(32), self.global_ctx.llvm_ctx.getConstInt32(0))
+          }
+          // Cast count to i64
+          let cnt_i64 = match cnt_ty {
+            Int(64) | UInt(64) => cnt_val
+            _ => self.emit_cast(from_type=cnt_ty, to_type=Int(64), cnt_val)
+          }
+          // Compute element size (bytes) using our sizeof helper
+          let elem_size_i32 = self.calculate_type_size(elem_type)
+          let elem_size_i64 = self.global_ctx.llvm_ctx.getConstInt64(elem_size_i32.to_int64())
+          let total_bytes = self.builder.createMul(cnt_i64, elem_size_i64)
+
+          // Ensure malloc is declared
+          let malloc_fn = match self.global_ctx.function_env.get("malloc") {
+            Some(f) => f
+            None => {
+              let ret_ty = self.global_ctx.llvm_ctx.getPtrTy()
+              let param_types : Array[&LLVMType] = []
+              param_types.push(self.global_ctx.llvm_ctx.getInt64Ty())
+              let fn_ty = self.global_ctx.llvm_ctx.getFunctionType(ret_ty, param_types, isVarArg=false)
+              let f = self.global_ctx.llvm_mod.addFunction(fn_ty, "malloc")
+              self.global_ctx.function_env.set("malloc", f)
+              self.global_ctx.function_sig_env.set("malloc", (Ptr(Int(8)), [("size", Int(64))]))
+              f
+            }
+          }
+          // Call malloc and store the pointer into the local alloca
+          let buf_ptr = self.builder.createCall(malloc_fn, [total_bytes]) as &LLVMValue
+          ignore(self.builder.createStore(buf_ptr, alloca))
+        }
+      }
+      _ => ()
+    }
+
     // Handle initialization if present
     match initializer {
       Some(init) => self.emit_init_declarator(init, var_type, alloca)
@@ -4627,28 +4684,6 @@ fn FuncCodeGenContext::emit_init_declarator(
                       }
                       let (_, field_type) = struct_field_types[field_idx]
 
-                      // Get the field value
-                      let field_init_val = match nested_initializer {
-                        AssignExpr(assign_expr) => {
-                          let (init_type, init_val) = self.emit_assign_expr(
-                            assign_expr,
-                          )
-                          if init_type != field_type {
-                            self.emit_cast(
-                              from_type=init_type,
-                              to_type=field_type,
-                              init_val,
-                            )
-                          } else {
-                            init_val
-                          }
-                        }
-                        InitList(_) =>
-                          raise CodeGenError::UnSupportFeature(
-                            "Nested struct field initialization not supported yet",
-                          )
-                      }
-
                       // Create GEP to access the field: &arr[index].field
                       let field_gep = self.builder.createGEP(
                         struct_gep,
@@ -4659,10 +4694,35 @@ fn FuncCodeGenContext::emit_init_declarator(
                         ],
                       )
 
-                      // Store the field value
-                      ignore(
-                        self.builder.createStore(field_init_val, field_gep),
-                      )
+                      // Initialize field based on initializer kind
+                      match nested_initializer {
+                        AssignExpr(assign_expr) => {
+                          let (init_type, init_val) = self.emit_assign_expr(
+                            assign_expr,
+                          )
+                          let init_val = if init_type != field_type {
+                            self.emit_cast(
+                              from_type=init_type,
+                              to_type=field_type,
+                              init_val,
+                            )
+                          } else {
+                            init_val
+                          }
+                          ignore(self.builder.createStore(init_val, field_gep))
+                        }
+                        InitList(_) =>
+                          match field_type {
+                            Struct(_, _) | Array(_, _) =>
+                              self.emit_init_declarator(
+                                nested_initializer, field_type, field_gep,
+                              )
+                            _ =>
+                              raise CodeGenError::UnSupportFeature(
+                                "Initializer list for non-aggregate struct field not supported",
+                              )
+                          }
+                      }
                     }
                   }
                   _ =>
@@ -4716,11 +4776,17 @@ fn FuncCodeGenContext::emit_init_declarator(
             }
             let (_, field_type) = field_types[field_idx]
 
-            // Get the initialization value
-            let init_val = match initializer {
+            // Create GEP to access the field
+            let gep = self.builder.createGEP(alloca, struct_llvm_type, [
+              self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
+              self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
+            ])
+
+            // Initialize field based on initializer kind
+            match initializer {
               AssignExpr(assign_expr) => {
                 let (init_type, init_val) = self.emit_assign_expr(assign_expr)
-                if init_type != field_type {
+                let init_val = if init_type != field_type {
                   self.emit_cast(
                     from_type=init_type,
                     to_type=field_type,
@@ -4729,21 +4795,18 @@ fn FuncCodeGenContext::emit_init_declarator(
                 } else {
                   init_val
                 }
+                ignore(self.builder.createStore(init_val, gep))
               }
               InitList(_) =>
-                raise CodeGenError::UnSupportFeature(
-                  "Nested struct initialization not supported yet",
-                )
+                match field_type {
+                  Struct(_, _) | Array(_, _) =>
+                    self.emit_init_declarator(initializer, field_type, gep)
+                  _ =>
+                    raise CodeGenError::UnSupportFeature(
+                      "Initializer list for non-aggregate struct field not supported",
+                    )
+                }
             }
-
-            // Create GEP to access the field
-            let gep = self.builder.createGEP(alloca, struct_llvm_type, [
-              self.global_ctx.llvm_ctx.getConstInt32(0), // struct base
-              self.global_ctx.llvm_ctx.getConstInt32(field_idx), // field index
-            ])
-
-            // Store the value in the field
-            ignore(self.builder.createStore(init_val, gep))
           }
         }
         _ =>
