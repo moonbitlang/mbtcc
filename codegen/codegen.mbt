@@ -429,27 +429,31 @@ fn CodeGenContext::analysis_direct_declarator_type_for_param(
   match direct_declarator {
     Identifier(_) => base_type
     Array(inner_declarator, _, size_expr) => {
-      // Recursively analyze inner declarator first
-      let inner_type = self.analysis_direct_declarator_type_for_param(
-        inner_declarator, base_type,
-      )
-      // Get array size
-      let array_size = match size_expr {
+      // For int arr[3][5]:
+      // - DirectDeclarator is Array(Array(Identifier("arr"), _, 5), _, 3)
+      // - We need to build Array(Array(Int32, 5), 3) from inside out
+      // - First get the size of current dimension (3 in this case)
+      let current_size = match size_expr {
         Some(assign_expr) => self.evaluate_constant_expr(assign_expr)
         None => 0 // Unsized array
       }
-      if array_size > 0 {
-        Type::Array(inner_type, array_size)
+      // Then recursively process inner declarator to build the element type
+      let element_type = self.analysis_direct_declarator_type_for_param(
+        inner_declarator, base_type,
+      )
+      // Now wrap the element type with current dimension
+      if current_size > 0 {
+        Type::Array(element_type, current_size)
       } else {
-        inner_type // For unsized arrays, just use the inner type
+        element_type // For unsized arrays, just use the element type
       }
     }
     StaticArray(inner_declarator, _, size_expr) => {
-      let inner_type = self.analysis_direct_declarator_type_for_param(
+      let current_size = self.evaluate_constant_expr(size_expr)
+      let element_type = self.analysis_direct_declarator_type_for_param(
         inner_declarator, base_type,
       )
-      let array_size = self.evaluate_constant_expr(size_expr)
-      Type::Array(inner_type, array_size)
+      Type::Array(element_type, current_size)
     }
     Parenthesized(inner_decl) => {
       // For parenthesized declarators, we need to handle the full declarator
@@ -496,37 +500,106 @@ fn CodeGenContext::analysis_param_declarator(
       inner_type
     }
     Array(inner_declarator, _, _) => {
-      // For array parameters like int a[3][3], only the FIRST dimension decays.
-      // So int a[3][3] becomes int (*a)[3], not int (*a)[3][3].
+      // For array parameters like int a[3][5], only the FIRST dimension decays.
+      // AST structure: Array(Array(Identifier("a"), _, 3), _, 5)
+      // Type should be: int (*a)[5] = Ptr(Array(Int32, 5))
+      //
+      // Key insight: AST layers and type layers are in OPPOSITE order!
+      // - In AST for a[3][5]: outer is [5], inner is [3]
+      // - In type for int[3][5]: outer is 3, inner is 5
+      //
+      // Strategy: collect all array dimensions, then build type correctly
 
-      // The inner_declarator gives us the rest of the type
-      // For a[3][3], inner_declarator is a[3]
-      // For a[3], inner_declarator is a (identifier)
+      let dimensions : Array[Int] = []
+      let mut curr_decl = decl.directDeclarator
+      let mut continue_loop = true
 
-      // Recursively analyze to get the element type (what remains after first dimension)
-      let element_type = self.analysis_direct_declarator_type_for_param(
-        inner_declarator, param_type,
-      )
+      // Collect all array dimensions from outside to inside in AST
+      while continue_loop {
+        match curr_decl {
+          Array(inner, _, size_expr) => {
+            let size = match size_expr {
+              Some(expr) => self.evaluate_constant_expr(expr)
+              None => 0
+            }
+            dimensions.push(size)
+            curr_decl = inner
+          }
+          StaticArray(inner, _, size_expr) => {
+            let size = self.evaluate_constant_expr(size_expr)
+            dimensions.push(size)
+            curr_decl = inner
+          }
+          VallengthArray(inner, _) => {
+            dimensions.push(0)
+            curr_decl = inner
+          }
+          _ => continue_loop = false
+        }
+      }
 
-      // Apply decay: the first array dimension decays to pointer
-      // So we return Ptr(element_type), not Ptr(Array(element_type, size))
-      Ptr(element_type)
+      // For a[2][3], AST is Array(Array(Id, _, 2), _, 3)
+      // dimensions = [3, 2]
+      // Type should be: Array(Array(Int32, 3), 2) -> Ptr(Array(Int32, 3))
+      // Build from dimensions[0] to dimensions[length-2], then wrap in Ptr
+      if dimensions.length() == 0 {
+        Ptr(param_type)
+      } else if dimensions.length() == 1 {
+        // Single dimension array, just pointer to base type
+        Ptr(param_type)
+      } else {
+        // Build type using dimensions[0] to dimensions[length-2]
+        let mut result_type = param_type
+        for i = 0; i < dimensions.length() - 1; i = i + 1 {
+          let dim = dimensions[i]
+          if dim > 0 {
+            result_type = Array(result_type, dim)
+          }
+        }
+        Ptr(result_type)
+      }
     }
-    StaticArray(inner_declarator, _, size_expr) => {
-      // Similar to Array case
-      let inner_type = self.analysis_direct_declarator_type_for_param(
-        inner_declarator, param_type,
-      )
-      let array_size = self.evaluate_constant_expr(size_expr)
-      let array_type = Type::Array(inner_type, array_size)
-      Ptr(array_type)
-    }
-    VallengthArray(inner_declarator, _) => {
-      // Variable length array - also treated as pointer
-      let inner_type = self.analysis_direct_declarator_type_for_param(
-        inner_declarator, param_type,
-      )
-      Ptr(inner_type)
+    StaticArray(_, _, _) | VallengthArray(_, _) => {
+      // Same as Array case - collect dimensions and build type
+      let dimensions : Array[Int] = []
+      let mut curr_decl = decl.directDeclarator
+      let mut continue_loop = true
+      while continue_loop {
+        match curr_decl {
+          Array(inner, _, size_expr) => {
+            let size = match size_expr {
+              Some(expr) => self.evaluate_constant_expr(expr)
+              None => 0
+            }
+            dimensions.push(size)
+            curr_decl = inner
+          }
+          StaticArray(inner, _, size_expr) => {
+            let size = self.evaluate_constant_expr(size_expr)
+            dimensions.push(size)
+            curr_decl = inner
+          }
+          VallengthArray(inner, _) => {
+            dimensions.push(0)
+            curr_decl = inner
+          }
+          _ => continue_loop = false
+        }
+      }
+      if dimensions.length() == 0 {
+        Ptr(param_type)
+      } else if dimensions.length() == 1 {
+        Ptr(param_type)
+      } else {
+        let mut result_type = param_type
+        for i = 0; i < dimensions.length() - 1; i = i + 1 {
+          let dim = dimensions[i]
+          if dim > 0 {
+            result_type = Array(result_type, dim)
+          }
+        }
+        Ptr(result_type)
+      }
     }
     FunctionDecl(_, _) =>
       // Function pointer parameter
