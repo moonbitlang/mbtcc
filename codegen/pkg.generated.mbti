@@ -51,6 +51,7 @@ pub enum Type {
   Array(Type, Int)
   Struct(String, Array[(String, Type)])
   Enum(Array[(String, Int64)])
+  Union(String, Array[(String, Type)])
 }
 fn Type::equal(Self, Self) -> Bool // from trait `Eq`
 #deprecated

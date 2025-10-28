@@ -890,6 +890,8 @@ struct FuncCodeGenContext {
   builder : @IR.IRBuilder
   return_type : Type // Function return type for type checking
   mut block_counter : Int // Counter for generating unique basic block names
+  mut break_target : @IR.BasicBlock? // Target for break statements in loops
+  mut continue_target : @IR.BasicBlock? // Target for continue statements in loops
 }
 
 ///|
@@ -950,6 +952,8 @@ pub fn CodeGenContext::emit_function_definition(
     builder,
     return_type: ret_type,
     block_counter: 0,
+    break_target: None,
+    continue_target: None,
   }
   func_codegen.emit_function_body()
 }
@@ -1278,10 +1282,30 @@ fn FuncCodeGenContext::emit_assign_expr(
           let left_val = self.builder.createLoad(left_type, left)
           // unify types
           let (uty, lval, rval) = match (lty, rty) {
-            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
-            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
-            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
-            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            (FP(64), _) =>
+              (
+                FP(64),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(64), right),
+              )
+            (_, FP(64)) =>
+              (
+                FP(64),
+                self.emit_cast(from_type=lty, to_type=FP(64), left_val),
+                right,
+              )
+            (FP(32), _) =>
+              (
+                FP(32),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(32), right),
+              )
+            (_, FP(32)) =>
+              (
+                FP(32),
+                self.emit_cast(from_type=lty, to_type=FP(32), left_val),
+                right,
+              )
             _ => (lty, left_val, right)
           }
           let result = match uty {
@@ -1299,10 +1323,30 @@ fn FuncCodeGenContext::emit_assign_expr(
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
           let (uty, lval, rval) = match (lty, rty) {
-            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
-            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
-            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
-            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            (FP(64), _) =>
+              (
+                FP(64),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(64), right),
+              )
+            (_, FP(64)) =>
+              (
+                FP(64),
+                self.emit_cast(from_type=lty, to_type=FP(64), left_val),
+                right,
+              )
+            (FP(32), _) =>
+              (
+                FP(32),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(32), right),
+              )
+            (_, FP(32)) =>
+              (
+                FP(32),
+                self.emit_cast(from_type=lty, to_type=FP(32), left_val),
+                right,
+              )
             _ => (lty, left_val, right)
           }
           let result = match uty {
@@ -1319,10 +1363,30 @@ fn FuncCodeGenContext::emit_assign_expr(
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
           let (uty, lval, rval) = match (lty, rty) {
-            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
-            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
-            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
-            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            (FP(64), _) =>
+              (
+                FP(64),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(64), right),
+              )
+            (_, FP(64)) =>
+              (
+                FP(64),
+                self.emit_cast(from_type=lty, to_type=FP(64), left_val),
+                right,
+              )
+            (FP(32), _) =>
+              (
+                FP(32),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(32), right),
+              )
+            (_, FP(32)) =>
+              (
+                FP(32),
+                self.emit_cast(from_type=lty, to_type=FP(32), left_val),
+                right,
+              )
             _ => (lty, left_val, right)
           }
           let result = match uty {
@@ -1339,10 +1403,30 @@ fn FuncCodeGenContext::emit_assign_expr(
           let left_type = self.global_ctx.convert_type_to_llvm(lty)
           let left_val = self.builder.createLoad(left_type, left)
           let (uty, lval, rval) = match (lty, rty) {
-            (FP(64), _) => (FP(64), left_val, self.emit_cast(from_type=rty, to_type=FP(64), right))
-            (_, FP(64)) => (FP(64), self.emit_cast(from_type=lty, to_type=FP(64), left_val), right)
-            (FP(32), _) => (FP(32), left_val, self.emit_cast(from_type=rty, to_type=FP(32), right))
-            (_, FP(32)) => (FP(32), self.emit_cast(from_type=lty, to_type=FP(32), left_val), right)
+            (FP(64), _) =>
+              (
+                FP(64),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(64), right),
+              )
+            (_, FP(64)) =>
+              (
+                FP(64),
+                self.emit_cast(from_type=lty, to_type=FP(64), left_val),
+                right,
+              )
+            (FP(32), _) =>
+              (
+                FP(32),
+                left_val,
+                self.emit_cast(from_type=rty, to_type=FP(32), right),
+              )
+            (_, FP(32)) =>
+              (
+                FP(32),
+                self.emit_cast(from_type=lty, to_type=FP(32), left_val),
+                right,
+              )
             _ => (lty, left_val, right)
           }
           let result = match uty {
@@ -3282,10 +3366,27 @@ fn FuncCodeGenContext::emit_postfix_expr(
             ])
             match field_type {
               Array(elem_type, _) => {
-                // For array fields, return pointer to first element (array decay)
-                expr_type = Ptr(elem_type)
-                expr_value = gep
-                is_lvalue = false
+                // For array fields, check if there are subsequent indexing operations
+                let has_subsequent_indexing = !is_last_suffix &&
+                  post_expr.suffixes[i + 1:]
+                  .iter()
+                  .any(fn(s) {
+                    match s {
+                      Indexing(_) => true
+                      _ => false
+                    }
+                  })
+                if has_subsequent_indexing {
+                  // Keep it as an array type for subsequent indexing
+                  expr_type = field_type
+                  expr_value = gep
+                  is_lvalue = true
+                } else {
+                  // Array decay: return pointer to first element
+                  expr_type = Ptr(elem_type)
+                  expr_value = gep
+                  is_lvalue = false
+                }
               }
               _ =>
                 // For non-array fields: if we have ++/-- in suffixes, keep address (lvalue)
@@ -3727,9 +3828,10 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
       let (ety, eval) = self.emit_expr(expr)
       match ety {
         Ptr(pointed_type) => (pointed_type, eval)
-        _ => raise CodeGenError::UnSupportFeature(
-          "Parenthesized lvalue expects pointer-producing inner expression, got \{ety}",
-        )
+        _ =>
+          raise CodeGenError::UnSupportFeature(
+            "Parenthesized lvalue expects pointer-producing inner expression, got \{ety}",
+          )
       }
     }
     Constant(_) | StringLiteral(_) | BuiltinOffsetof(_, _) =>
@@ -3767,6 +3869,14 @@ fn FuncCodeGenContext::emit_while(
   let body_bb = self.func_value.addBasicBlock()
   let exit_bb = self.func_value.addBasicBlock()
 
+  // Save old break/continue targets
+  let old_break = self.break_target
+  let old_continue = self.continue_target
+
+  // Set new break/continue targets
+  self.break_target = Some(exit_bb)
+  self.continue_target = Some(cond_bb)
+
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
 
@@ -3791,6 +3901,10 @@ fn FuncCodeGenContext::emit_while(
   // Jump back to condition (if no explicit jump was made)
   ignore(self.builder.createBr(cond_bb))
 
+  // Restore old break/continue targets
+  self.break_target = old_break
+  self.continue_target = old_continue
+
   // Only set exit block if it has predecessors (i.e., if there are break statements or fall-through)
   // In this case since all cases have return statements, the exit block is not needed
   // But we keep it for consistency and in case of fall-through cases
@@ -3803,9 +3917,49 @@ fn FuncCodeGenContext::emit_do_while(
   stmt : Statement,
   cond_expr : Expr,
 ) -> Unit raise {
-  // For now, implement do-while as a simple while loop
-  // TODO: Implement proper do-while semantics
-  self.emit_while(cond_expr, stmt)
+  // Create basic blocks for the do-while loop
+  let body_bb = self.func_value.addBasicBlock()
+  let cond_bb = self.func_value.addBasicBlock()
+  let exit_bb = self.func_value.addBasicBlock()
+
+  // Save old break/continue targets
+  let old_break = self.break_target
+  let old_continue = self.continue_target
+
+  // Set new break/continue targets
+  self.break_target = Some(exit_bb)
+  self.continue_target = Some(cond_bb)
+
+  // Jump to body block (do-while executes body at least once)
+  ignore(self.builder.createBr(body_bb))
+
+  // Emit body block
+  self.builder.setInsertPoint(body_bb)
+  self.emit_statement(stmt)
+
+  // Jump to condition block
+  ignore(self.builder.createBr(cond_bb))
+
+  // Emit condition block
+  self.builder.setInsertPoint(cond_bb)
+  let (cond_type, cond_val) = self.emit_expr(cond_expr)
+
+  // Convert condition to boolean if needed
+  let bool_cond = if cond_type != Int(1) && cond_type != UInt(1) {
+    self.to_bool(cond_type, cond_val)
+  } else {
+    cond_val
+  }
+
+  // Create conditional branch: if true, jump back to body; if false, jump to exit
+  ignore(self.builder.createCondBr(bool_cond, body_bb, exit_bb))
+
+  // Restore old break/continue targets
+  self.break_target = old_break
+  self.continue_target = old_continue
+
+  // Continue with exit block
+  self.builder.setInsertPoint(exit_bb)
 }
 
 ///|
@@ -3829,6 +3983,15 @@ fn FuncCodeGenContext::emit_for(
   let body_bb = self.func_value.addBasicBlock()
   let inc_bb = self.func_value.addBasicBlock()
   let exit_bb = self.func_value.addBasicBlock()
+
+  // Save old break/continue targets
+  let old_break = self.break_target
+  let old_continue = self.continue_target
+
+  // Set new break/continue targets
+  // For 'for' loops, continue should jump to the increment block
+  self.break_target = Some(exit_bb)
+  self.continue_target = Some(inc_bb)
 
   // Jump to condition block
   ignore(self.builder.createBr(cond_bb))
@@ -3870,6 +4033,10 @@ fn FuncCodeGenContext::emit_for(
   // Jump back to condition
   ignore(self.builder.createBr(cond_bb))
 
+  // Restore old break/continue targets
+  self.break_target = old_break
+  self.continue_target = old_continue
+
   // Continue with exit block
   self.builder.setInsertPoint(exit_bb)
 }
@@ -3898,8 +4065,24 @@ fn FuncCodeGenContext::emit_jump_statement(
         }
         None => ignore(self.builder.createRetVoid())
       }
+    Break =>
+      match self.break_target {
+        Some(target) => ignore(self.builder.createBr(target))
+        None =>
+          raise CodeGenError::UnSupportFeature(
+            "break statement outside of loop or switch",
+          )
+      }
+    Continue =>
+      match self.continue_target {
+        Some(target) => ignore(self.builder.createBr(target))
+        None =>
+          raise CodeGenError::UnSupportFeature(
+            "continue statement outside of loop",
+          )
+      }
     _ =>
-      // For now, skip other jump statements
+      // For now, skip other jump statements (goto, etc.)
       ()
   }
 }
@@ -3982,6 +4165,12 @@ fn FuncCodeGenContext::emit_switch_statement(
   let default_bb = self.func_value.addBasicBlock()
   let exit_bb = self.func_value.addBasicBlock()
 
+  // Save old break target
+  let old_break = self.break_target
+
+  // Set new break target for switch statement
+  self.break_target = Some(exit_bb)
+
   // Create the switch instruction
   let switch_inst = self.builder.createSwitch(switch_val, default_bb)
 
@@ -4016,6 +4205,9 @@ fn FuncCodeGenContext::emit_switch_statement(
         "Switch statement body must be a compound statement",
       )
   }
+
+  // Restore old break target
+  self.break_target = old_break
 
   // Continue with exit block
   self.builder.setInsertPoint(exit_bb)
@@ -4074,11 +4266,40 @@ fn FuncCodeGenContext::emit_switch_body(
     case_map.set(case_value, case_bb)
   }
 
-  // Process each statement in the compound statement
-  // The key insight is that in C switch statements, each case/default label
-  // starts a new basic block, and statements following a label are emitted
-  // in that block until we hit another label or the end
+  // Build a list of all blocks in order (for fall-through)
+  let ordered_blocks : Array[@IR.BasicBlock] = []
   let mut current_bb : @IR.BasicBlock? = None
+
+  // First pass: collect blocks in order
+  for item in comp_stmt.items {
+    match item {
+      Statement(Statement::LabeledStatement(labeled_stmt)) =>
+        match labeled_stmt {
+          Case(const_expr, _) => {
+            let (_, case_value) = self.emit_conditional_expr(const_expr)
+            guard case_value.tryAsConstant() is Some(case_value) else {
+              raise CodeGenError::SyntaxError(
+                "Case label must be a constant integer",
+              )
+            }
+            guard case_value.asConstantEnum() is ConstantInt(case_value) else {
+              raise CodeGenError::SyntaxError(
+                "Case label must be a constant integer",
+              )
+            }
+            let case_value = case_value.getValueAsInt64().to_int()
+            let case_bb = case_map.get(case_value).unwrap()
+            ordered_blocks.push(case_bb)
+          }
+          Default(_) => ordered_blocks.push(default_bb)
+          _ => ()
+        }
+      _ => ()
+    }
+  }
+
+  // Second pass: emit statements
+  let mut block_idx = -1
   for item in comp_stmt.items {
     match item {
       Statement(stmt) =>
@@ -4086,8 +4307,18 @@ fn FuncCodeGenContext::emit_switch_body(
           LabeledStatement(labeled_stmt) =>
             match labeled_stmt {
               Case(const_expr, case_stmt) => {
-                // Switch to the appropriate case block
-                //let case_value = self.evaluate_case_constant(const_expr)
+                // Add fall-through if needed before switching blocks
+                if current_bb is Some(bb) {
+                  if bb.getTerminator() is None {
+                    // No terminator, need to add fall-through
+                    if block_idx >= 0 && block_idx < ordered_blocks.length() {
+                      ignore(
+                        self.builder.createBr(ordered_blocks[block_idx + 1]),
+                      )
+                    }
+                  }
+                }
+                block_idx = block_idx + 1
                 let (_, case_value) = self.emit_conditional_expr(const_expr)
                 guard case_value.tryAsConstant() is Some(case_value) else {
                   raise CodeGenError::SyntaxError(
@@ -4104,11 +4335,22 @@ fn FuncCodeGenContext::emit_switch_body(
                 self.builder.setInsertPoint(case_bb)
                 current_bb = Some(case_bb)
 
-                // Emit the case statement (this might be a return, break, or other statement)
+                // Emit the case statement
                 self.emit_statement(case_stmt)
               }
               Default(default_stmt) => {
-                // Switch to the default block
+                // Add fall-through if needed before switching blocks
+                if current_bb is Some(bb) {
+                  if bb.getTerminator() is None {
+                    // No terminator, need to add fall-through
+                    if block_idx >= 0 && block_idx < ordered_blocks.length() {
+                      ignore(
+                        self.builder.createBr(ordered_blocks[block_idx + 1]),
+                      )
+                    }
+                  }
+                }
+                block_idx = block_idx + 1
                 self.builder.setInsertPoint(default_bb)
                 current_bb = Some(default_bb)
 
@@ -4116,7 +4358,6 @@ fn FuncCodeGenContext::emit_switch_body(
                 self.emit_statement(default_stmt)
               }
               _ =>
-                // Regular labels not supported in switch for now
                 raise CodeGenError::UnSupportFeature(
                   "Regular labels not supported in switch statements",
                 )
@@ -4126,19 +4367,22 @@ fn FuncCodeGenContext::emit_switch_body(
             if current_bb is Some(_) {
               self.emit_statement(stmt)
             } else {
-              // Statements that appear before any case/default are ignored
-              // This is consistent with C behavior
               ()
             }
         }
       Declaration(decl) =>
-        // Declarations in switch - emit in current case block
         if current_bb is Some(_) {
           self.emit_declaration(decl)
         } else {
-          // Declarations that appear before any case/default are ignored
           ()
         }
+    }
+  }
+
+  // Add fall-through or exit for the last block
+  if current_bb is Some(bb) {
+    if bb.getTerminator() is None {
+      ignore(self.builder.createBr(exit_bb))
     }
   }
 
@@ -4146,23 +4390,6 @@ fn FuncCodeGenContext::emit_switch_body(
   if !has_default {
     self.builder.setInsertPoint(default_bb)
     ignore(self.builder.createBr(exit_bb))
-  }
-
-  // Ensure the exit block has a terminator instruction
-  // Always add a return to the exit block since it might be reached by break statements
-  self.builder.setInsertPoint(exit_bb)
-  match self.return_type {
-    Void => ignore(self.builder.createRetVoid())
-    _ => {
-      // Create a dummy return value for non-void functions
-      let zero = self.global_ctx.llvm_ctx.getConstInt32(0)
-      let return_val = self.emit_cast(
-        from_type=Int(32),
-        to_type=self.return_type,
-        zero,
-      )
-      ignore(self.builder.createRet(return_val))
-    }
   }
 }
 
@@ -4489,14 +4716,16 @@ fn FuncCodeGenContext::emit_decl(
         let mut needs_runtime_alloc = false
         let mut count_expr_opt : AssignExpr? = None
         match declarator.directDeclarator {
-          Array(inner_decl, _, size_expr_opt) => {
+          Array(inner_decl, _, size_expr_opt) =>
             // Presence of size expression suggests an array; if it wasn't folded to constant,
             // our analysis returned Ptr(elem_type). We'll allocate at runtime.
             match size_expr_opt {
-              Some(sz) => { needs_runtime_alloc = true; count_expr_opt = Some(sz) }
+              Some(sz) => {
+                needs_runtime_alloc = true
+                count_expr_opt = Some(sz)
+              }
               None => ()
             }
-          }
           _ => ()
         }
         if needs_runtime_alloc {
@@ -4512,7 +4741,9 @@ fn FuncCodeGenContext::emit_decl(
           }
           // Compute element size (bytes) using our sizeof helper
           let elem_size_i32 = self.calculate_type_size(elem_type)
-          let elem_size_i64 = self.global_ctx.llvm_ctx.getConstInt64(elem_size_i32.to_int64())
+          let elem_size_i64 = self.global_ctx.llvm_ctx.getConstInt64(
+            elem_size_i32.to_int64(),
+          )
           let total_bytes = self.builder.createMul(cnt_i64, elem_size_i64)
 
           // Ensure malloc is declared
@@ -4522,15 +4753,23 @@ fn FuncCodeGenContext::emit_decl(
               let ret_ty = self.global_ctx.llvm_ctx.getPtrTy()
               let param_types : Array[&LLVMType] = []
               param_types.push(self.global_ctx.llvm_ctx.getInt64Ty())
-              let fn_ty = self.global_ctx.llvm_ctx.getFunctionType(ret_ty, param_types, isVarArg=false)
+              let fn_ty = self.global_ctx.llvm_ctx.getFunctionType(
+                ret_ty,
+                param_types,
+                isVarArg=false,
+              )
               let f = self.global_ctx.llvm_mod.addFunction(fn_ty, "malloc")
               self.global_ctx.function_env.set("malloc", f)
-              self.global_ctx.function_sig_env.set("malloc", (Ptr(Int(8)), [("size", Int(64))]))
+              self.global_ctx.function_sig_env.set(
+                "malloc",
+                (Ptr(Int(8)), [("size", Int(64))]),
+              )
               f
             }
           }
           // Call malloc and store the pointer into the local alloca
-          let buf_ptr = self.builder.createCall(malloc_fn, [total_bytes]) as &LLVMValue
+          let buf_ptr = self.builder.createCall(malloc_fn, [total_bytes])
+            as &LLVMValue
           ignore(self.builder.createStore(buf_ptr, alloca))
         }
       }
