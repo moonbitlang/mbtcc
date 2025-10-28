@@ -1625,11 +1625,15 @@ pub fn FuncCodeGenContext::emit_cast(
         value
       } else if from_width < to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         // For boolean (i1) to integer conversion, use zero extension
         if from_width == 1 {
@@ -1639,11 +1643,15 @@ pub fn FuncCodeGenContext::emit_cast(
         }
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createTrunc(value, int_type)
       } else {
@@ -1656,20 +1664,28 @@ pub fn FuncCodeGenContext::emit_cast(
         value
       } else if from_width < to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createZExt(value, int_type)
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createTrunc(value, int_type)
       } else {
@@ -1691,11 +1707,15 @@ pub fn FuncCodeGenContext::emit_cast(
         self.builder.createSExt(value, int_type)
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createTrunc(value, int_type)
       } else {
@@ -1708,20 +1728,28 @@ pub fn FuncCodeGenContext::emit_cast(
         value
       } else if from_width < to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createZExt(value, int_type)
       } else if from_width > to_width {
         let int_type : &@IR.IntegerType = match to_width {
+          1 => self.global_ctx.llvm_ctx.getInt1Ty() as &@IR.IntegerType
           8 => self.global_ctx.llvm_ctx.getInt8Ty() as &@IR.IntegerType
           16 => self.global_ctx.llvm_ctx.getInt16Ty() as &@IR.IntegerType
           32 => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
           64 => self.global_ctx.llvm_ctx.getInt64Ty() as &@IR.IntegerType
-          _ => self.global_ctx.llvm_ctx.getInt32Ty() as &@IR.IntegerType
+          _ =>
+            raise CodeGenError::UnSupportFeature(
+              "Unsupported integer width: \{to_width}",
+            )
         }
         self.builder.createTrunc(value, int_type)
       } else {
@@ -2656,14 +2684,17 @@ fn FuncCodeGenContext::emit_unary_expr(
       PlusPlus =>
         // Pre-increment: load, add 1, store, return new value
         match expr_type {
-          Int(_) | UInt(_) => {
+          Int(width) | UInt(width) => {
             // expr_value is an address for pre-increment
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let current_val = self.builder.createLoad(llvm_type, expr_value)
-            let one = match expr_type {
-              Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              _ => self.global_ctx.llvm_ctx.getConstInt32(1) // Fallback
+            // Create constant 1 with the same width as the variable
+            let one = match width {
+              8 => self.global_ctx.llvm_ctx.getConstInt8(1)
+              16 => self.global_ctx.llvm_ctx.getConstInt16(1)
+              32 => self.global_ctx.llvm_ctx.getConstInt32(1)
+              64 => self.global_ctx.llvm_ctx.getConstInt64(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)
             }
             let new_val = self.builder.createAdd(current_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
@@ -2677,13 +2708,16 @@ fn FuncCodeGenContext::emit_unary_expr(
       MinusMinus =>
         // Pre-decrement: load, subtract 1, store, return new value
         match expr_type {
-          Int(_) | UInt(_) => {
+          Int(width) | UInt(width) => {
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let current_val = self.builder.createLoad(llvm_type, expr_value)
-            let one = match expr_type {
-              Int(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              UInt(_) => self.global_ctx.llvm_ctx.getConstInt32(1)
-              _ => self.global_ctx.llvm_ctx.getConstInt32(1) // Fallback
+            // Create constant 1 with the same width as the variable
+            let one = match width {
+              8 => self.global_ctx.llvm_ctx.getConstInt8(1)
+              16 => self.global_ctx.llvm_ctx.getConstInt16(1)
+              32 => self.global_ctx.llvm_ctx.getConstInt32(1)
+              64 => self.global_ctx.llvm_ctx.getConstInt64(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)
             }
             let new_val = self.builder.createSub(current_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
@@ -3600,7 +3634,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
       PlusPlus =>
         // Post-increment: return old value, increment stored value
         match expr_type {
-          Int(_) | UInt(_) => {
+          Int(width) | UInt(width) => {
             // expr_value should be an address for post-increment
             if !is_lvalue {
               raise CodeGenError::UnSupportFeature(
@@ -3609,7 +3643,14 @@ fn FuncCodeGenContext::emit_postfix_expr(
             }
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let old_val = self.builder.createLoad(llvm_type, expr_value)
-            let one = self.global_ctx.llvm_ctx.getConstInt32(1)
+            // Create constant 1 with the same width as the variable
+            let one = match width {
+              8 => self.global_ctx.llvm_ctx.getConstInt8(1)
+              16 => self.global_ctx.llvm_ctx.getConstInt16(1)
+              32 => self.global_ctx.llvm_ctx.getConstInt32(1)
+              64 => self.global_ctx.llvm_ctx.getConstInt64(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)
+            }
             let new_val = self.builder.createAdd(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = old_val // Return old value
@@ -3623,7 +3664,7 @@ fn FuncCodeGenContext::emit_postfix_expr(
       MinusMinus =>
         // Post-decrement: return old value, decrement stored value
         match expr_type {
-          Int(_) | UInt(_) => {
+          Int(width) | UInt(width) => {
             // expr_value should be an address for post-decrement
             if !is_lvalue {
               raise CodeGenError::UnSupportFeature(
@@ -3632,7 +3673,14 @@ fn FuncCodeGenContext::emit_postfix_expr(
             }
             let llvm_type = self.global_ctx.convert_type_to_llvm(expr_type)
             let old_val = self.builder.createLoad(llvm_type, expr_value)
-            let one = self.global_ctx.llvm_ctx.getConstInt32(1)
+            // Create constant 1 with the same width as the variable
+            let one = match width {
+              8 => self.global_ctx.llvm_ctx.getConstInt8(1)
+              16 => self.global_ctx.llvm_ctx.getConstInt16(1)
+              32 => self.global_ctx.llvm_ctx.getConstInt32(1)
+              64 => self.global_ctx.llvm_ctx.getConstInt64(1)
+              _ => self.global_ctx.llvm_ctx.getConstInt32(1)
+            }
             let new_val = self.builder.createSub(old_val, one)
             ignore(self.builder.createStore(new_val, expr_value))
             expr_value = old_val // Return old value
@@ -3956,13 +4004,22 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
           }
       }
     ParenExpr(expr) => {
-      // Parenthesized lvalue: inner expr must yield a pointer value; return it as the address.
-      let (ety, eval) = self.emit_expr(expr)
-      match ety {
-        Ptr(pointed_type) => (pointed_type, eval)
-        _ =>
+      // Parenthesized lvalue: recursively treat inner expression as lvalue
+      // Extract the single assignment expression from the parenthesized expression
+      if expr.exprs.length() != 1 {
+        raise CodeGenError::UnSupportFeature(
+          "Parenthesized lvalue with comma operator not supported",
+        )
+      }
+      let assign_expr = expr.exprs[0]
+      match assign_expr {
+        Conditional(cond_expr) =>
+          // For conditional expression without assignment, treat as unary expression
+          // which can be an lvalue (e.g., (*ptr))
+          self.emit_conditional_expr_as_lvalue(cond_expr)
+        Assign(_, _, _) =>
           raise CodeGenError::UnSupportFeature(
-            "Parenthesized lvalue expects pointer-producing inner expression, got \{ety}",
+            "Assignment expression cannot be an lvalue",
           )
       }
     }
@@ -3975,6 +4032,159 @@ fn FuncCodeGenContext::emit_prim_expr_as_lvalue(
         "GCC extension blocks cannot be lvalues",
       )
   }
+}
+
+///|
+fn FuncCodeGenContext::emit_conditional_expr_as_lvalue(
+  self : Self,
+  cond_expr : ConditionalExpr,
+) -> (Type, &LLVMValue) raise {
+  let { expr, select } = cond_expr
+  if select is Some(_) {
+    raise CodeGenError::UnSupportFeature("Ternary operator cannot be an lvalue")
+  }
+  // If no ternary operator, continue with the logical or expression
+  self.emit_logical_or_expr_as_lvalue(expr)
+}
+
+///|
+fn FuncCodeGenContext::emit_logical_or_expr_as_lvalue(
+  self : Self,
+  log_or_expr : LogicalOrExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: logical_and_exprs } = log_or_expr
+  if logical_and_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Logical OR in lvalue expression not supported",
+    )
+  }
+  self.emit_logical_and_expr_as_lvalue(logical_and_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_logical_and_expr_as_lvalue(
+  self : Self,
+  log_and_expr : LogicalAndExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: or_exprs } = log_and_expr
+  if or_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Logical AND in lvalue expression not supported",
+    )
+  }
+  self.emit_inclusive_or_expr_as_lvalue(or_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_inclusive_or_expr_as_lvalue(
+  self : Self,
+  inc_or_expr : InclusiveOrExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: xor_exprs } = inc_or_expr
+  if xor_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Bitwise OR in lvalue expression not supported",
+    )
+  }
+  self.emit_exclusive_or_expr_as_lvalue(xor_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_exclusive_or_expr_as_lvalue(
+  self : Self,
+  exc_or_expr : ExclusiveOrExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: and_exprs } = exc_or_expr
+  if and_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Bitwise XOR in lvalue expression not supported",
+    )
+  }
+  self.emit_and_expr_as_lvalue(and_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_and_expr_as_lvalue(
+  self : Self,
+  and_expr : AndExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: eq_exprs } = and_expr
+  if eq_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Bitwise AND in lvalue expression not supported",
+    )
+  }
+  self.emit_equality_expr_as_lvalue(eq_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_equality_expr_as_lvalue(
+  self : Self,
+  eq_expr : EqualityExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: rel_exprs, ops } = eq_expr
+  if rel_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Equality operators in lvalue expression not supported",
+    )
+  }
+  self.emit_relational_expr_as_lvalue(rel_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_relational_expr_as_lvalue(
+  self : Self,
+  rel_expr : RelationalExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: shift_exprs, ops } = rel_expr
+  if shift_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Relational operators in lvalue expression not supported",
+    )
+  }
+  self.emit_shift_expr_as_lvalue(shift_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_shift_expr_as_lvalue(
+  self : Self,
+  shift_expr : ShiftExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: add_exprs, ops } = shift_expr
+  if add_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Shift operators in lvalue expression not supported",
+    )
+  }
+  self.emit_additive_expr_as_lvalue(add_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_additive_expr_as_lvalue(
+  self : Self,
+  add_expr : AddSubExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: mult_exprs, ops } = add_expr
+  if mult_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Additive operators in lvalue expression not supported",
+    )
+  }
+  self.emit_multiplicative_expr_as_lvalue(mult_exprs[0])
+}
+
+///|
+fn FuncCodeGenContext::emit_multiplicative_expr_as_lvalue(
+  self : Self,
+  mult_expr : MultExpr,
+) -> (Type, &LLVMValue) raise {
+  let { exprs: cast_exprs, ops } = mult_expr
+  if cast_exprs.length() != 1 {
+    raise CodeGenError::UnSupportFeature(
+      "Multiplicative operators in lvalue expression not supported",
+    )
+  }
+  self.emit_cast_expr_as_lvalue(cast_exprs[0])
 }
 
 ///|
