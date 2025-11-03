@@ -271,6 +271,40 @@ pub fn CType::is_inc_ok(self: CType) -> Bool {
   }
 }
 
+pub fn CType::is_numeric(self: CType) -> Bool {
+  match self.dataKind {
+    Char => true
+    UChar => true
+    Int16 => true
+    UInt16 => true
+    Int => true
+    UInt => true
+    Long => true
+    LongLong => true
+    ULong => true
+    ULongLong => true
+    Float => true
+    Double => true
+    _ => false
+  }
+}
+
+pub fn CType::is_integral(self: CType) -> Bool {
+  match self.dataKind {
+    Char => true
+    UChar => true
+    Int16 => true
+    UInt16 => true
+    Int => true
+    UInt => true
+    Long => true
+    LongLong => true
+    ULong => true
+    ULongLong => true
+    _ => false
+  }
+}
+
 pub fn CType::get_field_ctype_by_dot_acc(self: CType, field_name: String) -> CType? {
   let fields = match self.dataKind {
     Struct(_, fields) => fields
@@ -290,5 +324,5 @@ pub fn CType::get_field_ctype_by_ptr_acc(self: CType, field_name: String) -> CTy
   guard self.dataKind is Ptr(inner_ctype) else {
     return None
   }
-  return inner_ctype.get_field_ctype_by_dot_acc(field_name)
+  inner_ctype.get_field_ctype_by_dot_acc(field_name)
 }

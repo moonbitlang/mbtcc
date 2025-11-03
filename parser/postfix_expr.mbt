@@ -8,6 +8,15 @@
 ///
 /// ## Examples
 ///
+/// ```c
+/// arr[2];      // Array access
+/// foo(10, 20); // Function call
+/// point.x;     // Member access
+/// point->y;    // Pointer member access
+/// counter++;   // Post-increment
+/// counter--;   // Post-decrement
+/// ```
+///
 ///
 /// ## Grammar (EBNF)
 ///
