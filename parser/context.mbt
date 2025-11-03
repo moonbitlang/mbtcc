@@ -45,6 +45,20 @@ pub fn Context::is_var_name(self: Context, name: String) -> Bool {
   }
 }
 
+pub fn Context::get_var_ctype(self: Context, name: String) -> CType? {
+  match self.defined.get(name) {
+    Some(Left(ctype)) => Some(ctype)
+    _ => None
+  }
+}
+
+pub fn Context::get_typename_ctype(self: Context, name: String) -> CType? {
+  match self.defined.get(name) {
+    Some(Right(ctype)) => Some(ctype)
+    _ => None
+  }
+}
+
 pub fn Context::catch_err(self: Context, err: ParseError) -> Unit {
   self.errs.push(err)
 }

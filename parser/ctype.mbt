@@ -1,7 +1,6 @@
 
 pub(all) struct CType {
   dataKind: CTypeDataKind
-  is_pointer: Bool
   is_const: Bool
   is_volatile: Bool
   is_restrict: Bool
@@ -11,11 +10,95 @@ pub(all) struct CType {
   is_extern: Bool
 }
 
+fn CType::spec_to_string_first(self: CType) -> String {
+  let sb = StringBuilder::new()
+  if self.is_const {
+    sb.write_string("const ")
+  }
+  if self.is_volatile {
+    sb.write_string("volatile ")
+  }
+  if self.is_restrict {
+    sb.write_string("restrict ")
+  }
+  if self.is_atomic {
+    sb.write_string("_Atomic ")
+  }
+  if self.is_static {
+    sb.write_string("static ")
+  }
+  if self.is_thread_local {
+    sb.write_string("_Thread_local ")
+  }
+  if self.is_extern {
+    sb.write_string("extern ")
+  }
+  sb.to_string()
+}
+
+fn CType::spec_to_string_last(self: CType) -> String {
+  let sb = StringBuilder::new()
+  if self.is_const {
+    sb.write_string(" const")
+  }
+  if self.is_volatile {
+    sb.write_string(" volatile")
+  }
+  if self.is_restrict {
+    sb.write_string(" restrict")
+  }
+  if self.is_atomic {
+    sb.write_string(" _Atomic")
+  }
+  if self.is_static {
+    sb.write_string(" static")
+  }
+  if self.is_thread_local {
+    sb.write_string(" _Thread_local")
+  }
+  if self.is_extern {
+    sb.write_string(" extern")
+  }
+  sb.to_string()
+}
+
+pub impl Show for CType with output(self, logger) {
+  let s = match self.dataKind {
+    Ptr(_) => self.to_string(spec_first = false)
+    _ => self.to_string(spec_first = true)
+  }
+  logger.write_string(s)
+}
+
+fn CType::to_string(self: CType, spec_first~: Bool) -> String{
+  let sb = StringBuilder::new()
+  if spec_first {
+    sb.write_string(self.spec_to_string_first())
+  }
+  sb.write_object(self.dataKind)
+  if !spec_first {
+    sb.write_string(self.spec_to_string_last())
+  }
+  sb.to_string()
+}
+
 pub fn CType::default_with(kind: CTypeDataKind) -> CType {
   return CType::{
     dataKind: kind,
-    is_pointer: false,
     is_const: false,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    is_static: false,
+    is_thread_local: false,
+    is_extern: false,
+  }
+}
+
+pub fn CType::const_with(kind: CTypeDataKind) -> CType {
+  return CType::{
+    dataKind: kind,
+    is_const: true,
     is_volatile: false,
     is_restrict: false,
     is_atomic: false,
@@ -33,14 +116,76 @@ pub(all) enum CTypeDataKind {
   UInt16 // unsigned short
   Int    // int
   UInt   // unsigned int
-  Long   // long or long long
+  LongLong // long long
+  Long   // long
   ULong  // unsigned long or unsigned long long
+  ULongLong
   Float  // float
   Double // double
-  Struct(Array[(String, CType)])
-  Union(Array[(String, CType)])
-  Enum(Array[String])
+  Struct(String?, Array[(String, CType)])
+  Union(String?, Array[(String, CType)])
+  Enum(String?, Array[String])
   Ptr(CType)
+}
+
+pub impl Show for CTypeDataKind with output(self, logger) {
+  fn fields_stringify(fields: Array[(String, CType)]) -> String {
+    let sb = StringBuilder::new()
+    sb.write_string("{ ")
+    for field in fields {
+      let (name, ctype) = field
+      sb.write_object(ctype)
+      sb.write_string(" ")
+      sb.write_string(name)
+      sb.write_string("; ")
+    }
+    sb.write_string("}")
+    return sb.to_string()
+  }
+  let s = match self {
+    Void => "void"
+    Char => "char"
+    UChar => "unsigned char"
+    Int16 => "short"
+    UInt16 => "unsigned short"
+    Int => "int"
+    UInt => "unsigned int"
+    Long => "long"
+    LongLong => "long long"
+    ULong => "unsigned long"
+    ULongLong => "unsigned long long"
+    Float => "float"
+    Double => "double"
+    Struct(Some(name), _) => "struct \{name}"
+    Struct(None, fields) => {
+      let sb = StringBuilder::new()
+      sb.write_string("struct ")
+      sb.write_string(fields_stringify(fields))
+      sb.to_string()
+    }
+    Union(Some(name), _) => "union \{name}"
+    Union(None, fields) => {
+      let sb = StringBuilder::new()
+      sb.write_string("union ")
+      sb.write_string(fields_stringify(fields))
+      sb.to_string()
+    }
+    Enum(Some(name), _) => "enum \{name}"
+    Enum(None, variants) => {
+      let sb = StringBuilder::new()
+      sb.write_string("enum { ")
+      for variant in variants {
+        sb.write_string(variant)
+        sb.write_string(", ")
+      }
+      sb.write_string("}")
+      sb.to_string()
+    }
+    Ptr(inner_ctype) => {
+      "\{inner_ctype} *"
+    }
+  }
+  logger.write_string(s)
 }
 
 pub fn CType::void_() -> CType {
@@ -49,6 +194,11 @@ pub fn CType::void_() -> CType {
 
 pub fn CType::char() -> CType {
   CType::default_with(Char)
+}
+
+pub fn CType::string() -> CType {
+  let const_char = CType::const_with(Char)
+  CType::default_with(Ptr(const_char))
 }
 
 pub fn CType::uchar() -> CType {
@@ -75,8 +225,16 @@ pub fn CType::long() -> CType {
   CType::default_with(Long)
 }
 
+pub fn CType::longlong() -> CType {
+  CType::default_with(LongLong)
+}
+
 pub fn CType::ulong() -> CType {
   CType::default_with(ULong)
+}
+
+pub fn CType::ulonglong() -> CType {
+  CType::default_with(ULongLong)
 }
 
 pub fn CType::float() -> CType {
@@ -85,4 +243,26 @@ pub fn CType::float() -> CType {
 
 pub fn CType::double() -> CType {
   CType::default_with(Double)
+}
+
+pub fn CType::get_field_ctype_by_dot_acc(self: CType, field_name: String) -> CType? {
+  let fields = match self.dataKind {
+    Struct(_, fields) => fields
+    Union(_, fields) => fields
+    _ => return None
+  }
+  for field in fields {
+    let (name, ctype) = field
+    if name == field_name {
+      return Some(ctype)
+    }
+  }
+  None
+}
+
+pub fn CType::get_field_ctype_by_ptr_acc(self: CType, field_name: String) -> CType? {
+  guard self.dataKind is Ptr(inner_ctype) else {
+    return None
+  }
+  return inner_ctype.get_field_ctype_by_dot_acc(field_name)
 }
