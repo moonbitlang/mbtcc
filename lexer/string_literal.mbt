@@ -1,0 +1,142 @@
+///|
+fn Context::lex_string_literal(
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
+) -> (Token, StringView) {
+  guard code is ['"', .. code]  // skip first '"'
+  let mut err_msg = ""
+  let raw_str_builder = StringBuilder::new()
+  let str_builder = StringBuilder::new()
+  let rest = loop code {
+    ['"', .. rest_str] => {
+      raw_str_builder.write_char('"')
+      break rest_str
+    }
+    [.. "\\0", .. rest_str] => {
+      raw_str_builder.write_char('\u0000')
+      str_builder.write_char('\u0000')
+      continue rest_str
+    }
+    [.. "\\n", .. rest_str] => {
+      raw_str_builder.write_char('\n')
+      str_builder.write_char('\n')
+      continue rest_str
+    }
+    [.. "\\t", .. rest_str] => {
+      raw_str_builder.write_char('\t')
+      str_builder.write_char('\t')
+      continue rest_str
+    }
+    [.. "\\r", .. rest_str] => {
+      raw_str_builder.write_char('\r')
+      str_builder.write_char('\r')
+      continue rest_str
+    }
+    [.. "\\\"", .. rest_str] => {
+      raw_str_builder.write_char('"')
+      str_builder.write_char('"')
+      continue rest_str
+    }
+    [.. "\\\\", .. rest_str] => {
+      raw_str_builder.write_char('\\')
+      str_builder.write_char('\\')
+      continue rest_str
+    }
+    [.. "\\\'", .. rest_str] => {
+      raw_str_builder.write_string("\\\'")
+      str_builder.write_string("\\\'")
+      continue rest_str
+    }
+    ['\n', .. rest_str] => {
+      err_msg = "Unterminated string literal"
+      break rest_str // Unterminated string literal
+    }
+    [c, .. rest_str] => {
+      raw_str_builder.write_char(c)
+      str_builder.write_char(c)
+      continue rest_str
+    }
+    [] as code => {
+      err_msg = "Unterminated string literal"
+      break code // Unterminated string literal
+    }
+  }
+  let str = str_builder.to_string()
+  raw_str_builder.write_string(str) // exclude surrounding quotes
+  let toeken_kind = TokenKind::String(str) // remove surrounding quotes
+  let raw_str = raw_str_builder.to_string()
+  let token = Token::new(toeken_kind, line, col, idx, raw_str, err_msg~)
+  if !err_msg.is_empty() {
+    self.err_toks.push(token)
+  }
+  (token, rest)
+}
+
+///|
+fn Context::lex_char_literal(
+  self : Self,
+  code : StringView,
+  line : Int,
+  col : Int,
+  idx : Int,
+) -> (Token, StringView) {
+  let raw_str_builder = StringBuilder::new()
+  guard code is ['\'', .. code]  // skip first '\''
+  raw_str_builder.write_char('\'')
+  let mut err_msg = ""
+  let (token_kind, rest) = match code {
+    [.. "\\0", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\0'")
+      (TokenKind::Char('\u0000'), rest_str)
+    }
+    [.. "\\n", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\n'")
+      (TokenKind::Char('\n'), rest_str)
+    }
+    [.. "\\r", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\r'")
+      (TokenKind::Char('\r'), rest_str)
+    }
+    [.. "\\t", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\t'")
+      (TokenKind::Char('\t'), rest_str)
+    }
+    [.. "\\\'", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\\''")
+      (TokenKind::Char('\''), rest_str)
+    }
+    [.. "\\\\", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\\\'")
+      (TokenKind::Char('\\'), rest_str)
+    }
+    [c, '\'', .. rest_str] => {
+      raw_str_builder.write_char(c)
+      raw_str_builder.write_char('\'')
+      (TokenKind::Char(c), rest_str)
+    }
+    ['\'', .. rest_str] => {
+      raw_str_builder.write_char('\'')
+      err_msg = "Empty char literal"
+      (TokenKind::Char('\u0000'), rest_str)
+    }
+    [c, .. rest_str] => {
+      raw_str_builder.write_char(c)
+      err_msg = "Unterminated char literal"
+      (TokenKind::Char('\u0000'), rest_str)
+    }
+    [] as rest_str => {
+      err_msg = "Unterminated char literal"
+      (TokenKind::Char('\u0000'), rest_str)
+    }
+  }
+  let raw_str = raw_str_builder.to_string()
+  let token = Token::new(token_kind, line, col, idx, raw_str, err_msg~)
+  if !err_msg.is_empty() {
+    self.err_toks.push(token)
+  }
+  (token, rest)
+}
+

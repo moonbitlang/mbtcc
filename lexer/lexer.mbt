@@ -20,17 +20,17 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
   let mut idx = 0
   loop code {
     [] => {
-      tokens.push(Token::new(TokenKind::EOF, line, col, idx, ""))
+      tokens.push(Token::new(EOF, line, col, idx, ""))
       break
     }
     [.. "##", .. rest] => {
-      tokens.push(Token::new(TokenKind::Hash2, line, col, idx, "##"))
+      tokens.push(Token::new(Hash2, line, col, idx, "##"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "#", .. rest] => {
-      tokens.push(Token::new(TokenKind::Hash, line, col, idx, "#"))
+      tokens.push(Token::new(Hash, line, col, idx, "#"))
       idx += 1
       col += 1
       continue rest
@@ -84,289 +84,289 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
         [] => break
       }
     [.. "<<=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("<<="), line, col, idx, "<<="))
+      tokens.push(Token::new(Operator("<<="), line, col, idx, "<<="))
       idx += 3
       col += 3
       continue rest
     }
     [.. ">>=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator(">>="), line, col, idx, ">>="))
+      tokens.push(Token::new(Operator(">>="), line, col, idx, ">>="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "&&=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("&&="), line, col, idx, "&&="))
+      tokens.push(Token::new(Operator("&&="), line, col, idx, "&&="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "||=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("||="), line, col, idx, "||="))
+      tokens.push(Token::new(Operator("||="), line, col, idx, "||="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "...", .. rest] => {
-      tokens.push(Token::new(TokenKind::Ellipsis, line, col, idx, "..."))
+      tokens.push(Token::new(Ellipsis, line, col, idx, "..."))
       idx += 3
       col += 3
       continue rest
     }
     [.. "&&", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("&&"), line, col, idx, "&&"))
+      tokens.push(Token::new(Operator("&&"), line, col, idx, "&&"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "||", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("||"), line, col, idx, "||"))
+      tokens.push(Token::new(Operator("||"), line, col, idx, "||"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "<<", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("<<"), line, col, idx, "<<"))
+      tokens.push(Token::new(Operator("<<"), line, col, idx, "<<"))
       idx += 2
       col += 2
       continue rest
     }
     [.. ">>", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator(">>"), line, col, idx, ">>"))
+      tokens.push(Token::new(Operator(">>"), line, col, idx, ">>"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "++", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("++"), line, col, idx, "++"))
+      tokens.push(Token::new(Operator("++"), line, col, idx, "++"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "--", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("--"), line, col, idx, "--"))
+      tokens.push(Token::new(Operator("--"), line, col, idx, "--"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "->", .. rest] => {
-      tokens.push(Token::new(TokenKind::Arrow, line, col, idx, "->"))
+      tokens.push(Token::new(Arrow, line, col, idx, "->"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "+=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("+="), line, col, idx, "+="))
+      tokens.push(Token::new(Operator("+="), line, col, idx, "+="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "-=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("-="), line, col, idx, "-="))
+      tokens.push(Token::new(Operator("-="), line, col, idx, "-="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "*=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("*="), line, col, idx, "*="))
+      tokens.push(Token::new(Operator("*="), line, col, idx, "*="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "/=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("/="), line, col, idx, "/="))
+      tokens.push(Token::new(Operator("/="), line, col, idx, "/="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "%=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("%="), line, col, idx, "%="))
+      tokens.push(Token::new(Operator("%="), line, col, idx, "%="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "&=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("&="), line, col, idx, "&="))
+      tokens.push(Token::new(Operator("&="), line, col, idx, "&="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "|=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("|="), line, col, idx, "|="))
+      tokens.push(Token::new(Operator("|="), line, col, idx, "|="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "^=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("^="), line, col, idx, "^="))
+      tokens.push(Token::new(Operator("^="), line, col, idx, "^="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "==", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("=="), line, col, idx, "=="))
+      tokens.push(Token::new(Operator("=="), line, col, idx, "=="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "!=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("!="), line, col, idx, "!="))
+      tokens.push(Token::new(Operator("!="), line, col, idx, "!="))
       idx += 2
       col += 2
       continue rest
     }
     [.. ">=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator(">="), line, col, idx, ">="))
+      tokens.push(Token::new(Operator(">="), line, col, idx, ">="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "<=", .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("<="), line, col, idx, "<="))
+      tokens.push(Token::new(Operator("<="), line, col, idx, "<="))
       idx += 2
       col += 2
       continue rest
     }
     ['(', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket('('), line, col, idx, "("))
+      tokens.push(Token::new(Bracket('('), line, col, idx, "("))
       idx += 1
       col += 1
       continue rest
     }
     [')', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket(')'), line, col, idx, ")"))
+      tokens.push(Token::new(Bracket(')'), line, col, idx, ")"))
       idx += 1
       col += 1
       continue rest
     }
     ['[', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket('['), line, col, idx, "["))
+      tokens.push(Token::new(Bracket('['), line, col, idx, "["))
       idx += 1
       col += 1
       continue rest
     }
     [']', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket(']'), line, col, idx, "]"))
+      tokens.push(Token::new(Bracket(']'), line, col, idx, "]"))
       idx += 1
       col += 1
       continue rest
     }
     ['{', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket('{'), line, col, idx, "{"))
+      tokens.push(Token::new(Bracket('{'), line, col, idx, "{"))
       idx += 1
       col += 1
       continue rest
     }
     ['}', .. rest] => {
-      tokens.push(Token::new(TokenKind::Bracket('}'), line, col, idx, "}"))
+      tokens.push(Token::new(Bracket('}'), line, col, idx, "}"))
       idx += 1
       col += 1
       continue rest
     }
     [';', .. rest] => {
-      tokens.push(Token::new(TokenKind::Semi, line, col, idx, ";"))
+      tokens.push(Token::new(Semi, line, col, idx, ";"))
       idx += 1
       col += 1
       continue rest
     }
     [',', .. rest] => {
-      tokens.push(Token::new(TokenKind::Comma, line, col, idx, ","))
+      tokens.push(Token::new(Comma, line, col, idx, ","))
       idx += 1
       col += 1
       continue rest
     }
     ['.', .. rest] => {
-      tokens.push(Token::new(TokenKind::Dot, line, col, idx, "."))
+      tokens.push(Token::new(Dot, line, col, idx, "."))
       idx += 1
       col += 1
       continue rest
     }
     ['?', .. rest] => {
-      tokens.push(Token::new(TokenKind::Question, line, col, idx, "?"))
+      tokens.push(Token::new(Question, line, col, idx, "?"))
       idx += 1
       col += 1
       continue rest
     }
     [':', .. rest] => {
-      tokens.push(Token::new(TokenKind::Colon, line, col, idx, ":"))
+      tokens.push(Token::new(Colon, line, col, idx, ":"))
       idx += 1
       col += 1
       continue rest
     }
     ['+', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("+"), line, col, idx, "+"))
+      tokens.push(Token::new(Operator("+"), line, col, idx, "+"))
       idx += 1
       col += 1
       continue rest
     }
     ['-', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("-"), line, col, idx, "-"))
+      tokens.push(Token::new(Operator("-"), line, col, idx, "-"))
       idx += 1
       col += 1
       continue rest
     }
     ['*', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("*"), line, col, idx, "*"))
+      tokens.push(Token::new(Operator("*"), line, col, idx, "*"))
       idx += 1
       col += 1
       continue rest
     }
     ['/', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("/"), line, col, idx, "/"))
+      tokens.push(Token::new(Operator("/"), line, col, idx, "/"))
       idx += 1
       col += 1
       continue rest
     }
     ['%', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("%"), line, col, idx, "%"))
+      tokens.push(Token::new(Operator("%"), line, col, idx, "%"))
       idx += 1
       col += 1
       continue rest
     }
     ['|', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("|"), line, col, idx, "|"))
+      tokens.push(Token::new(Operator("|"), line, col, idx, "|"))
       idx += 1
       col += 1
       continue rest
     }
     ['&', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("&"), line, col, idx, "&"))
+      tokens.push(Token::new(Operator("&"), line, col, idx, "&"))
       idx += 1
       col += 1
       continue rest
     }
     ['^', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("^"), line, col, idx, "^"))
+      tokens.push(Token::new(Operator("^"), line, col, idx, "^"))
       idx += 1
       col += 1
       continue rest
     }
     ['~', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("~"), line, col, idx, "~"))
+      tokens.push(Token::new(Operator("~"), line, col, idx, "~"))
       idx += 1
       col += 1
       continue rest
     }
     ['=', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("="), line, col, idx, "="))
+      tokens.push(Token::new(Operator("="), line, col, idx, "="))
       idx += 1
       col += 1
       continue rest
     }
     ['<', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("<"), line, col, idx, "<"))
+      tokens.push(Token::new(Operator("<"), line, col, idx, "<"))
       idx += 1
       col += 1
       continue rest
     }
     ['>', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator(">"), line, col, idx, ">"))
+      tokens.push(Token::new(Operator(">"), line, col, idx, ">"))
       idx += 1
       col += 1
       continue rest
     }
     ['!', .. rest] => {
-      tokens.push(Token::new(TokenKind::Operator("!"), line, col, idx, "!"))
+      tokens.push(Token::new(Operator("!"), line, col, idx, "!"))
       idx += 1
       col += 1
       continue rest
@@ -404,7 +404,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     [c, .. rest] => {
-      let token_kind = TokenKind::ErrorChar(c)
+      let token_kind = ErrorChar(c)
       let err_msg = "Invalid character literal \{c}"
       let token = Token::new(token_kind, line, col, idx, "\{c}", err_msg~)
       tokens.push(token)
@@ -415,337 +415,6 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
     }
   }
   tokens
-}
-
-///|
-fn Context::lex_string_literal(
-  self : Self,
-  code : StringView,
-  line : Int,
-  col : Int,
-  idx : Int,
-) -> (Token, StringView) {
-  guard code is ['"', .. code]  // skip first '"'
-  let mut err_msg = ""
-  let raw_str_builder = StringBuilder::new()
-  let str_builder = StringBuilder::new()
-  let rest = loop code {
-    ['"', .. rest_str] => {
-      raw_str_builder.write_char('"')
-      break rest_str
-    }
-    [.. "\\0", .. rest_str] => {
-      raw_str_builder.write_char('\u0000')
-      str_builder.write_char('\u0000')
-      continue rest_str
-    }
-    [.. "\\n", .. rest_str] => {
-      raw_str_builder.write_char('\n')
-      str_builder.write_char('\n')
-      continue rest_str
-    }
-    [.. "\\t", .. rest_str] => {
-      raw_str_builder.write_char('\t')
-      str_builder.write_char('\t')
-      continue rest_str
-    }
-    [.. "\\r", .. rest_str] => {
-      raw_str_builder.write_char('\r')
-      str_builder.write_char('\r')
-      continue rest_str
-    }
-    [.. "\\\"", .. rest_str] => {
-      raw_str_builder.write_char('"')
-      str_builder.write_char('"')
-      continue rest_str
-    }
-    [.. "\\\\", .. rest_str] => {
-      raw_str_builder.write_char('\\')
-      str_builder.write_char('\\')
-      continue rest_str
-    }
-    [.. "\\\'", .. rest_str] => {
-      raw_str_builder.write_string("\\\'")
-      str_builder.write_string("\\\'")
-      continue rest_str
-    }
-    ['\n', .. rest_str] => {
-      err_msg = "Unterminated string literal"
-      break rest_str // Unterminated string literal
-    }
-    [c, .. rest_str] => {
-      raw_str_builder.write_char(c)
-      str_builder.write_char(c)
-      continue rest_str
-    }
-    [] as code => {
-      err_msg = "Unterminated string literal"
-      break code // Unterminated string literal
-    }
-  }
-  let str = str_builder.to_string()
-  raw_str_builder.write_string(str) // exclude surrounding quotes
-  let toeken_kind = TokenKind::String(str) // remove surrounding quotes
-  let raw_str = raw_str_builder.to_string()
-  let token = Token::new(toeken_kind, line, col, idx, raw_str, err_msg~)
-  if !err_msg.is_empty() {
-    self.err_toks.push(token)
-  }
-  (token, rest)
-}
-
-///|
-fn Context::lex_char_literal(
-  self : Self,
-  code : StringView,
-  line : Int,
-  col : Int,
-  idx : Int,
-) -> (Token, StringView) {
-  let raw_str_builder = StringBuilder::new()
-  guard code is ['\'', .. code]  // skip first '\''
-  raw_str_builder.write_char('\'')
-  let mut err_msg = ""
-  let (token_kind, rest) = match code {
-    [.. "\\0", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\0'")
-      (TokenKind::Char('\u0000'), rest_str)
-    }
-    [.. "\\n", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\n'")
-      (TokenKind::Char('\n'), rest_str)
-    }
-    [.. "\\r", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\r'")
-      (TokenKind::Char('\r'), rest_str)
-    }
-    [.. "\\t", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\t'")
-      (TokenKind::Char('\t'), rest_str)
-    }
-    [.. "\\\'", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\\''")
-      (TokenKind::Char('\''), rest_str)
-    }
-    [.. "\\\\", '\'', .. rest_str] => {
-      raw_str_builder.write_string("\\\\'")
-      (TokenKind::Char('\\'), rest_str)
-    }
-    [c, '\'', .. rest_str] => {
-      raw_str_builder.write_char(c)
-      raw_str_builder.write_char('\'')
-      (TokenKind::Char(c), rest_str)
-    }
-    ['\'', .. rest_str] => {
-      raw_str_builder.write_char('\'')
-      err_msg = "Empty char literal"
-      (TokenKind::Char('\u0000'), rest_str)
-    }
-    [c, .. rest_str] => {
-      raw_str_builder.write_char(c)
-      err_msg = "Unterminated char literal"
-      (TokenKind::Char('\u0000'), rest_str)
-    }
-    [] as rest_str => {
-      err_msg = "Unterminated char literal"
-      (TokenKind::Char('\u0000'), rest_str)
-    }
-  }
-  let raw_str = raw_str_builder.to_string()
-  let token = Token::new(token_kind, line, col, idx, raw_str, err_msg~)
-  if !err_msg.is_empty() {
-    self.err_toks.push(token)
-  }
-  (token, rest)
-}
-
-///|
-fn Context::lex_number_literal(
-  self : Self,
-  code : StringView,
-  line : Int,
-  col : Int,
-  idx : Int,
-) -> (Token, StringView) {
-  lexmatch code with longest {
-    // Case 1. Hexadecimal floating-point literal
-    (
-      "0[xX]"
-      ("([0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+)[pP][\+\-]?[0-9]+" as hf)
-      ("[fFlL]?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(hf.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      println("Hex float literal: '\{hf}'")
-      let (number, err_msg) = match (try? @strconv.parse_double(hf)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid hexadecimal floating-point literal")
-      }
-      let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
-        _ => TokenKind::Double(number)
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 2-1. Decimal floating-point literal with decimal point
-    (
-      ("([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([eE][\+\-]?[0-9]+)?" as df_dot)
-      ("[fFlL]?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(df_dot.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_double(df_dot)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid decimal floating-point literal")
-      }
-      let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
-        _ => TokenKind::Double(number)
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 2-2: Decimal floating-point literal with exponent
-    (("[0-9]+[eE][\+\-]?[0-9]+" as df_exp) ("[fFlL]?" as s), rest) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(df_exp.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_double(df_exp)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid decimal floating-point literal")
-      }
-      let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
-        _ => TokenKind::Double(number)
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 3. Hexadecimal integer literal
-    (
-      "0[xX]"
-      ("[0-9a-fA-F]+" as h)
-      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(h.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(h, base=16)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid hexadecimal integer literal\{h} ")
-      }
-      let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UInt(number)
-        "ll" | "l" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 4. Binary integer literal
-    (
-      "0[bB]"
-      ("[01]+" as b)
-      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(b.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(b, base=2)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid binary integer literal")
-      }
-      let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UInt(number)
-        "ll" | "l" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 5. Octal integer literal
-    (
-      ("0[0-7]+" as o)
-      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(o.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(o, base=8)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid octal integer literal")
-      }
-      let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UInt(number)
-        "ll" | "l" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    // Case 6. Decimal integer literal
-    (
-      ("([1-9][0-9]*|0)" as d)
-      ("(ull|ULL|llu|LLU|ul|UL|lu|LU|ll|LL|u|U|l|L)?" as s),
-      rest
-    ) => {
-      let raw_str_builder = StringBuilder::new()
-      raw_str_builder.write_string(d.to_string())
-      raw_str_builder.write_string(s.to_string())
-      let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(d, base=10)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid decimal integer literal")
-      }
-      let token_kind = match s.to_lower() {
-        "ull" | "llu" => TokenKind::ULong(number.to_uint64())
-        "ul" | "lu" | "u" => TokenKind::UInt(number)
-        "ll" | "l" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
-      }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
-      if !err_msg.is_empty() {
-        self.err_toks.push(token)
-      }
-      (token, rest)
-    }
-    _ => abort("")
-  }
 }
 
 ///|
@@ -761,8 +430,8 @@ fn Context::lex_identifier_or_keyword(
     ("[a-zA-Z_$][a-zA-Z0-9_$]*" as ident, rest) => {
       let raw_str = ident.to_string()
       let token_kind = match keywords.get(ident.to_string()) {
-        Some(kw) => TokenKind::Keyword(kw)
-        None => TokenKind::Identifier(ident.to_string())
+        Some(kw) => Keyword(kw)
+        None => Identifier(ident.to_string())
       }
       let token = Token::new(token_kind, line, col, idx, raw_str)
       (token, rest)

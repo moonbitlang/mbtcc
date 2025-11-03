@@ -17,13 +17,32 @@ pub(all) enum Color {
   Red
   Yellow
   Magenta
+  Green
+  Blue
 }
 
 ///|
 pub fn taint(msg : String, color : Color) -> String {
   match color {
-    Red => "\x1b[31m\{msg}\x1b[0m"
-    Yellow => "\x1b[33m\{msg}\x1b[0m"
-    Magenta => "\x1b[35m\{msg}\x1b[0m"
+    Red => "\u{1b}[31m\{msg}\u{1b}[0m"
+    Yellow => "\u{1b}[33m\{msg}\u{1b}[0m"
+    Magenta => "\u{1b}[35m\{msg}\u{1b}[0m"
+    Green => "\u{1b}[32m\{msg}\u{1b}[0m"
+    Blue => "\u{1b}[34m\{msg}\u{1b}[0m"
   }
+}
+
+pub fn strip_color(msg : String) -> String {
+  msg
+  .replace(old="\u{1b}[31m", new="")
+  .replace(old="\u{1b}[32m", new="")
+  .replace(old="\u{1b}[33m", new="")
+  .replace(old="\u{1b}[34m", new="")
+  .replace(old="\u{1b}[35m", new="")
+  .replace(old="\u{1b}[0m", new="")
+}
+
+pub fn[T: Show] strip_object_color(obj : T) -> String {
+  let msg = obj.to_string()
+  strip_color(msg)
 }

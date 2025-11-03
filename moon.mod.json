@@ -6,7 +6,8 @@
     "Kaida-Amethyst/path": "0.1.1",
     "Kaida-Amethyst/MoonLLVM": {
       "path": "../Aether"
-    }
+    },
+    "Kaida-Amethyst/either": "0.1.0"
   },
   "readme": "README.md",
   "repository": "",

@@ -421,7 +421,7 @@ pub fn CodeGenContext::emit_external_decl(
 ///|
 
 ///|
-fn CodeGenContext::analysis_direct_declarator_type_for_param(
+pub fn CodeGenContext::analysis_direct_declarator_type_for_param(
   self : Self,
   direct_declarator : DirectDeclarator,
   base_type : Type,

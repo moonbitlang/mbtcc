@@ -126,8 +126,10 @@ pub enum TokenKind {
   Identifier(String)
   Int(Int)
   Long(Int64)
+  LongLong(Int64)
   UInt(UInt)
   ULong(UInt64)
+  ULongLong(UInt64)
   Float(Float)
   Double(Double)
   Char(Char)
@@ -156,8 +158,10 @@ pub impl Show for TokenKind with output(self, logger) {
     Identifier(name) => logger.write_string(name)
     Int(val) => logger.write_string("\{val}")
     Long(val) => logger.write_string("\{val}l")
+    LongLong(val) => logger.write_string("\{val}ll")
     UInt(val) => logger.write_string("\{val}u")
     ULong(val) => logger.write_string("\{val}ul")
+    ULongLong(val) => logger.write_string("\{val}ull")
     Float(val) => logger.write_string("\{val}f")
     Double(val) => logger.write_string("\{val}")
     Char(c) => logger.write_char(c)
@@ -173,7 +177,7 @@ pub impl Show for TokenKind with output(self, logger) {
 pub struct Token {
   kind : TokenKind
   line : Int
-  column : Int
+  col : Int
   idx : Int
   raw : String
   err_msg : String
@@ -183,12 +187,12 @@ pub struct Token {
 fn Token::new(
   kind : TokenKind,
   line : Int,
-  column : Int,
+  col : Int,
   idx : Int,
   raw : String,
   err_msg? : String = "",
 ) -> Token {
-  Token::{ kind, line, column, idx, raw, err_msg }
+  Token::{ kind, line, col, idx, raw, err_msg }
 }
 
 ///|
