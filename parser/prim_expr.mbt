@@ -38,6 +38,7 @@
 ///   | Char     // Character literal
 ///   | Strings  // String literal(s)
 ///   | '(' Expr ')' // Parenthesized expression (TODO)
+///   ;
 pub struct PrimExpr {
   kind : PrimExprKind
   ctype: CType
@@ -49,7 +50,7 @@ pub impl Show for PrimExpr with output(self, logger) {
   logger.write_string(s)
 }
 
-pub fn PrimExpr::to_string(self: Self, color~: Bool = true) -> String {
+pub fn PrimExpr::to_string(self: Self, color~: Bool = true, indent~: Int = 0) -> String {
   let prefix = match self.kind {
     Ident(_) =>  "variable"
     Char(_) =>  "char literal"
@@ -68,7 +69,12 @@ pub fn PrimExpr::to_string(self: Self, color~: Bool = true) -> String {
   } else {
     prefix
   }
-  "\{prefix} \{self.kind}"
+  let ctype = if color {
+    @color.taint("(\{self.ctype})", Green)
+  } else {
+    "(\{self.ctype})"
+  }
+  " ".repeat(indent) + "\{prefix} \{self.kind} \{ctype}"
 }
 
 ///|
@@ -167,6 +173,7 @@ fn Context::get_literal_ctype(self: Context, kind: PrimExprKind) -> CType {
 
 ///|
 test "PrimExpr Parse Test" {
+  let color = false
   let code = 
     #|1 2l 3u 4ul 5ull 6L 7U 8UL 9ll 9.5 10.0f
     #|'c' "hello" x "hello" " world" Integer ?
@@ -175,50 +182,39 @@ test "PrimExpr Parse Test" {
   ctx.add_var("x", CType::int())
   ctx.add_typedef("Integer", CType::int())
   let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
-  inspect(prim_expr.to_string(color=false), content="int literal 1")
-  inspect(prim_expr.ctype, content="int")
+  inspect(prim_expr.to_string(color~), content="int literal 1 (int)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="long literal 2l")
-  inspect(prim_expr.ctype, content="long")
+  inspect(prim_expr.to_string(color~), content="long literal 2l (long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="unsigned int literal 3u")
-  inspect(prim_expr.ctype, content="unsigned int")
+  inspect(prim_expr.to_string(color~), content="unsigned int literal 3u (unsigned int)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="unsigned long literal 4ul")
-  inspect(prim_expr.ctype, content="unsigned long")
+  inspect(prim_expr.to_string(color~), content="unsigned long literal 4ul (unsigned long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="unsigned long long literal 5ull")
-  inspect(prim_expr.ctype, content="unsigned long long")
+  inspect(prim_expr.to_string(color~), content="unsigned long long literal 5ull (unsigned long long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="long literal 6l")
-  inspect(prim_expr.ctype, content="long")
+  inspect(prim_expr.to_string(color~), content="long literal 6l (long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="unsigned int literal 7u")
-  inspect(prim_expr.ctype, content="unsigned int")
+  inspect(prim_expr.to_string(color~), content="unsigned int literal 7u (unsigned int)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="unsigned long literal 8ul")
-  inspect(prim_expr.ctype, content="unsigned long")
+  inspect(prim_expr.to_string(color~), content="unsigned long literal 8ul (unsigned long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="long long literal 9ll")
-  inspect(prim_expr.ctype, content="long long")
+  inspect(prim_expr.to_string(color~), content="long long literal 9ll (long long)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="double literal 9.5")
-  inspect(prim_expr.ctype, content="double")
+  inspect(prim_expr.to_string(color~), content="double literal 9.5 (double)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="float literal 10f")
-  inspect(prim_expr.ctype, content="float")
+  inspect(prim_expr.to_string(color~), content="float literal 10f (float)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="char literal 'c'")
-  inspect(prim_expr.ctype, content="char")
+  inspect(prim_expr.to_string(color~), content="char literal 'c' (char)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="string literal \"hello\"")
-  inspect(prim_expr.ctype, content="const char *")
+  inspect(prim_expr.to_string(color~), content=(
+    #|string literal "hello" (const char *)
+  ))
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="variable x")
-  inspect(prim_expr.ctype, content="int")
+  inspect(prim_expr.to_string(color~), content="variable x (int)")
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
-  inspect(prim_expr.to_string(color=false), content="string literal \"hello world\"")
-  inspect(prim_expr.ctype, content="const char *")
+  inspect(prim_expr.to_string(color~), content=(
+    #|string literal "hello world" (const char *)
+  ))
 
   // Error Check
   let r = try? ctx.parse_prim_expr(rest)

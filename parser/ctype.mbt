@@ -122,9 +122,9 @@ pub(all) enum CTypeDataKind {
   ULongLong
   Float  // float
   Double // double
-  Struct(String?, Array[(String, CType)])
-  Union(String?, Array[(String, CType)])
-  Enum(String?, Array[String])
+  Struct(String, Array[(String, CType)])
+  Union(String, Array[(String, CType)])
+  Enum(String, Array[String])
   Ptr(CType)
 }
 
@@ -156,22 +156,21 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     ULongLong => "unsigned long long"
     Float => "float"
     Double => "double"
-    Struct(Some(name), _) => "struct \{name}"
-    Struct(None, fields) => {
+    Struct("", fields) => {
       let sb = StringBuilder::new()
       sb.write_string("struct ")
       sb.write_string(fields_stringify(fields))
       sb.to_string()
     }
-    Union(Some(name), _) => "union \{name}"
-    Union(None, fields) => {
+    Struct(name, _) => "struct \{name}"
+    Union("", fields) => {
       let sb = StringBuilder::new()
       sb.write_string("union ")
       sb.write_string(fields_stringify(fields))
       sb.to_string()
     }
-    Enum(Some(name), _) => "enum \{name}"
-    Enum(None, variants) => {
+    Union(name, _) => "union \{name}"
+    Enum("", variants) => {
       let sb = StringBuilder::new()
       sb.write_string("enum { ")
       for variant in variants {
@@ -181,6 +180,7 @@ pub impl Show for CTypeDataKind with output(self, logger) {
       sb.write_string("}")
       sb.to_string()
     }
+    Enum(name, _) => "enum \{name}"
     Ptr(inner_ctype) => {
       "\{inner_ctype} *"
     }
@@ -243,6 +243,32 @@ pub fn CType::float() -> CType {
 
 pub fn CType::double() -> CType {
   CType::default_with(Double)
+}
+
+pub fn CType::ptr_to(self: CType) -> CType {
+  CType::default_with(Ptr(self))
+}
+
+pub fn CType::struct_type(name: String, fields: Array[(String, CType)]) -> CType {
+  CType::default_with(Struct(name, fields))
+}
+
+#alias(is_dec_ok)
+pub fn CType::is_inc_ok(self: CType) -> Bool {
+  match self.dataKind {
+    Char => true
+    UChar => true
+    Int16 => true
+    UInt16 => true
+    Int => true
+    UInt => true
+    Long => true
+    LongLong => true
+    ULong => true
+    ULongLong => true
+    Ptr(_) => true
+    _ => false
+  }
 }
 
 pub fn CType::get_field_ctype_by_dot_acc(self: CType, field_name: String) -> CType? {
