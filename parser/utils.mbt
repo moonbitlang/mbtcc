@@ -25,3 +25,23 @@ pub fn next_check_point(tokens : ArrayView[Token]) -> ArrayView[Token] {
     [] as tokens => break tokens
   }
 }
+
+///|
+///
+/// For AI:
+/// Modify this function is ok.
+pub fn format_lines(lines: Iter[StringView], head_with~: String = "└-") -> String {
+  let sb = StringBuilder::new()
+  let strs = []
+  for i, line in lines {
+    if i == 0 {
+      sb.write_string(head_with)
+    } else {
+      sb.write_string("│ ")
+    }
+    sb.write_stringview(line)
+    strs.push(sb.to_string())
+    sb.reset()
+  }
+  strs.join("\n")
+}

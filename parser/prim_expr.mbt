@@ -69,7 +69,6 @@ pub impl Eq for PrimExpr with equal(self, other) {
 pub fn PrimExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   let prefix = match self.kind {
     Ident(_) => "variable"
@@ -90,7 +89,7 @@ pub fn PrimExpr::to_string(
   } else {
     "(\{self.ctype})"
   }
-  " ".repeat(indent) + "\{prefix} \{self.kind} \{ctype}"
+  "\{prefix} \{self.kind} \{ctype}"
 }
 
 ///|

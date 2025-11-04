@@ -59,19 +59,17 @@ pub impl Show for CastExpr with output(self, logger) {
 pub fn CastExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   if self.cast_to == self.unary_expr.ctype {
-    return self.unary_expr.to_string(color~, indent~)
+    return self.unary_expr.to_string(color~)
   }
   let prefix = if color {
     @color.taint("cast expr: cast to \{self.cast_to}", Magenta)
   } else {
     "cast expr: cast to \{self.cast_to}"
   }
-  let s = self.unary_expr.to_string(color~, indent~)
-  let s = "\{prefix}\n" + "└-\{s}"
-  " ".repeat(indent) + s
+  let s = self.unary_expr.to_string(color~)
+  "\{prefix}\n" + "└-\{s}"
 }
 
 ///|

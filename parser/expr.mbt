@@ -58,10 +58,9 @@ pub impl Show for AddiExpr with output(self, logger) {
 pub fn AddiExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   match self.kind {
-    MultiExpr(multi_expr) => multi_expr.to_string(color~, indent~)
+    MultiExpr(multi_expr) => multi_expr.to_string(color~)
     AddExpr(left, right) | SubExpr(left, right) => {
       let op = match self.kind {
         AddExpr(_, _) => "+"
@@ -74,15 +73,14 @@ pub fn AddiExpr::to_string(
       } else {
         "additive expr: \{op} " + "(\{self.ctype})"
       }
-      let left_str = left.to_string(color~, indent~)
-      let right_str = right.to_string(color~, indent~)
+      let left_str = left.to_string(color~)
+      let right_str = right.to_string(color~)
       // Add backtick prefix to each line of nested expressions
       let left_lines = left_str.split("\n")
       let left_formatted = left_lines.map(fn(line) { "`\{line}" }).join("\n")
       let right_lines = right_str.split("\n")
       let right_formatted = right_lines.map(fn(line) { "`\{line}" }).join("\n")
-      let s = "\{prefix}\n\{left_formatted}\n\{right_formatted}"
-      " ".repeat(indent) + s
+      "\{prefix}\n\{left_formatted}\n\{right_formatted}"
     }
   }
 }
@@ -210,7 +208,6 @@ pub impl Show for ShiftExpr with output(self, logger) {
 pub fn ShiftExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   ...
 }
@@ -261,7 +258,6 @@ pub impl Show for RelationalExpr with output(self, logger) {
 pub fn RelationalExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   ...
 }
@@ -304,7 +300,6 @@ pub impl Show for EqualityExpr with output(self, logger) {
 pub fn EqualityExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   ...
 }
@@ -578,9 +573,10 @@ test "Additive Expr Parse Test" {
     content=(
       #|additive expr: + (int)
       #|`multiplicative expr: * (int)
-      #|``variable x (int)
-      #|``variable y (int)
+      #|`└-variable x (int)
+      #|`└-variable y (int)
       #|`variable z (int)
+
     ),
   )
   assert_true(
@@ -598,8 +594,9 @@ test "Additive Expr Parse Test" {
       #|additive expr: + (int)
       #|`variable a (int)
       #|`multiplicative expr: * (int)
-      #|``variable b (int)
-      #|``variable c (int)
+      #|`└-variable b (int)
+      #|`└-variable c (int)
+
     ),
   )
   assert_true(

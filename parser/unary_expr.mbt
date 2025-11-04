@@ -65,7 +65,6 @@ pub impl Show for UnaryExpr with output(self, logger) {
 pub fn UnaryExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   let prefix = match self.kind {
     PostfixExpr(_) => ""
@@ -84,37 +83,37 @@ pub fn UnaryExpr::to_string(
     "(\{self.ctype})"
   }
   let s = match self.kind {
-    PostfixExpr(postfix_expr) => postfix_expr.to_string(color~, indent~)
+    PostfixExpr(postfix_expr) => postfix_expr.to_string(color~)
     PreInc(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     PreDec(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     AddrOf(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     Deref(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     Negate(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     BitNot(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     LogicalNot(inner) => {
-      let inner_str = inner.to_string(color~, indent~)
+      let inner_str = inner.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
   }
-  " ".repeat(indent) + s
+  s
 }
 
 ///|
@@ -353,7 +352,6 @@ test "Unary Expr Parse Test" {
 
   // Parse `--y`
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
-  println(unary_expr)
   inspect(unary_expr.to_string(color~), content=(
     #|unary operator -- (int)
     #|└-variable y (int)

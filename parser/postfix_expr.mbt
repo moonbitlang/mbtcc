@@ -59,7 +59,6 @@ pub impl Show for PostfixExpr with output(self, logger) {
 pub fn PostfixExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   let prefix = match self.kind {
     PrimExpr(_) => ""
@@ -75,25 +74,25 @@ pub fn PostfixExpr::to_string(
     "(\{self.ctype})"
   }
   let s = match self.kind {
-    PrimExpr(prim_expr) => prim_expr.to_string(color~, indent~)
+    PrimExpr(prim_expr) => prim_expr.to_string(color~)
     MemberAccess(inner_expr, name) => {
-      let inner_expr_str = inner_expr.to_string(color~, indent~)
+      let inner_expr_str = inner_expr.to_string(color~)
       "\{prefix} .\{name} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PtrMemberAccess(inner_expr, name) => {
-      let inner_expr_str = inner_expr.to_string(color~, indent~)
+      let inner_expr_str = inner_expr.to_string(color~)
       "\{prefix} ->\{name} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PostInc(inner_expr) => {
-      let inner_expr_str = inner_expr.to_string(color~, indent~)
+      let inner_expr_str = inner_expr.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PostDec(inner_expr) => {
-      let inner_expr_str = inner_expr.to_string(color~, indent~)
+      let inner_expr_str = inner_expr.to_string(color~)
       "\{prefix} \{ctype}\n" + "└-\{inner_expr_str}"
     }
   }
-  " ".repeat(indent) + s
+  s
 }
 
 ///|

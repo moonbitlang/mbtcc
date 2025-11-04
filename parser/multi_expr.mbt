@@ -52,10 +52,9 @@ pub impl Show for MultiExpr with output(self, logger) {
 pub fn MultiExpr::to_string(
   self : Self,
   color? : Bool = true,
-  indent? : Int = 0,
 ) -> String {
   match self.kind {
-    CastExpr(cast_expr) => cast_expr.to_string(color~, indent~)
+    CastExpr(cast_expr) => cast_expr.to_string(color~)
     MulExpr(left, right) | DivExpr(left, right) | ModExpr(left, right) => {
       let op = match self.kind {
         MulExpr(_, _) => "*"
@@ -69,15 +68,14 @@ pub fn MultiExpr::to_string(
       } else {
         "multiplicative expr: \{op} " + "(\{self.ctype})"
       }
-      let left_str = left.to_string(color~, indent~)
-      let right_str = right.to_string(color~, indent~)
+      let left_str = left.to_string(color~)
+      let right_str = right.to_string(color~)
       // Add backtick prefix to each line of nested expressions
       let left_lines = left_str.split("\n")
-      let left_formatted = left_lines.map(fn(line) { "`\{line}" }).join("\n")
+      let left_formatted = format_lines(left_lines, head_with="├-")
       let right_lines = right_str.split("\n")
-      let right_formatted = right_lines.map(fn(line) { "`\{line}" }).join("\n")
-      let s = "\{prefix}\n\{left_formatted}\n\{right_formatted}"
-      " ".repeat(indent) + s
+      let right_formatted = format_lines(right_lines, head_with="└-")
+      "\{prefix}\n\{left_formatted}\n\{right_formatted}"
     }
   }
 }
@@ -117,9 +115,17 @@ pub enum MultiExprKind {
 ///   multi_expr.to_string(color=false),
 ///   content=(
 ///     
+///   
+///   
+///   
+///   
 ///   #|multiplicative expr: * (int)
-/// #|`variable x (int)
-/// #|`variable y (int)
+/// #|├-variable x (int)
+/// #|└-variable y (int)
+/// 
+/// 
+/// 
+/// 
 /// 
 ///   )
 /// )
@@ -236,8 +242,8 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: * (int)
-      #|`variable x (int)
-      #|`variable y (int)
+      #|├-variable x (int)
+      #|└-variable y (int)
     ),
   )
   assert_true(
@@ -253,8 +259,8 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: / (int)
-      #|`variable a (int)
-      #|`variable b (int)
+      #|├-variable a (int)
+      #|└-variable b (int)
     ),
   )
   assert_true(
@@ -270,8 +276,8 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: % (int)
-      #|`variable m (int)
-      #|`variable n (int)
+      #|├-variable m (int)
+      #|└-variable n (int)
     ),
   )
   assert_true(
@@ -287,10 +293,11 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: / (int)
-      #|`multiplicative expr: * (int)
-      #|``variable x (int)
-      #|``variable y (int)
-      #|`variable z (int)
+      #|├-multiplicative expr: * (int)
+      #|│ ├-variable x (int)
+      #|│ └-variable y (int)
+      #|└-variable z (int)
+
     ),
   )
   assert_true(
@@ -306,10 +313,11 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: % (int)
-      #|`multiplicative expr: * (int)
-      #|``variable a (int)
-      #|``variable b (int)
-      #|`variable c (int)
+      #|├-multiplicative expr: * (int)
+      #|│ ├-variable a (int)
+      #|│ └-variable b (int)
+      #|└-variable c (int)
+
     ),
   )
   assert_true(
@@ -325,8 +333,8 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: * (int)
-      #|`int literal 10 (int)
-      #|`int literal 2 (int)
+      #|├-int literal 10 (int)
+      #|└-int literal 2 (int)
     ),
   )
   assert_true(
@@ -342,8 +350,8 @@ test "Multiplicative Expr Parse Test" {
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: / (double)
-      #|`double literal 3.14 (double)
-      #|`double literal 2 (double)
+      #|├-double literal 3.14 (double)
+      #|└-double literal 2 (double)
     ),
   )
   assert_true(
@@ -355,14 +363,16 @@ test "Multiplicative Expr Parse Test" {
   // Parse `i * j * k` (multiple operations, left-associative)
   let rest = next_check_point(rest)
   let (multi_expr, _rest) = ctx.parse_multi_expr(rest)
+  println(multi_expr)
   inspect(
     multi_expr.to_string(color~),
     content=(
       #|multiplicative expr: * (int)
-      #|`multiplicative expr: * (int)
-      #|``variable i (int)
-      #|``variable j (int)
-      #|`variable k (int)
+      #|├-multiplicative expr: * (int)
+      #|│ ├-variable i (int)
+      #|│ └-variable j (int)
+      #|└-variable k (int)
+
     ),
   )
   assert_true(
