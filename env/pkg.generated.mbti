@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/env"
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) struct Env[K, V] {
+  map : Map[K, V]
+  parent : Env[K, V]?
+}
+fn[K : Hash + Eq, V] Env::contains_global(Self[K, V], K) -> Bool
+fn[K : Hash + Eq, V] Env::contains_local(Self[K, V], K) -> Bool
+fn[K : Hash + Eq, V] Env::get(Self[K, V], K) -> V?
+fn[K, V] Env::new(parent? : Self[K, V]?) -> Self[K, V]
+fn[K : Hash + Eq, V] Env::set(Self[K, V], K, V) -> Unit
+
+// Type aliases
+
+// Traits
+

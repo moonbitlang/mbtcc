@@ -17,16 +17,9 @@ pub suberror FunctionDefinitionParseError {
 }
 
 pub suberror LexerError String
-fn LexerError::output(Self, &Logger) -> Unit // from trait `Show`
-fn LexerError::to_string(Self) -> String // from trait `Show`
 impl Show for LexerError
 
 pub suberror ParseError (Int, String)
-fn ParseError::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ParseError::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ParseError::output(Self, &Logger) -> Unit // from trait `Show`
-fn ParseError::to_string(Self) -> String // from trait `Show`
 impl Eq for ParseError
 impl Show for ParseError
 
@@ -35,11 +28,6 @@ pub struct AbstractDeclarator {
   pointer : Pointer?
   directAbstractDeclarator : DirectAbstractDeclarator?
 }
-fn AbstractDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AbstractDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AbstractDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn AbstractDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for AbstractDeclarator
 impl Show for AbstractDeclarator
 
@@ -47,11 +35,6 @@ pub struct AddSubExpr {
   exprs : Array[MultExpr]
   ops : Array[AddSubOp]
 }
-fn AddSubExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AddSubExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AddSubExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn AddSubExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for AddSubExpr
 impl Show for AddSubExpr
 
@@ -59,11 +42,6 @@ pub enum AddSubOp {
   Add
   Sub
 }
-fn AddSubOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AddSubOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AddSubOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn AddSubOp::to_string(Self) -> String // from trait `Show`
 impl Eq for AddSubOp
 impl Show for AddSubOp
 
@@ -71,22 +49,12 @@ pub enum AlignmentSpec {
   AlignasExpr(ConditionalExpr)
   AlignofType(TypeName)
 }
-fn AlignmentSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AlignmentSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AlignmentSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn AlignmentSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for AlignmentSpec
 impl Show for AlignmentSpec
 
 pub struct AndExpr {
   exprs : Array[EqualityExpr]
 }
-fn AndExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AndExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AndExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn AndExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for AndExpr
 impl Show for AndExpr
 
@@ -94,11 +62,6 @@ pub enum AssignExpr {
   Conditional(ConditionalExpr)
   Assign(UnaryExpr, AssignOp, AssignExpr)
 }
-fn AssignExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AssignExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AssignExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn AssignExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for AssignExpr
 impl Show for AssignExpr
 
@@ -117,11 +80,6 @@ pub enum AssignOp {
   BitwiseXorAssign
   BitwiseOrAssign
 }
-fn AssignOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn AssignOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn AssignOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn AssignOp::to_string(Self) -> String // from trait `Show`
 impl Eq for AssignOp
 impl Show for AssignOp
 
@@ -129,11 +87,6 @@ pub enum BlockItem {
   Statement(Statement)
   Declaration(Declaration)
 }
-fn BlockItem::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn BlockItem::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn BlockItem::output(Self, &Logger) -> Unit // from trait `Show`
-fn BlockItem::to_string(Self) -> String // from trait `Show`
 impl Eq for BlockItem
 impl Show for BlockItem
 
@@ -141,45 +94,26 @@ pub enum CastExpr {
   UnaryExpr(UnaryExpr)
   Cast(TypeName, CastExpr)
 }
-fn CastExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn CastExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn CastExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn CastExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for CastExpr
 impl Show for CastExpr
 
 pub struct CompilationUnit {
   externalDecls : Array[ExternalDeclaration]
 }
-fn CompilationUnit::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn CompilationUnit::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn CompilationUnit::output(Self, &Logger) -> Unit // from trait `Show`
-fn CompilationUnit::to_string(Self) -> String // from trait `Show`
 impl Eq for CompilationUnit
 impl Show for CompilationUnit
 
 pub struct CompoundStatement {
   items : Array[BlockItem]
 }
-fn CompoundStatement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn CompoundStatement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn CompoundStatement::output(Self, &Logger) -> Unit // from trait `Show`
-fn CompoundStatement::to_string(Self) -> String // from trait `Show`
 impl Eq for CompoundStatement
 impl Show for CompoundStatement
 
+#alias(ConstantExpr)
 pub struct ConditionalExpr {
   expr : LogicalOrExpr
   select : (Expr, ConditionalExpr)?
 }
-fn ConditionalExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ConditionalExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ConditionalExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn ConditionalExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for ConditionalExpr
 impl Show for ConditionalExpr
 
@@ -192,11 +126,6 @@ pub enum Constant {
   Double(Double)
   Char(Char)
 }
-fn Constant::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Constant::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Constant::output(Self, &Logger) -> Unit // from trait `Show`
-fn Constant::to_string(Self) -> String // from trait `Show`
 impl Eq for Constant
 impl Show for Constant
 
@@ -207,22 +136,12 @@ pub(all) enum DeclSpec {
   FunctionSpec(FunctionSpec)
   AlignmentSpec(AlignmentSpec)
 }
-fn DeclSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn DeclSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn DeclSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn DeclSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for DeclSpec
 impl Show for DeclSpec
 
 pub enum Declaration {
   Decl(Array[DeclSpec], Array[InitDeclarator])
 }
-fn Declaration::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Declaration::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Declaration::output(Self, &Logger) -> Unit // from trait `Show`
-fn Declaration::to_string(Self) -> String // from trait `Show`
 impl Eq for Declaration
 impl Show for Declaration
 
@@ -231,12 +150,7 @@ pub struct Declarator {
   directDeclarator : DirectDeclarator
   gccDeclExt : Array[Expr]
 }
-fn Declarator::equal(Self, Self) -> Bool // from trait `Eq`
 fn Declarator::get_ident(Self) -> String
-#deprecated
-fn Declarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Declarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn Declarator::to_string(Self) -> String // from trait `Show`
 impl Eq for Declarator
 impl Show for Declarator
 
@@ -244,11 +158,6 @@ pub enum Designator {
   ConstExpr(ConditionalExpr)
   DotAccess(String)
 }
-fn Designator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Designator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Designator::output(Self, &Logger) -> Unit // from trait `Show`
-fn Designator::to_string(Self) -> String // from trait `Show`
 impl Eq for Designator
 impl Show for Designator
 
@@ -258,11 +167,6 @@ pub enum DirectAbstractDeclarator {
   InCompleteArray(DirectAbstractDeclarator?)
   FuncPtr(DirectAbstractDeclarator?, AbstractDeclarator)
 }
-fn DirectAbstractDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn DirectAbstractDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn DirectAbstractDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn DirectAbstractDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for DirectAbstractDeclarator
 impl Show for DirectAbstractDeclarator
 
@@ -276,12 +180,7 @@ pub enum DirectDeclarator {
   FunctionPtr(DirectDeclarator, Array[String])
   BitField(String, Int)
 }
-fn DirectDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
 fn DirectDeclarator::get_ident(Self) -> String
-#deprecated
-fn DirectDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn DirectDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn DirectDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for DirectDeclarator
 impl Show for DirectDeclarator
 
@@ -289,19 +188,14 @@ pub(all) enum Either[L, R] {
   Left(L)
   Right(R)
 }
-fn[L : Eq, R : Eq] Either::equal(Self[L, R], Self[L, R]) -> Bool // from trait `Eq`
 fn[L, R] Either::expect_left(Self[L, R], String) -> L
 fn[L, R] Either::expect_right(Self[L, R], String) -> R
 fn[L, R] Either::is_left(Self[L, R]) -> Bool
 fn[L, R] Either::is_right(Self[L, R]) -> Bool
 fn[L, R] Either::left(Self[L, R]) -> L?
 fn[L, R] Either::left_unwrap(Self[L, R]) -> L
-#deprecated
-fn[L : Eq, R : Eq] Either::op_equal(Self[L, R], Self[L, R]) -> Bool // from trait `Eq`
-fn[L : Show, R : Show] Either::output(Self[L, R], &Logger) -> Unit // from trait `Show`
 fn[L, R] Either::right(Self[L, R]) -> R?
 fn[L, R] Either::right_unwrap(Self[L, R]) -> R
-fn[L : Show, R : Show] Either::to_string(Self[L, R]) -> String // from trait `Show`
 impl[L : Eq, R : Eq] Eq for Either[L, R]
 impl[L : Show, R : Show] Show for Either[L, R]
 
@@ -309,21 +203,11 @@ pub struct EnumSpec {
   name : String?
   enumerators : Array[Enumerator]
 }
-fn EnumSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn EnumSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn EnumSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn EnumSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for EnumSpec
 impl Show for EnumSpec
 
 pub struct Enumerator(String, ConditionalExpr?)
 
-fn Enumerator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Enumerator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Enumerator::output(Self, &Logger) -> Unit // from trait `Show`
-fn Enumerator::to_string(Self) -> String // from trait `Show`
 impl Eq for Enumerator
 impl Show for Enumerator
 
@@ -331,11 +215,6 @@ pub struct EqualityExpr {
   exprs : Array[RelationalExpr]
   ops : Array[EqualityOp]
 }
-fn EqualityExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn EqualityExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn EqualityExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn EqualityExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for EqualityExpr
 impl Show for EqualityExpr
 
@@ -343,33 +222,18 @@ pub enum EqualityOp {
   EQ
   NE
 }
-fn EqualityOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn EqualityOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn EqualityOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn EqualityOp::to_string(Self) -> String // from trait `Show`
 impl Eq for EqualityOp
 impl Show for EqualityOp
 
 pub struct ExclusiveOrExpr {
   exprs : Array[AndExpr]
 }
-fn ExclusiveOrExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ExclusiveOrExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ExclusiveOrExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn ExclusiveOrExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for ExclusiveOrExpr
 impl Show for ExclusiveOrExpr
 
 pub(all) struct Expr {
   exprs : Array[AssignExpr]
 }
-fn Expr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Expr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Expr::output(Self, &Logger) -> Unit // from trait `Show`
-fn Expr::to_string(Self) -> String // from trait `Show`
 impl Eq for Expr
 impl Show for Expr
 
@@ -377,11 +241,6 @@ pub enum ExternalDeclaration {
   FunctionDefinition(FunctionDefinition)
   Declaration(Declaration)
 }
-fn ExternalDeclaration::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ExternalDeclaration::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ExternalDeclaration::output(Self, &Logger) -> Unit // from trait `Show`
-fn ExternalDeclaration::to_string(Self) -> String // from trait `Show`
 impl Eq for ExternalDeclaration
 impl Show for ExternalDeclaration
 
@@ -390,11 +249,6 @@ pub struct ForCondition {
   cond : Array[AssignExpr]
   inc : Array[AssignExpr]
 }
-fn ForCondition::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ForCondition::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ForCondition::output(Self, &Logger) -> Unit // from trait `Show`
-fn ForCondition::to_string(Self) -> String // from trait `Show`
 impl Eq for ForCondition
 impl Show for ForCondition
 
@@ -403,11 +257,6 @@ pub enum ForInit {
   InitExpr(Expr)
   Empty
 }
-fn ForInit::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ForInit::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ForInit::output(Self, &Logger) -> Unit // from trait `Show`
-fn ForInit::to_string(Self) -> String // from trait `Show`
 impl Eq for ForInit
 impl Show for ForInit
 
@@ -417,11 +266,6 @@ pub struct FunctionDefinition {
   kr_declarations : Array[Declaration]
   body : CompoundStatement
 }
-fn FunctionDefinition::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn FunctionDefinition::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn FunctionDefinition::output(Self, &Logger) -> Unit // from trait `Show`
-fn FunctionDefinition::to_string(Self) -> String // from trait `Show`
 impl Eq for FunctionDefinition
 impl Show for FunctionDefinition
 
@@ -430,22 +274,12 @@ pub enum FunctionSpec {
   Noreturn
   Attributes(Array[AssignExpr])
 }
-fn FunctionSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn FunctionSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn FunctionSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn FunctionSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for FunctionSpec
 impl Show for FunctionSpec
 
 pub struct InclusiveOrExpr {
   exprs : Array[ExclusiveOrExpr]
 }
-fn InclusiveOrExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn InclusiveOrExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn InclusiveOrExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn InclusiveOrExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for InclusiveOrExpr
 impl Show for InclusiveOrExpr
 
@@ -453,11 +287,6 @@ pub struct InitDeclarator {
   declarator : Declarator
   initializer : Initializer?
 }
-fn InitDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn InitDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn InitDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn InitDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for InitDeclarator
 impl Show for InitDeclarator
 
@@ -465,22 +294,12 @@ pub enum Initializer {
   AssignExpr(AssignExpr)
   InitList(Array[(Array[Designator], Initializer)])
 }
-fn Initializer::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Initializer::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Initializer::output(Self, &Logger) -> Unit // from trait `Show`
-fn Initializer::to_string(Self) -> String // from trait `Show`
 impl Eq for Initializer
 impl Show for Initializer
 
 pub struct InitializerList(Array[(Array[Designator], Initializer)])
-fn InitializerList::equal(Self, Self) -> Bool // from trait `Eq`
 #deprecated
 fn InitializerList::inner(Self) -> Array[(Array[Designator], Initializer)]
-#deprecated
-fn InitializerList::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn InitializerList::output(Self, &Logger) -> Unit // from trait `Show`
-fn InitializerList::to_string(Self) -> String // from trait `Show`
 impl Eq for InitializerList
 impl Show for InitializerList
 
@@ -489,11 +308,6 @@ pub enum IterationStatement {
   DoWhile(Statement, Expr)
   For(ForCondition, Statement)
 }
-fn IterationStatement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn IterationStatement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn IterationStatement::output(Self, &Logger) -> Unit // from trait `Show`
-fn IterationStatement::to_string(Self) -> String // from trait `Show`
 impl Eq for IterationStatement
 impl Show for IterationStatement
 
@@ -503,11 +317,6 @@ pub enum JumpStatement {
   Break
   Return(Expr?)
 }
-fn JumpStatement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn JumpStatement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn JumpStatement::output(Self, &Logger) -> Unit // from trait `Show`
-fn JumpStatement::to_string(Self) -> String // from trait `Show`
 impl Eq for JumpStatement
 impl Show for JumpStatement
 
@@ -516,33 +325,18 @@ pub enum LabeledStatement {
   Case(ConditionalExpr, Statement)
   Default(Statement)
 }
-fn LabeledStatement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn LabeledStatement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn LabeledStatement::output(Self, &Logger) -> Unit // from trait `Show`
-fn LabeledStatement::to_string(Self) -> String // from trait `Show`
 impl Eq for LabeledStatement
 impl Show for LabeledStatement
 
 pub struct LogicalAndExpr {
   exprs : Array[InclusiveOrExpr]
 }
-fn LogicalAndExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn LogicalAndExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn LogicalAndExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn LogicalAndExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for LogicalAndExpr
 impl Show for LogicalAndExpr
 
 pub struct LogicalOrExpr {
   exprs : Array[LogicalAndExpr]
 }
-fn LogicalOrExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn LogicalOrExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn LogicalOrExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn LogicalOrExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for LogicalOrExpr
 impl Show for LogicalOrExpr
 
@@ -550,11 +344,6 @@ pub struct MultExpr {
   exprs : Array[CastExpr]
   ops : Array[MultOp]
 }
-fn MultExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn MultExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn MultExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn MultExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for MultExpr
 impl Show for MultExpr
 
@@ -563,11 +352,6 @@ pub enum MultOp {
   Div
   Mod
 }
-fn MultOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn MultOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn MultOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn MultOp::to_string(Self) -> String // from trait `Show`
 impl Eq for MultOp
 impl Show for MultOp
 
@@ -575,11 +359,6 @@ pub enum ParamDeclarator {
   Declarator(Declarator)
   AbstractDeclarator(AbstractDeclarator)
 }
-fn ParamDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ParamDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ParamDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn ParamDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for ParamDeclarator
 impl Show for ParamDeclarator
 
@@ -587,11 +366,6 @@ pub struct ParameterDecl {
   decl_specs : Array[DeclSpec]
   declarator : ParamDeclarator?
 }
-fn ParameterDecl::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ParameterDecl::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ParameterDecl::output(Self, &Logger) -> Unit // from trait `Show`
-fn ParameterDecl::to_string(Self) -> String // from trait `Show`
 impl Eq for ParameterDecl
 impl Show for ParameterDecl
 
@@ -599,11 +373,6 @@ pub struct ParameterTypeList {
   params : Array[ParameterDecl]
   variadic : Bool
 }
-fn ParameterTypeList::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ParameterTypeList::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ParameterTypeList::output(Self, &Logger) -> Unit // from trait `Show`
-fn ParameterTypeList::to_string(Self) -> String // from trait `Show`
 impl Eq for ParameterTypeList
 impl Show for ParameterTypeList
 
@@ -626,13 +395,8 @@ fn ParserContext::print_toks(Self) -> Unit
 fn ParserContext::tokenize(Self) -> Unit raise
 
 pub struct Pointer(Array[Array[TypeQualifier]])
-fn Pointer::equal(Self, Self) -> Bool // from trait `Eq`
 #deprecated
 fn Pointer::inner(Self) -> Array[Array[TypeQualifier]]
-#deprecated
-fn Pointer::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Pointer::output(Self, &Logger) -> Unit // from trait `Show`
-fn Pointer::to_string(Self) -> String // from trait `Show`
 impl Eq for Pointer
 impl Show for Pointer
 
@@ -640,11 +404,6 @@ pub struct PostFixExpr {
   head : Either[PrimExpr, (TypeName, InitializerList)]
   suffixes : Array[PostFixSuffix]
 }
-fn PostFixExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn PostFixExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn PostFixExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn PostFixExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for PostFixExpr
 impl Show for PostFixExpr
 
@@ -656,11 +415,6 @@ pub enum PostFixSuffix {
   PlusPlus
   MinusMinus
 }
-fn PostFixSuffix::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn PostFixSuffix::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn PostFixSuffix::output(Self, &Logger) -> Unit // from trait `Show`
-fn PostFixSuffix::to_string(Self) -> String // from trait `Show`
 impl Eq for PostFixSuffix
 impl Show for PostFixSuffix
 
@@ -672,11 +426,6 @@ pub enum PrimExpr {
   BuiltinOffsetof(TypeName, UnaryExpr)
   GCCExtBlock(CompoundStatement)
 }
-fn PrimExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn PrimExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn PrimExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn PrimExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for PrimExpr
 impl Show for PrimExpr
 
@@ -684,11 +433,6 @@ pub struct RelationalExpr {
   exprs : Array[ShiftExpr]
   ops : Array[RelationalOp]
 }
-fn RelationalExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn RelationalExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn RelationalExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn RelationalExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for RelationalExpr
 impl Show for RelationalExpr
 
@@ -698,11 +442,6 @@ pub enum RelationalOp {
   LE
   GE
 }
-fn RelationalOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn RelationalOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn RelationalOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn RelationalOp::to_string(Self) -> String // from trait `Show`
 impl Eq for RelationalOp
 impl Show for RelationalOp
 
@@ -710,11 +449,6 @@ pub enum SelectionStatement {
   If(Expr, Statement, Statement?)
   Switch(Expr, Statement)
 }
-fn SelectionStatement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn SelectionStatement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn SelectionStatement::output(Self, &Logger) -> Unit // from trait `Show`
-fn SelectionStatement::to_string(Self) -> String // from trait `Show`
 impl Eq for SelectionStatement
 impl Show for SelectionStatement
 
@@ -722,11 +456,6 @@ pub struct ShiftExpr {
   exprs : Array[AddSubExpr]
   ops : Array[ShiftOp]
 }
-fn ShiftExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ShiftExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ShiftExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn ShiftExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for ShiftExpr
 impl Show for ShiftExpr
 
@@ -734,11 +463,6 @@ pub enum ShiftOp {
   Shl
   Shr
 }
-fn ShiftOp::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn ShiftOp::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn ShiftOp::output(Self, &Logger) -> Unit // from trait `Show`
-fn ShiftOp::to_string(Self) -> String // from trait `Show`
 impl Eq for ShiftOp
 impl Show for ShiftOp
 
@@ -751,11 +475,6 @@ pub enum Statement {
   IterationStatement(IterationStatement)
   JumpStatement(JumpStatement)
 }
-fn Statement::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Statement::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Statement::output(Self, &Logger) -> Unit // from trait `Show`
-fn Statement::to_string(Self) -> String // from trait `Show`
 impl Eq for Statement
 impl Show for Statement
 
@@ -767,22 +486,12 @@ pub enum StorageClassSpec {
   Extern
   Typedef
 }
-fn StorageClassSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn StorageClassSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn StorageClassSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn StorageClassSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for StorageClassSpec
 impl Show for StorageClassSpec
 
 pub enum StructDeclaration {
   Normal(Array[TypeSpecOrQualifier], Array[StructDeclarator])
 }
-fn StructDeclaration::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn StructDeclaration::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn StructDeclaration::output(Self, &Logger) -> Unit // from trait `Show`
-fn StructDeclaration::to_string(Self) -> String // from trait `Show`
 impl Eq for StructDeclaration
 impl Show for StructDeclaration
 
@@ -790,11 +499,6 @@ pub enum StructDeclarator {
   Declarator(Declarator)
   Field(Declarator?, ConditionalExpr)
 }
-fn StructDeclarator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn StructDeclarator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn StructDeclarator::output(Self, &Logger) -> Unit // from trait `Show`
-fn StructDeclarator::to_string(Self) -> String // from trait `Show`
 impl Eq for StructDeclarator
 impl Show for StructDeclarator
 
@@ -802,11 +506,6 @@ pub struct StructSpec {
   name : String?
   decls : Array[StructDeclaration]
 }
-fn StructSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn StructSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn StructSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn StructSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for StructSpec
 impl Show for StructSpec
 
@@ -914,11 +613,6 @@ pub enum Token {
   Hash2
   EOF
 }
-fn Token::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Token::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Token::output(Self, &Logger) -> Unit // from trait `Show`
-fn Token::to_string(Self) -> String // from trait `Show`
 impl Eq for Token
 impl Show for Token
 
@@ -933,11 +627,6 @@ pub struct TypeName {
   specifiers : Array[TypeSpecOrQualifier]
   abstract_declarator : AbstractDeclarator?
 }
-fn TypeName::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TypeName::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TypeName::output(Self, &Logger) -> Unit // from trait `Show`
-fn TypeName::to_string(Self) -> String // from trait `Show`
 impl Eq for TypeName
 impl Show for TypeName
 
@@ -947,20 +636,10 @@ pub enum TypeQualifier {
   Restrict
   Atomic
 }
-fn TypeQualifier::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TypeQualifier::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TypeQualifier::output(Self, &Logger) -> Unit // from trait `Show`
-fn TypeQualifier::to_string(Self) -> String // from trait `Show`
 impl Eq for TypeQualifier
 impl Show for TypeQualifier
 
 type TypeQualifierList
-fn TypeQualifierList::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TypeQualifierList::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TypeQualifierList::output(Self, &Logger) -> Unit // from trait `Show`
-fn TypeQualifierList::to_string(Self) -> String // from trait `Show`
 impl Eq for TypeQualifierList
 impl Show for TypeQualifierList
 
@@ -982,11 +661,6 @@ pub enum TypeSpec {
   EnumSpec(EnumSpec)
   TypedefName(String)
 }
-fn TypeSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TypeSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TypeSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn TypeSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for TypeSpec
 impl Show for TypeSpec
 
@@ -994,11 +668,6 @@ pub enum TypeSpecOrQualifier {
   TypeSpec(TypeSpec)
   TypeQualifier(TypeQualifier)
 }
-fn TypeSpecOrQualifier::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TypeSpecOrQualifier::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TypeSpecOrQualifier::output(Self, &Logger) -> Unit // from trait `Show`
-fn TypeSpecOrQualifier::to_string(Self) -> String // from trait `Show`
 impl Eq for TypeSpecOrQualifier
 impl Show for TypeSpecOrQualifier
 
@@ -1006,11 +675,6 @@ pub struct UnaryExpr {
   prefix : Array[UnaryPrefix]
   body : UnaryExprBody
 }
-fn UnaryExpr::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn UnaryExpr::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn UnaryExpr::output(Self, &Logger) -> Unit // from trait `Show`
-fn UnaryExpr::to_string(Self) -> String // from trait `Show`
 impl Eq for UnaryExpr
 impl Show for UnaryExpr
 
@@ -1020,11 +684,6 @@ pub enum UnaryExprBody {
   SizeofTypeName(TypeName)
   AlignOfTypeName(TypeName)
 }
-fn UnaryExprBody::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn UnaryExprBody::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn UnaryExprBody::output(Self, &Logger) -> Unit // from trait `Show`
-fn UnaryExprBody::to_string(Self) -> String // from trait `Show`
 impl Eq for UnaryExprBody
 impl Show for UnaryExprBody
 
@@ -1036,11 +695,6 @@ pub enum UnaryOperator {
   LogicalNot
   BitwiseNot
 }
-fn UnaryOperator::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn UnaryOperator::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn UnaryOperator::output(Self, &Logger) -> Unit // from trait `Show`
-fn UnaryOperator::to_string(Self) -> String // from trait `Show`
 impl Eq for UnaryOperator
 impl Show for UnaryOperator
 
@@ -1049,11 +703,6 @@ pub enum UnaryPrefix {
   MinusMinus
   Sizeof
 }
-fn UnaryPrefix::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn UnaryPrefix::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn UnaryPrefix::output(Self, &Logger) -> Unit // from trait `Show`
-fn UnaryPrefix::to_string(Self) -> String // from trait `Show`
 impl Eq for UnaryPrefix
 impl Show for UnaryPrefix
 
@@ -1061,11 +710,6 @@ pub struct UnionSpec {
   name : String?
   decls : Array[StructDeclaration]
 }
-fn UnionSpec::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn UnionSpec::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn UnionSpec::output(Self, &Logger) -> Unit // from trait `Show`
-fn UnionSpec::to_string(Self) -> String // from trait `Show`
 impl Eq for UnionSpec
 impl Show for UnionSpec
 
@@ -1075,7 +719,6 @@ pub enum WarningError {
 }
 
 // Type aliases
-pub typealias ConditionalExpr as ConstantExpr
 
 // Traits
 

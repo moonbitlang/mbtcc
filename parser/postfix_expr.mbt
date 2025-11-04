@@ -30,6 +30,15 @@
 /// 	| postfix_expression "--"
 /// 	| '(' type_name ')' '{' initializer_list ','? '}' (TODO)
 /// 	;
+///
+/// ## Parse Function
+///
+/// ```mbt skip
+/// fn Context::parse_postfix_expr(
+///   self: Context,
+///   tokens: ArrayView[Token]
+/// ) -> (PostfixExpr, ArrayView[Token]) raise ParseError
+/// ```
 pub struct PostfixExpr {
   kind : PostfixExprKind
   ctype : CType
@@ -100,6 +109,87 @@ pub enum PostfixExprKind {
 } derive(Eq)
 
 ///|
+/// Parse a postfix expression from the given tokens.
+///
+/// Returns a tuple containing the parsed PostfixExpr and the remaining tokens.
+///
+/// ## Example Parse:
+///
+/// ```c
+/// arr[2];      // Array access
+/// foo(10, 20); // Function call
+/// point.x;     // Member access
+/// point->y;    // Pointer member access
+/// counter++;   // Post-increment
+/// counter--;   // Post-decrement
+/// ```
+///
+/// ## Example Usage
+///
+/// ```mbt
+/// let code = "i++"
+/// let ctx = Context::new(code~, source_file="demo")
+/// ctx.add_var("i", CType::int())
+/// let (postfix_expr, rest) = ctx.parse_postfix_expr(ctx.tokens)
+/// inspect(
+///   postfix_expr.to_string(color=false),
+///   content=(
+///   #|unary operator ++ (int)
+///   #|`variable i (int)
+/// )
+/// )
+/// assert_true(rest is [{ kind: EOF, ..}])
+/// ```
+///
+/// ## Raises
+///
+/// Parser will raise ParseError if:
+///
+/// 1. parse primary expression in the beginning fails.
+///
+///    e.g.,
+///    
+///    ```c
+///    ?++ // invalid primary expression
+///    ```
+///
+/// 2. member access (.) is used on a type that does not have the specified field.
+///
+///    e.g.,
+///
+///    ```c
+///    struct Point { int x; int y; };
+///    struct Point p;
+///    p.z; // 'Point' has no field named 'z'
+///    ```
+///
+/// 3. pointer member access (->) is used on a type that
+///    does not have the specified field.
+///
+///    e.g.,
+///    ```c
+///    struct Point { int x; int y; };
+///    struct Point *p2;
+///    p2->z; // 'Point' has no field named 'z'
+///    ```
+///
+/// 4. post-increment (++) is used on a type that cannot be incremented.
+///
+///    e.g.,
+///    ```c
+///    struct Point { int x; int y; };
+///    struct Point p;
+///    p++; // 'Point' cannot be used with '++' operator
+///    ```
+///
+/// 5. post-decrement (--) is used on a type that cannot be decremented.
+///
+///    e.g.,
+///    ```c
+///    struct Point { int x; int y; };
+///    struct Point p;
+///    p--; // 'Point' cannot be used with '--' operator
+///    ```
 pub fn Context::parse_postfix_expr(
   self : Context,
   tokens : ArrayView[Token],

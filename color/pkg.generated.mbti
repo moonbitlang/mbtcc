@@ -2,6 +2,10 @@
 package "Kaida-Amethyst/mbtcc/color"
 
 // Values
+fn strip_color(String) -> String
+
+fn[T : Show] strip_object_color(T) -> String
+
 fn taint(String, Color) -> String
 
 // Errors
@@ -11,6 +15,8 @@ pub(all) enum Color {
   Red
   Yellow
   Magenta
+  Green
+  Blue
 }
 
 // Type aliases

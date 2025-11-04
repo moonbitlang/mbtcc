@@ -35,6 +35,16 @@
 ///   | "sizeof" unary_expression          (TODO)
 ///   | "sizeof" '(' type_name ')'         (TODO)
 ///   | "alignof" '(' type_name ')'        (TODO)
+///   ;
+///
+/// ## Parse Function
+///
+/// ```mbt skip
+/// fn Context::parse_unary_expr(
+///   self: Context,
+///   tokens: ArrayView[Token]
+/// ) -> (UnaryExpr, ArrayView[Token]) raise ParseError
+/// ```
 pub struct UnaryExpr {
   kind : UnaryExprKind
   ctype : CType
@@ -123,6 +133,68 @@ pub enum UnaryExprKind {
 } derive(Eq)
 
 ///|
+/// Parse an unary expression from the given tokens.
+///
+/// Return a tuple of the parsed `UnaryExpr` and the remaining tokens.
+///
+/// ## Example Parse
+///
+/// ```c
+/// ++x;               // Pre-increment
+/// --y;               // Pre-decrement
+/// &var;              // Address-of
+/// *p;                // Dereference
+/// -x;                // Negation
+/// ~flag;             // Bitwise NOT
+/// !condition;        // Logical NOT
+/// sizeof(x);         // Sizeof expression
+/// sizeof(int);       // Sizeof type
+/// alignof(double);   // Alignof type
+/// ```
+///
+/// ## Example Usage
+///
+/// ```mbt
+/// let code = "++i"
+/// let ctx = Context::new(code~, source_file="demo")
+/// ctx.add_var("i", CType::int())
+/// let (unary_expr, rest) = ctx.parse_unary_expr(ctx.tokens)
+/// inspect(
+///   unary_expr.to_string(color=false),
+///   content=(
+///   #|unary operator ++ (int)
+///   #|`variable i (int)
+/// )
+/// )
+/// assert_true(rest is [{ kind: EOF, ..}])
+/// ```
+///
+/// ## Raises
+///
+/// Parser will raise ParseError if:
+///
+/// 1. Parse postfix expression fails.
+///
+///    e.g.,
+///    ```c
+///    ++;  // Invalid postfix expression after '++'
+///    ```
+/// 2. The operand type is not compatible with the unary operator.
+///
+///   e.g.,
+///   ```c
+///   struct Point { int x; int y; };
+///   struct Point p;
+///   ++p;  // Invalid use of '++' operator on struct type
+///   ```
+///
+/// 3. Dereferencing a non-pointer type.
+///
+///    e.g.,
+///    ```c
+///    int x = 10;
+///    *x;  // Invalid dereference of non-pointer type
+///    ```
 pub fn Context::parse_unary_expr(
   self : Context,
   tokens : ArrayView[Token],

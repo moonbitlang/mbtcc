@@ -65,22 +65,18 @@ pub enum Keyword {
   Attribute
   BuiltinOffsetof
 }
-fn Keyword::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Keyword::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Keyword::output(Self, &Logger) -> Unit // from trait `Show`
-fn Keyword::to_string(Self) -> String // from trait `Show`
 impl Eq for Keyword
 impl Show for Keyword
 
 pub struct Token {
   kind : TokenKind
   line : Int
-  column : Int
+  col : Int
   idx : Int
   raw : String
   err_msg : String
 }
+impl Show for Token
 
 pub enum TokenKind {
   Keyword(Keyword)
@@ -96,8 +92,10 @@ pub enum TokenKind {
   Identifier(String)
   Int(Int)
   Long(Int64)
+  LongLong(Int64)
   UInt(UInt)
   ULong(UInt64)
+  ULongLong(UInt64)
   Float(Float)
   Double(Double)
   Char(Char)
@@ -107,11 +105,6 @@ pub enum TokenKind {
   Hash2
   EOF
 }
-fn TokenKind::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn TokenKind::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn TokenKind::output(Self, &Logger) -> Unit // from trait `Show`
-fn TokenKind::to_string(Self) -> String // from trait `Show`
 impl Eq for TokenKind
 impl Show for TokenKind
 

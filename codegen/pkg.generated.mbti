@@ -14,8 +14,6 @@ pub suberror CodeGenError {
   SyntaxError(String)
   UnSupportFeature(String)
 }
-fn CodeGenError::output(Self, &Logger) -> Unit // from trait `Show`
-fn CodeGenError::to_string(Self) -> String // from trait `Show`
 impl Show for CodeGenError
 
 // Types and methods
@@ -32,6 +30,7 @@ pub struct CodeGenContext {
   mut anon_struct_counter : Int
 }
 fn CodeGenContext::analysis_declspecs(Self, Array[@oldparser.DeclSpec]) -> Type raise
+fn CodeGenContext::analysis_direct_declarator_type_for_param(Self, @oldparser.DirectDeclarator, Type) -> Type raise CodeGenError
 fn CodeGenContext::dump(Self) -> Unit
 fn CodeGenContext::emit_declaration(Self, @oldparser.Declaration) -> Unit raise
 fn CodeGenContext::emit_external_decl(Self, @oldparser.ExternalDeclaration) -> Unit raise
@@ -53,11 +52,6 @@ pub enum Type {
   Enum(Array[(String, Int64)])
   Union(String, Array[(String, Type)])
 }
-fn Type::equal(Self, Self) -> Bool // from trait `Eq`
-#deprecated
-fn Type::op_equal(Self, Self) -> Bool // from trait `Eq`
-fn Type::output(Self, &Logger) -> Unit // from trait `Show`
-fn Type::to_string(Self) -> String // from trait `Show`
 impl Eq for Type
 impl Show for Type
 

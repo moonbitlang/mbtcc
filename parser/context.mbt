@@ -88,12 +88,3 @@ pub fn Context::get_typename_ctype(self : Context, name : String) -> CType? {
 pub fn Context::catch_err(self : Context, err : ParseError) -> Unit {
   self.errs.push(err)
 }
-
-///|
-pub fn next_check_point(tokens : ArrayView[Token]) -> ArrayView[Token] {
-  loop tokens {
-    [{ kind: Semi, .. }, .. rest] => break rest
-    [_, .. rest] => continue rest
-    [] as tokens => break tokens
-  }
-}

@@ -7,20 +7,20 @@
 /// ## Examples
 ///
 /// ```c
-/// 1 => int literal
-/// 2l => long literal
-/// 3u => unsigned int literal
-/// 4ul => unsigned long literal
-/// 5ull => unsigned long long literal
-/// 6L => long literal
-/// 7U => unsigned int literal
-/// 8UL => unsigned long literal
-/// 9ll => long long literal
-/// 9.5 => double literal
-/// 10.0f => float literal
-/// 'c' => char literal
-/// "hello" => string literal
-/// x => variable identifier if the context defines `x` as a variable
+/// 1           // int literal
+/// 2l          // long literal
+/// 3u          // unsigned int literal
+/// 4ul         // unsigned long literal
+/// 5ull        // unsigned long long literal
+/// 6L          // long literal
+/// 7U          // unsigned int literal
+/// 8UL         // unsigned long literal
+/// 9ll         // long long literal
+/// 9.5         // double literal
+/// 10.0f       // float literal
+/// 'c'         // char literal
+/// "hello"     // string literal
+/// x           // variable identifier if the context defines `x` as a variable
 /// ```
 ///
 /// ## Grammar (EBNF)
@@ -39,6 +39,15 @@
 ///   | Strings  // String literal(s)
 ///   | '(' Expr ')' // Parenthesized expression (TODO)
 ///   ;
+///
+/// ## Parse Function
+///
+/// ```mbt skip
+/// fn Context::parse_prim_expr(
+///   self: Context,
+///   tokens: ArrayView[Token]
+/// ) -> (PrimExpr, ArrayView[Token]) raise ParseError
+/// ```
 pub struct PrimExpr {
   kind : PrimExprKind
   ctype : CType
@@ -122,6 +131,68 @@ pub impl Show for PrimExprKind with output(self, logger) {
 }
 
 ///|
+/// Parse a primary expression from the given tokens.
+///
+/// Returns a tuple of the parsed PrimExpr and the remaining tokens.
+///
+/// ## Example Parse:
+///
+/// ```c
+/// 1           // int literal
+/// 2l          // long literal
+/// 3u          // unsigned int literal
+/// 4ul         // unsigned long literal
+/// 5ull        // unsigned long long literal
+/// 6L          // long literal
+/// 7U          // unsigned int literal
+/// 8UL         // unsigned long literal
+/// 9ll         // long long literal
+/// 9.5         // double literal
+/// 10.0f       // float literal
+/// 'c'         // char literal
+/// "hello"     // string literal
+/// x           // variable identifier if the context defines `x` as a variable
+/// ```
+///
+/// ## Example Code:
+///
+/// ```mbt
+/// let code = "42u"
+/// let ctx = Context::new(code~, source_file="demo")
+/// let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
+/// inspect(
+///   prim_expr.to_string(color=false),
+///   content="unsigned int literal 42u (unsigned int)"
+/// )
+/// assert_true(rest is [{ kind: EOF, ..}])
+/// ```
+///
+/// ## Raises
+///
+/// Parser will raise ParseError in the following cases:
+///
+/// 1. Meet illegal tokens that cannot be parsed as primary expressions.
+///
+///    e.g.,
+///
+///    ```c
+///    ? // invalid token
+///    ```
+///
+///    The tokens that can be parsed as primary expressions are:
+///
+///    Token(Int), Token(Long), Token(LongLong), Token(UInt),
+///    Token(ULong), Token(ULongLong), Token(Float),
+///    Token(Double), Token(Char), Token(String),
+///    Token(Identifier(id)) which `id` is defined as a variable name.
+///
+/// 2. Encounter an identifier that is not defined as a variable name in the context.
+///
+///    e.g.,
+///    ```c
+///    typedef Integer int;
+///    int x = Integer; // 'Integer' is not a variable
+///    ```
 pub fn Context::parse_prim_expr(
   self : Self,
   tokens : ArrayView[Token],
@@ -154,6 +225,9 @@ pub fn Context::parse_prim_expr(
       }
       (Strings(strs), rest_tokens)
     }
+    [{ kind: Bracket('('), .. } as tok, ..] =>
+      // TODO: Implement parenthesized expressions
+      raise ParseError(tok, "Parenthesized expressions are not yet implemented")
     tokens => raise ParseError(tokens[0], "Expected a primary expression")
   }
   let end_offset = rest_toks.start_offset()

@@ -2,10 +2,13 @@
 package "Kaida-Amethyst/mbtcc/parser"
 
 import(
+  "Kaida-Amethyst/either"
+  "Kaida-Amethyst/mbtcc/env"
   "Kaida-Amethyst/mbtcc/lexer"
 )
 
 // Values
+fn next_check_point(ArrayView[@lexer.Token]) -> ArrayView[@lexer.Token]
 
 // Errors
 pub suberror ParseError {
@@ -13,31 +16,323 @@ pub suberror ParseError {
 }
 
 // Types and methods
+pub struct AddiExpr {
+  kind : AddiExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn AddiExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for AddiExpr
+impl Show for AddiExpr
+
+pub enum AddiExprKind {
+  MultiExpr(MultiExpr)
+  AddExpr(MultiExpr, MultiExpr)
+  SubExpr(MultiExpr, MultiExpr)
+}
+impl Eq for AddiExprKind
+
+pub struct AndExpr {
+  left : EqualityExpr
+  right : EqualityExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct AssignExpr {
+  kind : AssignExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub enum AssignExprKind {
+  Conditional(ConditionalExpr)
+  Assign(UnaryExpr, AssignExpr)
+  MulAssign(UnaryExpr, AssignExpr)
+  DivAssign(UnaryExpr, AssignExpr)
+  ModAssign(UnaryExpr, AssignExpr)
+  AddAssign(UnaryExpr, AssignExpr)
+  SubAssign(UnaryExpr, AssignExpr)
+  ShlAssign(UnaryExpr, AssignExpr)
+  ShrAssign(UnaryExpr, AssignExpr)
+  AndAssign(UnaryExpr, AssignExpr)
+  XorAssign(UnaryExpr, AssignExpr)
+  OrAssign(UnaryExpr, AssignExpr)
+}
+
+pub(all) struct CType {
+  dataKind : CTypeDataKind
+  is_const : Bool
+  is_volatile : Bool
+  is_restrict : Bool
+  is_atomic : Bool
+  is_static : Bool
+  is_thread_local : Bool
+  is_extern : Bool
+  tokens : ArrayView[@lexer.Token]
+}
+fn CType::char() -> Self
+fn CType::const_with(CTypeDataKind) -> Self
+fn CType::default_with(CTypeDataKind) -> Self
+fn CType::double() -> Self
+fn CType::float() -> Self
+fn CType::get_field_ctype_by_dot_acc(Self, String) -> Self?
+fn CType::get_field_ctype_by_ptr_acc(Self, String) -> Self?
+fn CType::int() -> Self
+fn CType::int16() -> Self
+#alias(is_dec_ok)
+fn CType::is_inc_ok(Self) -> Bool
+fn CType::is_integral(Self) -> Bool
+fn CType::is_numeric(Self) -> Bool
+fn CType::long() -> Self
+fn CType::longlong() -> Self
+fn CType::ptr_to(Self) -> Self
+fn CType::string() -> Self
+fn CType::struct_type(String, Array[(String, Self)]) -> Self
+fn CType::uchar() -> Self
+fn CType::uint() -> Self
+fn CType::uint16() -> Self
+fn CType::ulong() -> Self
+fn CType::ulonglong() -> Self
+fn CType::void_() -> Self
+impl Eq for CType
+impl Show for CType
+
+pub(all) enum CTypeDataKind {
+  Void
+  Char
+  UChar
+  Int16
+  UInt16
+  Int
+  UInt
+  LongLong
+  Long
+  ULong
+  ULongLong
+  Float
+  Double
+  Struct(String, Array[(String, CType)])
+  Union(String, Array[(String, CType)])
+  Enum(String, Array[String])
+  Ptr(CType)
+}
+impl Eq for CTypeDataKind
+impl Show for CTypeDataKind
+
+pub struct CastExpr {
+  unary_expr : UnaryExpr
+  cast_to : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn CastExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for CastExpr
+impl Show for CastExpr
+
+pub struct ConditionalExpr {
+  cond : LogicalOrExpr
+  then_expr : LogicalOrExpr
+  else_expr : LogicalOrExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct ConstantExpr {
+  cond : LogicalOrExpr
+  then_expr : LogicalOrExpr
+  else_expr : LogicalOrExpr
+  tokens : ArrayView[@lexer.Token]
+}
+
 pub struct Context {
   code : String
   source_file : String
   tokens : Array[@lexer.Token]
+  defined : @env.Env[String, @either.Either[CType, CType]]
+  errs : Array[ParseError]
 }
+fn Context::add_typedef(Self, String, CType) -> Unit
+fn Context::add_var(Self, String, CType) -> Unit
+fn Context::catch_err(Self, ParseError) -> Unit
 fn Context::from_lexer(@lexer.Context) -> Self
+fn Context::get_typename_ctype(Self, String) -> CType?
+fn Context::get_var_ctype(Self, String) -> CType?
+fn Context::is_keyword_or_type_name(Self, @lexer.Token) -> Bool
+fn Context::is_type_name(Self, String) -> Bool
+fn Context::is_var_name(Self, String) -> Bool
 fn Context::new(code~ : String, source_file~ : String) -> Self
-fn Context::parse_prim_expr(ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_postfix_expr(Self, ArrayView[@lexer.Token]) -> (PostfixExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_shift_expr(Self, ArrayView[@lexer.Token]) -> (ShiftExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_unary_expr(Self, ArrayView[@lexer.Token]) -> (UnaryExpr, ArrayView[@lexer.Token]) raise ParseError
+
+pub struct EqualityExpr {
+  kind : EqualityExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn EqualityExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for EqualityExpr
+impl Show for EqualityExpr
+
+pub enum EqualityExprKind {
+  RelationalExpr(RelationalExpr)
+  EQExpr(RelationalExpr, RelationalExpr)
+  NEExpr(RelationalExpr, RelationalExpr)
+}
+impl Eq for EqualityExprKind
+
+pub struct ExclusiveOrExpr {
+  left : AndExpr
+  right : AndExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct Expr {
+  assign_exprs : Array[AssignExpr]
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct InclusiveOrExpr {
+  left : ExclusiveOrExpr
+  right : ExclusiveOrExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct LogicalAndExpr {
+  left : InclusiveOrExpr
+  right : InclusiveOrExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct LogicalOrExpr {
+  left : LogicalAndExpr
+  right : LogicalAndExpr
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+
+pub struct MultiExpr {
+  kind : MultiExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn MultiExpr::parse_multi_expr(Context, ArrayView[@lexer.Token]) -> (Self, ArrayView[@lexer.Token]) raise ParseError
+fn MultiExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for MultiExpr
+impl Show for MultiExpr
+
+pub enum MultiExprKind {
+  CastExpr(CastExpr)
+  MulExpr(CastExpr, CastExpr)
+  DivExpr(CastExpr, CastExpr)
+  ModExpr(CastExpr, CastExpr)
+}
+impl Eq for MultiExprKind
+
+pub struct PostfixExpr {
+  kind : PostfixExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn PostfixExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for PostfixExpr
+impl Show for PostfixExpr
+
+pub enum PostfixExprKind {
+  PrimExpr(PrimExpr)
+  MemberAccess(PostfixExpr, String)
+  PtrMemberAccess(PostfixExpr, String)
+  PostInc(PostfixExpr)
+  PostDec(PostfixExpr)
+}
+impl Eq for PostfixExprKind
 
 pub struct PrimExpr {
   kind : PrimExprKind
+  ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn PrimExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for PrimExpr
+impl Show for PrimExpr
 
 pub enum PrimExprKind {
   Ident(String)
   Char(Char)
   Int(Int)
-  UInt(UInt)
   Long(Int64)
+  LongLong(Int64)
+  UInt(UInt)
   ULong(UInt64)
+  ULongLong(UInt64)
   Float(Float)
   Double(Double)
   Strings(Array[String])
 }
+impl Eq for PrimExprKind
+impl Show for PrimExprKind
+
+pub struct RelationalExpr {
+  kind : RelationalExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn RelationalExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for RelationalExpr
+impl Show for RelationalExpr
+
+pub enum RelationalExprKind {
+  ShiftExpr(ShiftExpr)
+  LTExpr(ShiftExpr, ShiftExpr)
+  GTExpr(ShiftExpr, ShiftExpr)
+  LEExpr(ShiftExpr, ShiftExpr)
+  GEExpr(ShiftExpr, ShiftExpr)
+}
+impl Eq for RelationalExprKind
+
+pub struct ShiftExpr {
+  kind : ShiftExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn ShiftExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for ShiftExpr
+impl Show for ShiftExpr
+
+pub enum ShiftExprKind {
+  AddiExpr(AddiExpr)
+  ShlExpr(AddiExpr, AddiExpr)
+  ShrExpr(AddiExpr, AddiExpr)
+}
+impl Eq for ShiftExprKind
+
+pub struct UnaryExpr {
+  kind : UnaryExprKind
+  ctype : CType
+  tokens : ArrayView[@lexer.Token]
+}
+fn UnaryExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+impl Eq for UnaryExpr
+impl Show for UnaryExpr
+
+pub enum UnaryExprKind {
+  PostfixExpr(PostfixExpr)
+  PreInc(UnaryExpr)
+  PreDec(UnaryExpr)
+  AddrOf(UnaryExpr)
+  Deref(UnaryExpr)
+  Negate(UnaryExpr)
+  BitNot(UnaryExpr)
+  LogicalNot(UnaryExpr)
+}
+impl Eq for UnaryExprKind
 
 // Type aliases
 
