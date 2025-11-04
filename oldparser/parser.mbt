@@ -2226,10 +2226,7 @@ fn StructDeclaration::parse(
     )
   }
   (
-    StructDeclaration::Normal(
-      type_spec_or_qualifiers,
-      struct_declarators.0,
-    ),
+    StructDeclaration::Normal(type_spec_or_qualifiers, struct_declarators.0),
     rest,
   )
 }
@@ -4408,7 +4405,9 @@ fn ParameterDecl::parse(
   //  Ok((declarator, rest_toks)) => (Some(declarator), rest_toks)
   //  Err(_) => (None, rest_toks) // No declarator or abstract declarator
   //}
-  let (declarator, rest_toks) = try ParamDeclarator::parse(rest_toks, ctx) catch {
+  let (declarator, rest_toks) = try
+    ParamDeclarator::parse(rest_toks, ctx)
+  catch {
     _ => (None, rest_toks)
   } noraise {
     (declarator, rest_toks) => (Some(declarator), rest_toks)
