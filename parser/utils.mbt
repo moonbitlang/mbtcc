@@ -33,6 +33,7 @@ pub fn next_check_point(tokens : ArrayView[Token]) -> ArrayView[Token] {
 pub fn format_lines(
   lines : Iter[StringView],
   head_with? : String = "└-",
+  continue_with? : String = "│ ",
 ) -> String {
   let sb = StringBuilder::new()
   let strs = []
@@ -40,7 +41,7 @@ pub fn format_lines(
     if i == 0 {
       sb.write_string(head_with)
     } else {
-      sb.write_string("│ ")
+      sb.write_string(continue_with)
     }
     sb.write_stringview(line)
     strs.push(sb.to_string())

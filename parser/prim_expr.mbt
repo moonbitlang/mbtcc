@@ -447,3 +447,25 @@ test "PrimExpr Parse Test" {
   let r = try? ctx.parse_prim_expr(rest)
   assert_true(r is Err(_))
 }
+
+///|
+test "PrimExpr Error Test" {
+  // Error test: undefined variable
+  let code_err1 = "undefined_var"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_prim_expr(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: typedef used as variable
+  let code_err2 = "Integer"
+  let ctx_err2 = Context::new(code=code_err2)
+  ctx_err2.add_typedef("Integer", CType::int())
+  let r = try? ctx_err2.parse_prim_expr(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: invalid token
+  let code_err3 = "?"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_prim_expr(ctx_err3.tokens)
+  assert_true(r is Err(_))
+}

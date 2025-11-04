@@ -111,9 +111,9 @@ pub enum MultiExprKind {
 /// inspect(
 ///   multi_expr.to_string(color=false),
 ///   content=(
-///   #|multiplicative expr: * (int)
-///   #|├-variable x (int)
-///   #|└-variable y (int)
+///     #|multiplicative expr: * (int)
+///     #|├-variable x (int)
+///     #|└-variable y (int)
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
@@ -186,7 +186,7 @@ pub fn Context::parse_multi_expr(
     }
     [{ kind: Operator("%"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      if !multi_expr.ctype.is_integral()  {
+      if !multi_expr.ctype.is_integral() {
         let msg = "Invalid operands to '%': left operand '\{multi_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
@@ -371,7 +371,6 @@ test "Multiplicative Expr Parse Test" {
   // Parse `i * j * k` (multiple operations, left-associative)
   let rest = next_check_point(rest)
   let (multi_expr, _rest) = ctx.parse_multi_expr(rest)
-  println(multi_expr)
   inspect(
     multi_expr.to_string(color~),
     content=(
@@ -389,6 +388,7 @@ test "Multiplicative Expr Parse Test" {
   )
 }
 
+///|
 test "Multiplicative Expr Error Test" {
   // Error test: struct * struct (incompatible types)
   let code_err1 = "p1 * p2"

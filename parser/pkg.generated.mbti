@@ -8,7 +8,7 @@ import(
 )
 
 // Values
-fn format_lines(Iter[StringView], head_with? : String) -> String
+fn format_lines(Iter[StringView], head_with? : String, continue_with? : String) -> String
 
 fn next_check_point(ArrayView[@lexer.Token]) -> ArrayView[@lexer.Token]
 
@@ -74,6 +74,7 @@ pub(all) struct CType {
   tokens : ArrayView[@lexer.Token]
 }
 fn CType::char() -> Self
+fn CType::common_type(Self, Self) -> Self?
 fn CType::const_with(CTypeDataKind) -> Self
 fn CType::default_with(CTypeDataKind) -> Self
 fn CType::double() -> Self
@@ -162,7 +163,7 @@ fn Context::get_var_ctype(Self, String) -> CType?
 fn Context::is_keyword_or_type_name(Self, @lexer.Token) -> Bool
 fn Context::is_type_name(Self, String) -> Bool
 fn Context::is_var_name(Self, String) -> Bool
-fn Context::new(code~ : String, source_file~ : String) -> Self
+fn Context::new(code~ : String, source_file? : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError

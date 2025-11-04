@@ -453,3 +453,58 @@ test "Unary Expr Parse Test" {
   let r = try? ctx.parse_unary_expr(rest)
   assert_true(r is Err(_))
 }
+
+///|
+test "Unary Expr Error Test" {
+  // Error test: pre-increment on struct type
+  let code_err1 = "++p"
+  let ctx_err1 = Context::new(code=code_err1)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err1.add_var("p", point_struct)
+  let r = try? ctx_err1.parse_unary_expr(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: pre-decrement on struct type
+  let code_err2 = "--p"
+  let ctx_err2 = Context::new(code=code_err2)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err2.add_var("p", point_struct)
+  let r = try? ctx_err2.parse_unary_expr(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: dereference on non-pointer type
+  let code_err3 = "*x"
+  let ctx_err3 = Context::new(code=code_err3)
+  ctx_err3.add_var("x", CType::int())
+  let r = try? ctx_err3.parse_unary_expr(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: negate on struct type
+  let code_err4 = "-p"
+  let ctx_err4 = Context::new(code=code_err4)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err4.add_var("p", point_struct)
+  let r = try? ctx_err4.parse_unary_expr(ctx_err4.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: bitwise NOT on struct type
+  let code_err5 = "~p"
+  let ctx_err5 = Context::new(code=code_err5)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err5.add_var("p", point_struct)
+  let r = try? ctx_err5.parse_unary_expr(ctx_err5.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: logical NOT on struct type
+  let code_err6 = "!p"
+  let ctx_err6 = Context::new(code=code_err6)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err6.add_var("p", point_struct)
+  let r = try? ctx_err6.parse_unary_expr(ctx_err6.tokens)
+  assert_true(r is Err(_))
+}
