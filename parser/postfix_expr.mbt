@@ -36,6 +36,14 @@ pub struct PostfixExpr {
   tokens: ArrayView[Token]
 }
 
+pub impl Eq for PostfixExpr with equal(self, other) {
+  self.kind == other.kind
+}
+
+pub impl Show for PostfixExpr with output(self, logger) {
+  logger.write_string(self.to_string(color=true))
+}
+
 pub fn PostfixExpr::to_string(self: Self, color~: Bool = true, indent~ : Int = 0) -> String {
   let prefix = match self.kind {
     PrimExpr(_) =>  ""
@@ -55,7 +63,7 @@ pub fn PostfixExpr::to_string(self: Self, color~: Bool = true, indent~ : Int = 0
     "(\{self.ctype})"
   }
   let s = match self.kind {
-    PrimExpr(prim_expr) => prim_expr.to_string(color=color)
+    PrimExpr(prim_expr) => prim_expr.to_string(color~, indent~)
     MemberAccess(inner_expr, name) => {
       let inner_expr_str = inner_expr.to_string(color~, indent~)
       "\{prefix} .\{name} \{ctype}\n" + "`\{inner_expr_str}"
@@ -76,10 +84,6 @@ pub fn PostfixExpr::to_string(self: Self, color~: Bool = true, indent~ : Int = 0
   " ".repeat(indent) + s
 }
 
-pub impl Show for PostfixExpr with output(self, logger) {
-  logger.write_string(self.to_string(color=true))
-}
-
 pub enum PostfixExprKind {
   PrimExpr(PrimExpr)
   // ArrayAccess(PostfixExpr, Expr)
@@ -89,12 +93,13 @@ pub enum PostfixExprKind {
   PostInc(PostfixExpr)
   PostDec(PostfixExpr)
   // TypeInit(TypeName, Array[Initializer])
-}
+} derive(Eq)
 
 pub fn Context::parse_postfix_expr(
   self: Context, 
   tokens: ArrayView[Token]
 ) -> (PostfixExpr, ArrayView[Token]) raise ParseError {
+  let init_toks = tokens
   let start_offset = tokens.start_offset()
   let (prim_expr, rest) = self.parse_prim_expr(tokens)
   let mut postfix_expr = PostfixExpr::{
@@ -110,7 +115,7 @@ pub fn Context::parse_postfix_expr(
       postfix_expr = PostfixExpr::{
         kind: MemberAccess(postfix_expr, name),
         ctype: field_ctype,
-        tokens: tokens[0:(rest.start_offset() - start_offset)]
+        tokens: init_toks[0:(rest.start_offset() - start_offset)]
       }
       continue rest
     }
@@ -121,7 +126,7 @@ pub fn Context::parse_postfix_expr(
       postfix_expr = PostfixExpr::{
         kind: PtrMemberAccess(postfix_expr, name),
         ctype: field_ctype,
-        tokens: tokens[0:(rest.start_offset() - start_offset)]
+        tokens: init_toks[0:(rest.start_offset() - start_offset)]
       }
       continue rest
     }
@@ -132,7 +137,7 @@ pub fn Context::parse_postfix_expr(
       postfix_expr = PostfixExpr::{
         kind: PostInc(postfix_expr),
         ctype: postfix_expr.ctype,
-        tokens: tokens[0:(rest.start_offset() - start_offset)]
+        tokens: init_toks[0:(rest.start_offset() - start_offset)]
       }
       continue rest
     }
@@ -143,7 +148,7 @@ pub fn Context::parse_postfix_expr(
       postfix_expr = PostfixExpr::{
         kind: PostDec(postfix_expr),
         ctype: postfix_expr.ctype,
-        tokens: tokens[0:(rest.start_offset() - start_offset)]
+        tokens: init_toks[0:(rest.start_offset() - start_offset)]
       }
       continue rest
     }
@@ -170,21 +175,45 @@ test "Postfix Expr Parse Test" {
     #|member access : .x (int)
     #|`variable p (struct Point)
   ))
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens)
+    is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is []
+  )
   let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
   inspect(postfix_expr.to_string(color~), content = (
     #|pointer member access : ->y (int)
     #|`variable p2 (struct Point *)
   ))
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens)
+    is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is []
+  )
   let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
   inspect(postfix_expr.to_string(color~), content = (
     #|unary operator ++ (int)
     #|`variable i (int)
   ))
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens)
+    is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is []
+  )
   let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
   inspect(postfix_expr.to_string(color~), content = (
     #|unary operator -- (int)
     #|`variable j (int)
   ))
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens)
+    is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is []
+  )
 
   // Parse `p.z`
   let r = try? ctx.parse_postfix_expr(rest)

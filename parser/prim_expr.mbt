@@ -50,6 +50,10 @@ pub impl Show for PrimExpr with output(self, logger) {
   logger.write_string(s)
 }
 
+pub impl Eq for PrimExpr with equal(self, other) {
+  self.kind == other.kind
+}
+
 pub fn PrimExpr::to_string(self: Self, color~: Bool = true, indent~: Int = 0) -> String {
   let prefix = match self.kind {
     Ident(_) =>  "variable"
@@ -91,7 +95,7 @@ pub enum PrimExprKind {
   Double(Double)
   Strings(Array[String])
   // Paren(Expr) // TODO
-}
+} derive(Eq)
 
 pub impl Show for PrimExprKind with output(self, logger) {
   let s = match self {
@@ -183,38 +187,128 @@ test "PrimExpr Parse Test" {
   ctx.add_typedef("Integer", CType::int())
   let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
   inspect(prim_expr.to_string(color~), content="int literal 1 (int)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="long literal 2l (long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="unsigned int literal 3u (unsigned int)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="unsigned long literal 4ul (unsigned long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="unsigned long long literal 5ull (unsigned long long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="long literal 6l (long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="unsigned int literal 7u (unsigned int)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="unsigned long literal 8ul (unsigned long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="long long literal 9ll (long long)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="double literal 9.5 (double)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="float literal 10f (float)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="char literal 'c' (char)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content=(
     #|string literal "hello" (const char *)
   ))
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content="variable x (int)")
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
   let (prim_expr, rest) = ctx.parse_prim_expr(rest)
   inspect(prim_expr.to_string(color~), content=(
     #|string literal "hello world" (const char *)
   ))
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens)
+    is (re_prim_expr, re_rest) && 
+    re_prim_expr == prim_expr && 
+    re_rest is []
+  )
 
   // Error Check
   let r = try? ctx.parse_prim_expr(rest)

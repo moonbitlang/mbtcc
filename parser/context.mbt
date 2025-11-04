@@ -38,6 +38,14 @@ pub fn Context::is_type_name(self: Context, name: String) -> Bool {
   }
 }
 
+pub fn Context::is_keyword_or_type_name(self: Self, tok: Token) -> Bool {
+  match tok.kind {
+    Keyword(_) => true
+    Identifier(name) => self.is_type_name(name)
+    _ => false
+  }
+}
+
 pub fn Context::is_var_name(self: Context, name: String) -> Bool {
   match self.defined.get(name) {
     Some(Left(_)) => true

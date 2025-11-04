@@ -1,4 +1,7 @@
-
+///|
+///
+/// if tokens is empty (aka, []), it means it didn't come from 
+/// source code.
 pub(all) struct CType {
   dataKind: CTypeDataKind
   is_const: Bool
@@ -8,6 +11,19 @@ pub(all) struct CType {
   is_static: Bool
   is_thread_local: Bool
   is_extern: Bool
+  tokens: ArrayView[Token]
+}
+
+///|
+pub impl Eq for CType with equal(self, other) {
+  self.dataKind == other.dataKind &&
+  self.is_const == other.is_const &&
+  self.is_volatile == other.is_volatile &&
+  self.is_restrict == other.is_restrict &&
+  self.is_atomic == other.is_atomic &&
+  self.is_static == other.is_static &&
+  self.is_thread_local == other.is_thread_local &&
+  self.is_extern == other.is_extern
 }
 
 fn CType::spec_to_string_first(self: CType) -> String {
@@ -92,6 +108,7 @@ pub fn CType::default_with(kind: CTypeDataKind) -> CType {
     is_static: false,
     is_thread_local: false,
     is_extern: false,
+    tokens: [],
   }
 }
 
@@ -105,6 +122,7 @@ pub fn CType::const_with(kind: CTypeDataKind) -> CType {
     is_static: false,
     is_thread_local: false,
     is_extern: false,
+    tokens: [],
   }
 }
 
@@ -126,7 +144,7 @@ pub(all) enum CTypeDataKind {
   Union(String, Array[(String, CType)])
   Enum(String, Array[String])
   Ptr(CType)
-}
+} derive(Eq)
 
 pub impl Show for CTypeDataKind with output(self, logger) {
   fn fields_stringify(fields: Array[(String, CType)]) -> String {
