@@ -171,6 +171,7 @@ fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr,
 fn Context::parse_multi_expr(Self, ArrayView[@lexer.Token]) -> (MultiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_postfix_expr(Self, ArrayView[@lexer.Token]) -> (PostfixExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_relational_expr(Self, ArrayView[@lexer.Token]) -> (RelationalExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_shift_expr(Self, ArrayView[@lexer.Token]) -> (ShiftExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_unary_expr(Self, ArrayView[@lexer.Token]) -> (UnaryExpr, ArrayView[@lexer.Token]) raise ParseError
 
