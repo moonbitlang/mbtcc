@@ -49,10 +49,7 @@ pub impl Show for MultiExpr with output(self, logger) {
 }
 
 ///|
-pub fn MultiExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn MultiExpr::to_string(self : Self, color? : Bool = true) -> String {
   match self.kind {
     CastExpr(cast_expr) => cast_expr.to_string(color~)
     MulExpr(left, right) | DivExpr(left, right) | ModExpr(left, right) => {
@@ -297,7 +294,6 @@ test "Multiplicative Expr Parse Test" {
       #|│ ├-variable x (int)
       #|│ └-variable y (int)
       #|└-variable z (int)
-
     ),
   )
   assert_true(
@@ -317,7 +313,6 @@ test "Multiplicative Expr Parse Test" {
       #|│ ├-variable a (int)
       #|│ └-variable b (int)
       #|└-variable c (int)
-
     ),
   )
   assert_true(
@@ -372,7 +367,6 @@ test "Multiplicative Expr Parse Test" {
       #|│ ├-variable i (int)
       #|│ └-variable j (int)
       #|└-variable k (int)
-
     ),
   )
   assert_true(

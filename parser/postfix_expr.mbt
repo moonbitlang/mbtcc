@@ -56,10 +56,7 @@ pub impl Show for PostfixExpr with output(self, logger) {
 }
 
 ///|
-pub fn PostfixExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn PostfixExpr::to_string(self : Self, color? : Bool = true) -> String {
   let prefix = match self.kind {
     PrimExpr(_) => ""
     MemberAccess(_) => "member access :"
@@ -299,7 +296,6 @@ test "Postfix Expr Parse Test" {
     content=(
       #|pointer member access : ->y (int)
       #|└-variable p2 (struct Point *)
-
     ),
   )
   assert_true(
@@ -316,7 +312,6 @@ test "Postfix Expr Parse Test" {
     content=(
       #|unary operator ++ (int)
       #|└-variable i (int)
-
     ),
   )
   assert_true(
@@ -333,7 +328,6 @@ test "Postfix Expr Parse Test" {
     content=(
       #|unary operator -- (int)
       #|└-variable j (int)
-
     ),
   )
   assert_true(

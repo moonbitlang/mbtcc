@@ -8,6 +8,8 @@ import(
 )
 
 // Values
+fn format_lines(Iter[StringView], head_with? : String) -> String
+
 fn next_check_point(ArrayView[@lexer.Token]) -> ArrayView[@lexer.Token]
 
 // Errors
@@ -21,7 +23,7 @@ pub struct AddiExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn AddiExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn AddiExpr::to_string(Self, color? : Bool) -> String
 impl Eq for AddiExpr
 impl Show for AddiExpr
 
@@ -125,7 +127,7 @@ pub struct CastExpr {
   cast_to : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn CastExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn CastExpr::to_string(Self, color? : Bool) -> String
 impl Eq for CastExpr
 impl Show for CastExpr
 
@@ -175,7 +177,7 @@ pub struct EqualityExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn EqualityExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn EqualityExpr::to_string(Self, color? : Bool) -> String
 impl Eq for EqualityExpr
 impl Show for EqualityExpr
 
@@ -224,7 +226,7 @@ pub struct MultiExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn MultiExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn MultiExpr::to_string(Self, color? : Bool) -> String
 impl Eq for MultiExpr
 impl Show for MultiExpr
 
@@ -241,7 +243,7 @@ pub struct PostfixExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn PostfixExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn PostfixExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PostfixExpr
 impl Show for PostfixExpr
 
@@ -259,7 +261,7 @@ pub struct PrimExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn PrimExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn PrimExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PrimExpr
 impl Show for PrimExpr
 
@@ -284,7 +286,7 @@ pub struct RelationalExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn RelationalExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn RelationalExpr::to_string(Self, color? : Bool) -> String
 impl Eq for RelationalExpr
 impl Show for RelationalExpr
 
@@ -302,7 +304,7 @@ pub struct ShiftExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn ShiftExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn ShiftExpr::to_string(Self, color? : Bool) -> String
 impl Eq for ShiftExpr
 impl Show for ShiftExpr
 
@@ -318,7 +320,7 @@ pub struct UnaryExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn UnaryExpr::to_string(Self, color? : Bool, indent? : Int) -> String
+fn UnaryExpr::to_string(Self, color? : Bool) -> String
 impl Eq for UnaryExpr
 impl Show for UnaryExpr
 

@@ -55,10 +55,7 @@ pub impl Show for AddiExpr with output(self, logger) {
 /// `\{left}
 /// `\{right}
 /// ```
-pub fn AddiExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn AddiExpr::to_string(self : Self, color? : Bool = true) -> String {
   match self.kind {
     MultiExpr(multi_expr) => multi_expr.to_string(color~)
     AddExpr(left, right) | SubExpr(left, right) => {
@@ -186,5 +183,3 @@ pub fn Context::parse_addi_expr(
   }
   (addi_expr, rest)
 }
-
-

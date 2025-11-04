@@ -66,10 +66,7 @@ pub impl Eq for PrimExpr with equal(self, other) {
 }
 
 ///|
-pub fn PrimExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
   let prefix = match self.kind {
     Ident(_) => "variable"
     Char(_) => "char literal"

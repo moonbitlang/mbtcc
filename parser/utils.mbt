@@ -30,7 +30,10 @@ pub fn next_check_point(tokens : ArrayView[Token]) -> ArrayView[Token] {
 ///
 /// For AI:
 /// Modify this function is ok.
-pub fn format_lines(lines: Iter[StringView], head_with~: String = "└-") -> String {
+pub fn format_lines(
+  lines : Iter[StringView],
+  head_with? : String = "└-",
+) -> String {
   let sb = StringBuilder::new()
   let strs = []
   for i, line in lines {

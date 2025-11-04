@@ -16,10 +16,7 @@ pub impl Show for ShiftExpr with output(self, logger) {
 }
 
 ///|
-pub fn ShiftExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn ShiftExpr::to_string(self : Self, color? : Bool = true) -> String {
   ...
 }
 
@@ -66,10 +63,7 @@ pub impl Show for RelationalExpr with output(self, logger) {
 /// `\{left}
 /// `\{right}
 /// ```
-pub fn RelationalExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn RelationalExpr::to_string(self : Self, color? : Bool = true) -> String {
   ...
 }
 
@@ -108,10 +102,7 @@ pub impl Show for EqualityExpr with output(self, logger) {
 /// `\{left}
 /// `\{right}
 /// ```
-pub fn EqualityExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn EqualityExpr::to_string(self : Self, color? : Bool = true) -> String {
   ...
 }
 
@@ -387,7 +378,6 @@ test "Additive Expr Parse Test" {
       #|`└-variable x (int)
       #|`└-variable y (int)
       #|`variable z (int)
-
     ),
   )
   assert_true(
@@ -407,7 +397,6 @@ test "Additive Expr Parse Test" {
       #|`multiplicative expr: * (int)
       #|`└-variable b (int)
       #|`└-variable c (int)
-
     ),
   )
   assert_true(

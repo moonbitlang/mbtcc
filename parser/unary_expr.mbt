@@ -62,10 +62,7 @@ pub impl Show for UnaryExpr with output(self, logger) {
 }
 
 ///|
-pub fn UnaryExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
   let prefix = match self.kind {
     PostfixExpr(_) => ""
     PreInc(_) => "unary operator ++"
@@ -352,9 +349,11 @@ test "Unary Expr Parse Test" {
 
   // Parse `--y`
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
-  inspect(unary_expr.to_string(color~), content=(
-    #|unary operator -- (int)
-    #|└-variable y (int)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator -- (int)
+      #|└-variable y (int)
     ),
   )
   assert_true(

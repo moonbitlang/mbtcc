@@ -56,10 +56,7 @@ pub impl Show for CastExpr with output(self, logger) {
 ///
 /// cast expr: cast to \{cast_to}
 /// `\{unary_expr}
-pub fn CastExpr::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn CastExpr::to_string(self : Self, color? : Bool = true) -> String {
   if self.cast_to == self.unary_expr.ctype {
     return self.unary_expr.to_string(color~)
   }
@@ -183,7 +180,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator ++ (int)
       #|└-variable y (int)
-
     ),
   )
   assert_true(
@@ -200,7 +196,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator * (int)
       #|└-variable ptr (int *)
-
     ),
   )
   assert_true(
@@ -217,7 +212,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator - (double)
       #|└-variable z (double)
-
     ),
   )
   assert_true(
@@ -269,7 +263,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator ++ (int)
       #|└-variable i (int)
-
     ),
   )
   assert_true(
@@ -286,7 +279,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator -- (int)
       #|└-variable j (int)
-
     ),
   )
   assert_true(
@@ -303,7 +295,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator & (int *)
       #|└-variable var (int)
-
     ),
   )
   assert_true(
@@ -320,7 +311,6 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator ~ (int)
       #|└-variable flag (int)
-
     ),
   )
   assert_true(
