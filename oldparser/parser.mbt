@@ -1371,7 +1371,7 @@ fn Declaration::parse(
 ) -> (Declaration, ArrayView[Token]) raise {
   let is_typedef = toks is [Typedef, ..]
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
-  let decl_specs = decl_specs.inner()
+  let decl_specs = decl_specs.0
   guard decl_specs.length() > 0 else {
     let idx = ctx.alltoks.length() - rest_toks.length()
     raise ParseError(
@@ -1385,7 +1385,7 @@ fn Declaration::parse(
     }
     _ => {
       let (init_decls, rest) = InitDeclaratorList::parse(rest_toks, ctx)
-      let declaration = Declaration::Decl(decl_specs, init_decls.inner())
+      let declaration = Declaration::Decl(decl_specs, init_decls.0)
       guard rest is [Semi, .. rest_toks] else {
         let idx = ctx.alltoks.length() - rest.length()
         raise ParseError((idx, "Parse Error: Expected ';' after declaration"))
@@ -1940,7 +1940,7 @@ test "TypeQualifierList Parsing Test" {
 }
 
 //fn TypeQualifierList::is_empty(self: Self) -> Bool {
-//  self.inner().is_empty()
+//  self.0.is_empty()
 //}
 
 ///|
@@ -2208,7 +2208,7 @@ fn StructDeclaration::parse(
   let (type_spec_or_qualifiers, rest_toks) = TypeSpecOrQualifierList::parse(
     toks, ctx,
   )
-  let type_spec_or_qualifiers = type_spec_or_qualifiers.inner()
+  let type_spec_or_qualifiers = type_spec_or_qualifiers.0
   if rest_toks is [Semi, .. rest_toks] {
     // Case: specifierQualifierList ';'
     return (
@@ -2228,7 +2228,7 @@ fn StructDeclaration::parse(
   (
     StructDeclaration::Normal(
       type_spec_or_qualifiers,
-      struct_declarators.inner(),
+      struct_declarators.0,
     ),
     rest,
   )
@@ -2347,7 +2347,7 @@ fn Declarator::parse(
   ctx : ParserContext,
 ) -> (Declarator, ArrayView[Token]) raise {
   let (pointer, rest_toks) = Pointer::parse(toks)
-  let pointer = if pointer.inner().is_empty() {
+  let pointer = if pointer.0.is_empty() {
     None // No pointer qualifiers
   } else {
     Some(pointer)
@@ -2410,7 +2410,7 @@ fn Pointer::parse(toks : ArrayView[Token]) -> (Pointer, ArrayView[Token]) {
   let rest_toks = loop toks {
     [Star, .. rest_toks] => {
       let (type_qualifiers, rest_toks) = TypeQualifierList::parse(rest_toks)
-      quals.push(type_qualifiers.inner())
+      quals.push(type_qualifiers.0)
       continue rest_toks
     }
     toks => break toks
@@ -2524,7 +2524,7 @@ fn DirectDeclarator::parse(
       }
       current_decl = DirectDeclarator::StaticArray(
         current_decl,
-        type_qualifiers.inner(),
+        type_qualifiers.0,
         assign_expr,
       )
       continue rest_toks
@@ -2536,7 +2536,7 @@ fn DirectDeclarator::parse(
           let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx)
           current_decl = DirectDeclarator::StaticArray(
             current_decl,
-            type_qualifiers.inner(),
+            type_qualifiers.0,
             assign_expr,
           )
           guard rest is [RBracket, .. rest_toks] else {
@@ -2552,7 +2552,7 @@ fn DirectDeclarator::parse(
         [Star, .. rest] => {
           current_decl = DirectDeclarator::VallengthArray(
             current_decl,
-            type_qualifiers.inner(),
+            type_qualifiers.0,
           )
           guard rest is [RBracket, .. rest_toks] else {
             let idx = ctx.alltoks.length() - rest.length()
@@ -2567,7 +2567,7 @@ fn DirectDeclarator::parse(
         [RBracket, .. rest_toks] => {
           current_decl = DirectDeclarator::Array(
             current_decl,
-            type_qualifiers.inner(),
+            type_qualifiers.0,
             None,
           )
           rest_toks
@@ -2576,7 +2576,7 @@ fn DirectDeclarator::parse(
           let (assign_expr, rest) = AssignExpr::parse(rest_toks, ctx)
           current_decl = DirectDeclarator::Array(
             current_decl,
-            type_qualifiers.inner(),
+            type_qualifiers.0,
             Some(assign_expr),
           )
           guard rest is [RBracket, .. rest_toks] else {
@@ -2786,7 +2786,7 @@ fn Initializer::parse(
   match toks {
     [LBrace, ..] as toks => {
       let (init_list, rest) = InitializerList::parse(toks, ctx)
-      (Initializer::InitList(init_list.inner()), rest)
+      (Initializer::InitList(init_list.0), rest)
     }
     _ => {
       let (assign_expr, rest) = AssignExpr::parse(toks, ctx)
@@ -2825,7 +2825,7 @@ fn InitializerList::parse(
         )
       }
       let (initializer, rest) = Initializer::parse(rest, ctx)
-      init_list.push((designators.inner(), initializer))
+      init_list.push((designators.0, initializer))
       continue rest
     }
     [Comma, .. rest_toks] =>
@@ -2998,7 +2998,7 @@ fn EnumSpec::parse(
       (EnumSpec::{ name: Some(name), enumerators: Array::new() }, rest_toks)
     [Identifier(name), LBrace, .. rest_toks] => {
       let (enumerators, rest) = EnumeratorList::parse(rest_toks, ctx)
-      let enumerators = enumerators.inner()
+      let enumerators = enumerators.0
       guard rest is [RBrace, .. rest_toks] else {
         let idx = ctx.alltoks.length() - rest.length()
         raise ParseError(
@@ -3017,7 +3017,7 @@ fn EnumSpec::parse(
     [LBrace, .. rest_toks] => {
       // Anonymous enum
       let (enumerators, rest) = EnumeratorList::parse(rest_toks, ctx)
-      let enumerators = enumerators.inner()
+      let enumerators = enumerators.0
       guard rest is [RBrace, .. rest_toks] else {
         let idx = ctx.alltoks.length() - rest.length()
         raise ParseError(
@@ -3362,7 +3362,7 @@ fn DirectAbstractDeclarator::parse(
         DirectAbstractDeclarator::ArrayDecl(
           None,
           is_static=true,
-          type_qualifiers.inner(),
+          type_qualifiers.0,
           Some(assign_expr),
         ),
         rest_toks,
@@ -3391,7 +3391,7 @@ fn DirectAbstractDeclarator::parse(
         DirectAbstractDeclarator::ArrayDecl(
           None,
           is_static~,
-          type_qualifiers.inner(),
+          type_qualifiers.0,
           assign_expr,
         ),
         rest_toks,
@@ -3463,7 +3463,7 @@ fn DirectAbstractDeclarator::parse(
       curr_decl = DirectAbstractDeclarator::ArrayDecl(
         Some(curr_decl),
         is_static=true,
-        type_qualifiers.inner(),
+        type_qualifiers.0,
         Some(assign_expr),
       )
       continue rest_toks
@@ -3484,7 +3484,7 @@ fn DirectAbstractDeclarator::parse(
       curr_decl = DirectAbstractDeclarator::ArrayDecl(
         Some(curr_decl),
         is_static~,
-        type_qualifiers.inner(),
+        type_qualifiers.0,
         assign_expr,
       )
       continue rest_toks
@@ -4269,7 +4269,7 @@ fn FunctionDefinition::parse(
     err => raise FunctionDefinitionParseError::CompoundStatementParseError(err)
   }
   let function_def = FunctionDefinition::{
-    declSpecs: decl_specs.inner(),
+    declSpecs: decl_specs.0,
     declarator,
     kr_declarations,
     body,
@@ -4310,7 +4310,7 @@ fn ParameterTypeList::parse(
   ctx : ParserContext,
 ) -> (ParameterTypeList, ArrayView[Token]) raise {
   let (params, rest_toks) = ParameterList::parse(toks, ctx)
-  let params = params.inner()
+  let params = params.0
   match rest_toks {
     [Comma, Ellipsis, .. rest_toks] => {
       let param_type_list = ParameterTypeList::{ params, variadic: true }
@@ -4394,7 +4394,7 @@ fn ParameterDecl::parse(
   ctx : ParserContext,
 ) -> (ParameterDecl, ArrayView[Token]) raise {
   let (decl_specs, rest_toks) = DeclSpecList::parse(toks, ctx)
-  let decl_specs = decl_specs.inner()
+  let decl_specs = decl_specs.0
   guard decl_specs.length() > 0 else {
     let idx = ctx.alltoks.length() - toks.length()
     raise ParseError(
@@ -4403,10 +4403,15 @@ fn ParameterDecl::parse(
       ),
     )
   }
-  let (declarator, rest_toks) = match
-    (try? ParamDeclarator::parse(rest_toks, ctx)) {
-    Ok((declarator, rest_toks)) => (Some(declarator), rest_toks)
-    Err(_) => (None, rest_toks) // No declarator or abstract declarator
+  //let (declarator, rest_toks) = match
+  //  (try? ParamDeclarator::parse(rest_toks, ctx)) {
+  //  Ok((declarator, rest_toks)) => (Some(declarator), rest_toks)
+  //  Err(_) => (None, rest_toks) // No declarator or abstract declarator
+  //}
+  let (declarator, rest_toks) = try ParamDeclarator::parse(rest_toks, ctx) catch {
+    _ => (None, rest_toks)
+  } noraise {
+    (declarator, rest_toks) => (Some(declarator), rest_toks)
   }
   let param_decl = ParameterDecl::{ decl_specs, declarator }
   (param_decl, rest_toks)
