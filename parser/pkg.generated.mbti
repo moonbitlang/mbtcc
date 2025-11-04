@@ -73,6 +73,7 @@ pub(all) struct CType {
   is_extern : Bool
   tokens : ArrayView[@lexer.Token]
 }
+fn CType::additive_result_type(Self, Self, String) -> Self?
 fn CType::char() -> Self
 fn CType::common_type(Self, Self) -> Self?
 fn CType::const_with(CTypeDataKind) -> Self

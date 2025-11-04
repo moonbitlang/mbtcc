@@ -466,6 +466,43 @@ pub fn CType::common_type(self : CType, other : CType) -> CType? {
 }
 
 ///|
+/// Get the result type of additive operations (+ or -)
+///
+/// This function handles the type checking and result type determination
+/// for addition and subtraction operations, including pointer arithmetic.
+///
+/// ## Rules for addition (+):
+/// - pointer + integer => pointer
+/// - integer + pointer => pointer
+/// - numeric + numeric => common type
+///
+/// ## Rules for subtraction (-):
+/// - pointer - integer => pointer
+/// - pointer - pointer => ptrdiff_t (long)
+/// - numeric - numeric => common type
+///
+/// Returns `None` if the operation is invalid.
+pub fn CType::additive_result_type(
+  self : CType,
+  other : CType,
+  op : String,
+) -> CType? {
+  match (self.dataKind, other.dataKind) {
+    // pointer + integer => pointer (only for addition)
+    (Ptr(_), _) if op is "+" && other.is_integral() => Some(self)
+    // integer + pointer => pointer (only for addition)
+    (_, Ptr(_)) if op is "+" && self.is_integral() => Some(other)
+    // pointer - integer => pointer
+    (Ptr(_), _) if op is "-" && other.is_integral() => Some(self)
+    // pointer - pointer => ptrdiff_t (use long as ptrdiff_t)
+    (Ptr(_), Ptr(_)) if op is "-" => Some(CType::long())
+    // numeric op numeric => common type
+    (_, _) if self.is_numeric() && other.is_numeric() => self.common_type(other)
+    _ => None
+  }
+}
+
+///|
 test "Common Type Test" {
   // Test int and double -> double
   let int_type = CType::int()
@@ -549,6 +586,70 @@ test "Common Type Test" {
   ])
   match int_type.common_type(struct_type) {
     Some(_) => fail("int and struct should not have common type")
+    None => ()
+  }
+}
+
+///|
+test "Additive Result Type Test" {
+  let int_type = CType::int()
+  let double_type = CType::double()
+  let int_ptr = int_type.ptr_to()
+  let int_ptr2 = int_type.ptr_to()
+
+  // Test pointer + integer => pointer
+  match int_ptr.additive_result_type(int_type, "+") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("pointer + int should be valid")
+  }
+
+  // Test integer + pointer => pointer
+  match int_type.additive_result_type(int_ptr, "+") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("int + pointer should be valid")
+  }
+
+  // Test pointer - integer => pointer
+  match int_ptr.additive_result_type(int_type, "-") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("pointer - int should be valid")
+  }
+
+  // Test pointer - pointer => long (ptrdiff_t)
+  match int_ptr.additive_result_type(int_ptr2, "-") {
+    Some(result) => assert_true(result.dataKind == Long)
+    None => fail("pointer - pointer should be valid")
+  }
+
+  // Test numeric + numeric => common type
+  match int_type.additive_result_type(double_type, "+") {
+    Some(result) => assert_true(result.dataKind == Double)
+    None => fail("int + double should have common type")
+  }
+
+  // Test numeric - numeric => common type
+  match double_type.additive_result_type(int_type, "-") {
+    Some(result) => assert_true(result.dataKind == Double)
+    None => fail("double - int should have common type")
+  }
+
+  // Test invalid: pointer + pointer
+  match int_ptr.additive_result_type(int_ptr2, "+") {
+    Some(_) => fail("pointer + pointer should be invalid")
+    None => ()
+  }
+
+  // Test invalid: integer - pointer
+  match int_type.additive_result_type(int_ptr, "-") {
+    Some(_) => fail("int - pointer should be invalid")
+    None => ()
+  }
+
+  // Test invalid: struct + int
+  let point_fields = [("x", int_type), ("y", int_type)]
+  let point_struct = CType::struct_type("Point", point_fields)
+  match point_struct.additive_result_type(int_type, "+") {
+    Some(_) => fail("struct + int should be invalid")
     None => ()
   }
 }

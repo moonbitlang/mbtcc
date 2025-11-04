@@ -166,22 +166,9 @@ pub fn Context::parse_addi_expr(
     [{ kind: Operator("+"), .. } as op_tok, .. rest] => {
       let (right_multi_expr, rest) = self.parse_multi_expr(rest)
       let ctype = match
-        (addi_expr.ctype.dataKind, right_multi_expr.ctype.dataKind) {
-        // pointer + integer => pointer
-        (Ptr(_), _) if right_multi_expr.ctype.is_integral() => addi_expr.ctype
-        // integer + pointer => pointer
-        (_, Ptr(_)) if addi_expr.ctype.is_integral() => right_multi_expr.ctype
-        // numeric + numeric => common type
-        (_, _) if addi_expr.ctype.is_numeric() &&
-          right_multi_expr.ctype.is_numeric() =>
-          match addi_expr.ctype.common_type(right_multi_expr.ctype) {
-            Some(common) => common
-            None => {
-              let msg = "Invalid operands to '+': '\{addi_expr.ctype}' and '\{right_multi_expr.ctype}'"
-              raise ParseError(op_tok, msg)
-            }
-          }
-        _ => {
+        addi_expr.ctype.additive_result_type(right_multi_expr.ctype, "+") {
+        Some(t) => t
+        None => {
           let msg = "Invalid operands to '+': '\{addi_expr.ctype}' and '\{right_multi_expr.ctype}'"
           raise ParseError(op_tok, msg)
         }
@@ -196,22 +183,9 @@ pub fn Context::parse_addi_expr(
     [{ kind: Operator("-"), .. } as op_tok, .. rest] => {
       let (right_multi_expr, rest) = self.parse_multi_expr(rest)
       let ctype = match
-        (addi_expr.ctype.dataKind, right_multi_expr.ctype.dataKind) {
-        // pointer - integer => pointer
-        (Ptr(_), _) if right_multi_expr.ctype.is_integral() => addi_expr.ctype
-        // pointer - pointer => ptrdiff_t (use long as ptrdiff_t)
-        (Ptr(_), Ptr(_)) => CType::long()
-        // numeric - numeric => common type
-        (_, _) if addi_expr.ctype.is_numeric() &&
-          right_multi_expr.ctype.is_numeric() =>
-          match addi_expr.ctype.common_type(right_multi_expr.ctype) {
-            Some(common) => common
-            None => {
-              let msg = "Invalid operands to '-': '\{addi_expr.ctype}' and '\{right_multi_expr.ctype}'"
-              raise ParseError(op_tok, msg)
-            }
-          }
-        _ => {
+        addi_expr.ctype.additive_result_type(right_multi_expr.ctype, "-") {
+        Some(t) => t
+        None => {
           let msg = "Invalid operands to '-': '\{addi_expr.ctype}' and '\{right_multi_expr.ctype}'"
           raise ParseError(op_tok, msg)
         }
