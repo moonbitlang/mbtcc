@@ -111,19 +111,9 @@ pub enum MultiExprKind {
 /// inspect(
 ///   multi_expr.to_string(color=false),
 ///   content=(
-///     
-///   
-///   
-///   
-///   
 ///   #|multiplicative expr: * (int)
-/// #|├-variable x (int)
-/// #|└-variable y (int)
-/// 
-/// 
-/// 
-/// 
-/// 
+///   #|├-variable x (int)
+///   #|└-variable y (int)
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
@@ -162,10 +152,15 @@ pub fn Context::parse_multi_expr(
     tokens: first_cast_expr.tokens,
   }
   let rest = loop rest {
-    [{ kind: Operator("*"), .. }, .. rest] => {
+    [{ kind: Operator("*"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      // TODO: Type checking for multiplication operator
-      let ctype = multi_expr.ctype
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+        Some(common) => common
+        None => {
+          let msg = "Invalid operands to '*': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          raise ParseError(op_tok, msg)
+        }
+      }
       multi_expr = MultiExpr::{
         kind: MulExpr(multi_expr, right_cast_expr),
         ctype,
@@ -173,10 +168,15 @@ pub fn Context::parse_multi_expr(
       }
       continue rest
     }
-    [{ kind: Operator("/"), .. }, .. rest] => {
+    [{ kind: Operator("/"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      // TODO: Type checking for division operator
-      let ctype = multi_expr.ctype
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+        Some(common) => common
+        None => {
+          let msg = "Invalid operands to '/': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          raise ParseError(op_tok, msg)
+        }
+      }
       multi_expr = MultiExpr::{
         kind: DivExpr(multi_expr, right_cast_expr),
         ctype,
@@ -184,10 +184,23 @@ pub fn Context::parse_multi_expr(
       }
       continue rest
     }
-    [{ kind: Operator("%"), .. }, .. rest] => {
+    [{ kind: Operator("%"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      // TODO: Type checking for modulo operator
-      let ctype = multi_expr.ctype
+      if !multi_expr.ctype.is_integral()  {
+        let msg = "Invalid operands to '%': left operand '\{multi_expr.ctype}' is not an integer type"
+        raise ParseError(op_tok, msg)
+      }
+      if !right_cast_expr.cast_to.is_integral() {
+        let msg = "Invalid operands to '%': right operand '\{right_cast_expr.cast_to}' is not an integer type"
+        raise ParseError(op_tok, msg)
+      }
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+        Some(common) => common
+        None => {
+          let msg = "Invalid operands to '%': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          raise ParseError(op_tok, msg)
+        }
+      }
       multi_expr = MultiExpr::{
         kind: ModExpr(multi_expr, right_cast_expr),
         ctype,
@@ -374,4 +387,32 @@ test "Multiplicative Expr Parse Test" {
     re_multi_expr == multi_expr &&
     re_rest is [],
   )
+}
+
+test "Multiplicative Expr Error Test" {
+  // Error test: struct * struct (incompatible types)
+  let code_err1 = "p1 * p2"
+  let ctx_err1 = Context::new(code=code_err1)
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  ctx_err1.add_var("p1", point_struct)
+  ctx_err1.add_var("p2", point_struct)
+  let r = try? ctx_err1.parse_multi_expr(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: void * int (incompatible types)
+  let code_err2 = "v * x"
+  let ctx_err2 = Context::new(code=code_err2)
+  ctx_err2.add_var("v", CType::void_())
+  ctx_err2.add_var("x", CType::int())
+  let r = try? ctx_err2.parse_multi_expr(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: float % int (modulo requires integer types)
+  let code_err3 = "f % i2"
+  let ctx_err3 = Context::new(code=code_err3)
+  ctx_err3.add_var("f", CType::float())
+  ctx_err3.add_var("i2", CType::int())
+  let r = try? ctx_err3.parse_multi_expr(ctx_err3.tokens)
+  assert_true(r is Err(_))
 }

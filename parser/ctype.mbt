@@ -379,3 +379,193 @@ pub fn CType::get_field_ctype_by_ptr_acc(
   guard self.dataKind is Ptr(inner_ctype) else { return None }
   inner_ctype.get_field_ctype_by_dot_acc(field_name)
 }
+
+///|
+/// Find the common type of two types for arithmetic operations.
+/// 
+/// Returns the common type following C language type promotion rules,
+/// or None if the types are incompatible for arithmetic operations.
+///
+/// ## Type Promotion Rules
+///
+/// 1. If either type is `double`, the result is `double`
+/// 2. If either type is `float`, the result is `float`
+/// 3. For integer types, the result is the type with higher rank:
+///    - `long long` > `long` > `int` > `short` > `char`
+///    - Unsigned and signed types of the same rank are compatible
+///    - The result uses the higher rank, preferring unsigned if ranks are equal
+/// 4. Types are incompatible if they include:
+///    - `void`, `struct`, `union`, `enum`, or `pointer` types
+///
+/// ## Example
+///
+/// ```mbt
+/// let int_type = CType::int()
+/// let double_type = CType::double()
+/// match int_type.common_type(double_type) {
+///   Some({ dataKind: Double, ..}) => ()
+///   Some(_) => fail("expected double type")
+///   None => fail("types are incompatible")
+/// }
+/// ```
+///
+/// ## Returns
+///
+/// - `Some(CType)` - The common type for arithmetic operations
+/// - `None` - If types are incompatible (e.g., struct, void, pointer)
+pub fn CType::common_type(self : CType, other : CType) -> CType? {
+  fn rank(kind : CTypeDataKind) -> Int? {
+    match kind {
+      Char => Some(1)
+      UChar => Some(1)
+      Int16 => Some(2)
+      UInt16 => Some(2)
+      Int => Some(3)
+      UInt => Some(3)
+      Long => Some(4)
+      ULong => Some(4)
+      LongLong => Some(5)
+      ULongLong => Some(5)
+      Float => Some(6)
+      Double => Some(7)
+      _ => None
+    }
+  }
+
+  fn is_unsigned(kind : CTypeDataKind) -> Bool {
+    match kind {
+      UChar | UInt16 | UInt | ULong | ULongLong => true
+      _ => false
+    }
+  }
+
+  match (rank(self.dataKind), rank(other.dataKind)) {
+    (None, _) | (_, None) => None
+    (Some(r1), Some(r2)) => {
+      // Double has highest precedence
+      if r1 == 7 || r2 == 7 {
+        return Some(CType::double())
+      }
+      // Float has second highest precedence
+      if r1 == 6 || r2 == 6 {
+        return Some(CType::float())
+      }
+      // For integer types, use the higher rank
+      if r1 > r2 {
+        Some(CType::default_with(self.dataKind))
+      } else if r2 > r1 {
+        Some(CType::default_with(other.dataKind))
+      } else {
+        // Same rank, prefer unsigned
+        if is_unsigned(self.dataKind) {
+          Some(CType::default_with(self.dataKind))
+        } else {
+          Some(CType::default_with(other.dataKind))
+        }
+      }
+    }
+  }
+}
+
+///|
+test "Common Type Test" {
+  // Test int and double -> double
+  let int_type = CType::int()
+  let double_type = CType::double()
+  match int_type.common_type(double_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Double)
+    }
+    None => fail("int and double should have common type")
+  }
+
+  // Test double and int -> double (commutative)
+  match double_type.common_type(int_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Double)
+    }
+    None => fail("double and int should have common type")
+  }
+
+  // Test int and float -> float
+  let float_type = CType::float()
+  match int_type.common_type(float_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Float)
+    }
+    None => fail("int and float should have common type")
+  }
+
+  // Test float and double -> double
+  match float_type.common_type(double_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Double)
+    }
+    None => fail("float and double should have common type")
+  }
+
+  // Test int and int -> int
+  match int_type.common_type(int_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Int)
+    }
+    None => fail("int and int should have common type")
+  }
+
+  // Test int and long -> long
+  let long_type = CType::long()
+  match int_type.common_type(long_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Long)
+    }
+    None => fail("int and long should have common type")
+  }
+
+  // Test char and int -> int
+  let char_type = CType::char()
+  match char_type.common_type(int_type) {
+    Some(result) => {
+      assert_true(result.dataKind == Int)
+    }
+    None => fail("char and int should have common type")
+  }
+
+  // Test unsigned int and int -> unsigned int (same rank, prefer unsigned)
+  let uint_type = CType::uint()
+  match int_type.common_type(uint_type) {
+    Some(result) => {
+      assert_true(result.dataKind == UInt)
+    }
+    None => fail("int and uint should have common type")
+  }
+
+  // Test long long and int -> long long
+  let longlong_type = CType::longlong()
+  match longlong_type.common_type(int_type) {
+    Some(result) => {
+      assert_true(result.dataKind == LongLong)
+    }
+    None => fail("long long and int should have common type")
+  }
+
+  // Test incompatible types: int and void -> None
+  let void_type = CType::void_()
+  match int_type.common_type(void_type) {
+    Some(_) => fail("int and void should not have common type")
+    None => ()
+  }
+
+  // Test incompatible types: int and pointer -> None
+  let ptr_type = int_type.ptr_to()
+  match int_type.common_type(ptr_type) {
+    Some(_) => fail("int and pointer should not have common type")
+    None => ()
+  }
+
+  // Test incompatible types: int and struct -> None
+  let struct_type = CType::struct_type("Point", [("x", int_type), ("y", int_type)])
+  match int_type.common_type(struct_type) {
+    Some(_) => fail("int and struct should not have common type")
+    None => ()
+  }
+}

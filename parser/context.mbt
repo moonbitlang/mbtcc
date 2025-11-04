@@ -23,7 +23,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
 }
 
 ///|
-pub fn Context::new(code~ : String, source_file~ : String) -> Context {
+pub fn Context::new(code~ : String, source_file~ : String = "demo") -> Context {
   let lexer_ctx = @lexer.Context::new(code~, source_file~)
   let _ = lexer_ctx.tokenize()
   Context::from_lexer(lexer_ctx)
