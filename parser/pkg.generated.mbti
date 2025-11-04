@@ -164,6 +164,7 @@ fn Context::new(code~ : String, source_file~ : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_multi_expr(Self, ArrayView[@lexer.Token]) -> (MultiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_postfix_expr(Self, ArrayView[@lexer.Token]) -> (PostfixExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_shift_expr(Self, ArrayView[@lexer.Token]) -> (ShiftExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -223,16 +224,15 @@ pub struct MultiExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
-fn MultiExpr::parse_multi_expr(Context, ArrayView[@lexer.Token]) -> (Self, ArrayView[@lexer.Token]) raise ParseError
 fn MultiExpr::to_string(Self, color? : Bool, indent? : Int) -> String
 impl Eq for MultiExpr
 impl Show for MultiExpr
 
 pub enum MultiExprKind {
   CastExpr(CastExpr)
-  MulExpr(CastExpr, CastExpr)
-  DivExpr(CastExpr, CastExpr)
-  ModExpr(CastExpr, CastExpr)
+  MulExpr(MultiExpr, CastExpr)
+  DivExpr(MultiExpr, CastExpr)
+  ModExpr(MultiExpr, CastExpr)
 }
 impl Eq for MultiExprKind
 
