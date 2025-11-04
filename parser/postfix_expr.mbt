@@ -78,19 +78,19 @@ pub fn PostfixExpr::to_string(
     PrimExpr(prim_expr) => prim_expr.to_string(color~, indent~)
     MemberAccess(inner_expr, name) => {
       let inner_expr_str = inner_expr.to_string(color~, indent~)
-      "\{prefix} .\{name} \{ctype}\n" + "`\{inner_expr_str}"
+      "\{prefix} .\{name} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PtrMemberAccess(inner_expr, name) => {
       let inner_expr_str = inner_expr.to_string(color~, indent~)
-      "\{prefix} ->\{name} \{ctype}\n" + "`\{inner_expr_str}"
+      "\{prefix} ->\{name} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PostInc(inner_expr) => {
       let inner_expr_str = inner_expr.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_expr_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_expr_str}"
     }
     PostDec(inner_expr) => {
       let inner_expr_str = inner_expr.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_expr_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_expr_str}"
     }
   }
   " ".repeat(indent) + s
@@ -134,8 +134,10 @@ pub enum PostfixExprKind {
 /// inspect(
 ///   postfix_expr.to_string(color=false),
 ///   content=(
+///   
 ///   #|unary operator ++ (int)
-///   #|`variable i (int)
+/// #|└-variable i (int)
+/// 
 /// )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
@@ -281,7 +283,7 @@ test "Postfix Expr Parse Test" {
     postfix_expr.to_string(color~),
     content=(
       #|member access : .x (int)
-      #|`variable p (struct Point)
+      #|└-variable p (struct Point)
     ),
   )
   assert_true(
@@ -297,7 +299,8 @@ test "Postfix Expr Parse Test" {
     postfix_expr.to_string(color~),
     content=(
       #|pointer member access : ->y (int)
-      #|`variable p2 (struct Point *)
+      #|└-variable p2 (struct Point *)
+
     ),
   )
   assert_true(
@@ -313,7 +316,8 @@ test "Postfix Expr Parse Test" {
     postfix_expr.to_string(color~),
     content=(
       #|unary operator ++ (int)
-      #|`variable i (int)
+      #|└-variable i (int)
+
     ),
   )
   assert_true(
@@ -329,7 +333,8 @@ test "Postfix Expr Parse Test" {
     postfix_expr.to_string(color~),
     content=(
       #|unary operator -- (int)
-      #|`variable j (int)
+      #|└-variable j (int)
+
     ),
   )
   assert_true(

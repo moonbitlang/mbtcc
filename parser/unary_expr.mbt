@@ -87,31 +87,31 @@ pub fn UnaryExpr::to_string(
     PostfixExpr(postfix_expr) => postfix_expr.to_string(color~, indent~)
     PreInc(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     PreDec(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     AddrOf(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     Deref(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     Negate(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     BitNot(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
     LogicalNot(inner) => {
       let inner_str = inner.to_string(color~, indent~)
-      "\{prefix} \{ctype}\n" + "`\{inner_str}"
+      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
     }
   }
   " ".repeat(indent) + s
@@ -162,8 +162,12 @@ pub enum UnaryExprKind {
 /// inspect(
 ///   unary_expr.to_string(color=false),
 ///   content=(
+///   
+///   
 ///   #|unary operator ++ (int)
-///   #|`variable i (int)
+/// #|└-variable i (int)
+/// 
+/// 
 /// )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
@@ -337,7 +341,7 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator ++ (int)
-      #|`variable x (int)
+      #|└-variable x (int)
     ),
   )
   assert_true(
@@ -349,11 +353,10 @@ test "Unary Expr Parse Test" {
 
   // Parse `--y`
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
-  inspect(
-    unary_expr.to_string(color~),
-    content=(
-      #|unary operator -- (int)
-      #|`variable y (int)
+  println(unary_expr)
+  inspect(unary_expr.to_string(color~), content=(
+    #|unary operator -- (int)
+    #|└-variable y (int)
     ),
   )
   assert_true(
@@ -369,7 +372,7 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator * (int)
-      #|`variable p (int *)
+      #|└-variable p (int *)
     ),
   )
   assert_true(
@@ -385,7 +388,7 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator - (int)
-      #|`variable x (int)
+      #|└-variable x (int)
     ),
   )
   assert_true(
@@ -401,7 +404,7 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator ~ (int)
-      #|`variable f (int)
+      #|└-variable f (int)
     ),
   )
   assert_true(
@@ -417,7 +420,7 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator ! (int)
-      #|`variable cond (int)
+      #|└-variable cond (int)
     ),
   )
   assert_true(

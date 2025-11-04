@@ -70,7 +70,7 @@ pub fn CastExpr::to_string(
     "cast expr: cast to \{self.cast_to}"
   }
   let s = self.unary_expr.to_string(color~, indent~)
-  let s = "\{prefix}\n" + "`\{s}"
+  let s = "\{prefix}\n" + "└-\{s}"
   " ".repeat(indent) + s
 }
 
@@ -184,7 +184,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator ++ (int)
-      #|`variable y (int)
+      #|└-variable y (int)
+
     ),
   )
   assert_true(
@@ -200,7 +201,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator * (int)
-      #|`variable ptr (int *)
+      #|└-variable ptr (int *)
+
     ),
   )
   assert_true(
@@ -216,7 +218,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator - (double)
-      #|`variable z (double)
+      #|└-variable z (double)
+
     ),
   )
   assert_true(
@@ -267,7 +270,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator ++ (int)
-      #|`variable i (int)
+      #|└-variable i (int)
+
     ),
   )
   assert_true(
@@ -283,7 +287,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator -- (int)
-      #|`variable j (int)
+      #|└-variable j (int)
+
     ),
   )
   assert_true(
@@ -299,7 +304,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator & (int *)
-      #|`variable var (int)
+      #|└-variable var (int)
+
     ),
   )
   assert_true(
@@ -315,7 +321,8 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator ~ (int)
-      #|`variable flag (int)
+      #|└-variable flag (int)
+
     ),
   )
   assert_true(
@@ -331,7 +338,7 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|unary operator ! (int)
-      #|`variable cond (int)
+      #|└-variable cond (int)
     ),
   )
   assert_true(
@@ -340,4 +347,3 @@ test "CastExpr Parse Test" {
     re_rest is [],
   )
 }
-

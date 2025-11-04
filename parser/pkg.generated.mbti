@@ -27,8 +27,8 @@ impl Show for AddiExpr
 
 pub enum AddiExprKind {
   MultiExpr(MultiExpr)
-  AddExpr(MultiExpr, MultiExpr)
-  SubExpr(MultiExpr, MultiExpr)
+  AddExpr(AddiExpr, MultiExpr)
+  SubExpr(AddiExpr, MultiExpr)
 }
 impl Eq for AddiExprKind
 
@@ -181,8 +181,8 @@ impl Show for EqualityExpr
 
 pub enum EqualityExprKind {
   RelationalExpr(RelationalExpr)
-  EQExpr(RelationalExpr, RelationalExpr)
-  NEExpr(RelationalExpr, RelationalExpr)
+  EQExpr(EqualityExpr, RelationalExpr)
+  NEExpr(EqualityExpr, RelationalExpr)
 }
 impl Eq for EqualityExprKind
 
@@ -290,10 +290,10 @@ impl Show for RelationalExpr
 
 pub enum RelationalExprKind {
   ShiftExpr(ShiftExpr)
-  LTExpr(ShiftExpr, ShiftExpr)
-  GTExpr(ShiftExpr, ShiftExpr)
-  LEExpr(ShiftExpr, ShiftExpr)
-  GEExpr(ShiftExpr, ShiftExpr)
+  LTExpr(RelationalExpr, ShiftExpr)
+  GTExpr(RelationalExpr, ShiftExpr)
+  LEExpr(RelationalExpr, ShiftExpr)
+  GEExpr(RelationalExpr, ShiftExpr)
 }
 impl Eq for RelationalExprKind
 
@@ -308,8 +308,8 @@ impl Show for ShiftExpr
 
 pub enum ShiftExprKind {
   AddiExpr(AddiExpr)
-  ShlExpr(AddiExpr, AddiExpr)
-  ShrExpr(AddiExpr, AddiExpr)
+  ShlExpr(ShiftExpr, AddiExpr)
+  ShrExpr(ShiftExpr, AddiExpr)
 }
 impl Eq for ShiftExprKind
 
