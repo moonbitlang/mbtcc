@@ -93,7 +93,8 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid hexadecimal integer literal\{h} ")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number.to_uint64())
+        "ull" | "llu" | "ULL" | "LLU" =>
+          TokenKind::ULongLong(number.to_uint64())
         "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
         "ll" | "LL" => TokenKind::LongLong(number.to_int64())
         "u" | "U" => TokenKind::UInt(number)
@@ -122,7 +123,8 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid binary integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number.to_uint64())
+        "ull" | "llu" | "ULL" | "LLU" =>
+          TokenKind::ULongLong(number.to_uint64())
         "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
         "ll" | "LL" => TokenKind::LongLong(number.to_int64())
         "u" | "U" => TokenKind::UInt(number)
@@ -150,7 +152,8 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid octal integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number.to_uint64())
+        "ull" | "llu" | "ULL" | "LLU" =>
+          TokenKind::ULongLong(number.to_uint64())
         "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
         "ll" | "LL" => TokenKind::LongLong(number.to_int64())
         "u" | "U" => TokenKind::UInt(number)
@@ -178,7 +181,8 @@ fn Context::lex_number_literal(
         Err(_) => (0, "Invalid decimal integer literal")
       }
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number.to_uint64())
+        "ull" | "llu" | "ULL" | "LLU" =>
+          TokenKind::ULongLong(number.to_uint64())
         "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
         "ll" | "LL" => TokenKind::LongLong(number.to_int64())
         "u" | "U" => TokenKind::UInt(number)
@@ -194,4 +198,3 @@ fn Context::lex_number_literal(
     _ => abort("")
   }
 }
-

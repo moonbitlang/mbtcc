@@ -13,157 +13,162 @@
 // limitations under the License.
 
 ///|
-typealias @env.Env
+using @env {type Env}
 
 ///|
-typealias @parser.PrimExpr
+using @parser {type PrimExpr}
 
 ///|
-typealias @parser.ConstantExpr
+using @parser {type ConstantExpr}
 
 ///|
-typealias @parser.(PostFixExpr, PostFixSuffix)
+using @parser {type PostFixExpr, type PostFixSuffix}
 
 ///|
-typealias @parser.(UnaryExpr, UnaryPrefix, UnaryExprBody, UnaryOperator)
+using @parser {
+  type UnaryExpr,
+  type UnaryPrefix,
+  type UnaryExprBody,
+  type UnaryOperator,
+}
 
 ///|
-typealias @parser.CastExpr
+using @parser {type CastExpr}
 
 ///|
-typealias @parser.(MultExpr, MultOp)
+using @parser {type MultExpr, type MultOp}
 
 ///|
-typealias @parser.(AddSubExpr, AddSubOp)
+using @parser {type AddSubExpr, type AddSubOp}
 
 ///|
-typealias @parser.(ShiftExpr, ShiftOp)
+using @parser {type ShiftExpr, type ShiftOp}
 
 ///|
-typealias @parser.(RelationalExpr, RelationalOp)
+using @parser {type RelationalExpr, type RelationalOp}
 
 ///|
-typealias @parser.(EqualityExpr, EqualityOp)
+using @parser {type EqualityExpr, type EqualityOp}
 
 ///|
-typealias @parser.(AndExpr, ExclusiveOrExpr, InclusiveOrExpr)
+using @parser {type AndExpr, type ExclusiveOrExpr, type InclusiveOrExpr}
 
 ///|
-typealias @parser.(LogicalAndExpr, LogicalOrExpr)
+using @parser {type LogicalAndExpr, type LogicalOrExpr}
 
 ///|
-typealias @parser.ConditionalExpr
+using @parser {type ConditionalExpr}
 
 ///|
-typealias @parser.AssignExpr
+using @parser {type AssignExpr}
 
 ///|
-typealias @parser.Expr
+using @parser {type Expr}
 
 ///|
-typealias @parser.Declaration
+using @parser {type Declaration}
 
 ///|
-typealias @parser.DeclSpec
+using @parser {type DeclSpec}
 
 ///|
-typealias @parser.StorageClassSpec
+using @parser {type StorageClassSpec}
 
 ///|
-typealias @parser.TypeSpec
+using @parser {type TypeSpec}
 
 ///|
-typealias @parser.TypeQualifier
+using @parser {type TypeQualifier}
 
 ///|
-typealias @parser.TypeSpecOrQualifier
+using @parser {type TypeSpecOrQualifier}
 
 ///|
-typealias @parser.(StructSpec, UnionSpec)
+using @parser {type StructSpec, type UnionSpec}
 
 ///|
-typealias @parser.(StructDeclaration, StructDeclarator)
+using @parser {type StructDeclaration, type StructDeclarator}
 
 ///|
-typealias @parser.Declarator
+using @parser {type Declarator}
 
 ///|
-typealias @parser.Pointer
+using @parser {type Pointer}
 
 ///|
-typealias @parser.DirectDeclarator
+using @parser {type DirectDeclarator}
 
 ///|
-typealias @parser.InitDeclarator
+using @parser {type InitDeclarator}
 
 ///|
-typealias @parser.Initializer
+using @parser {type Initializer}
 
 ///|
-typealias @parser.Designator
+using @parser {type Designator}
 
 ///|
-typealias @parser.EnumSpec
+using @parser {type EnumSpec}
 
 ///|
-typealias @parser.Enumerator
+using @parser {type Enumerator}
 
 ///|
-typealias @parser.FunctionSpec
+using @parser {type FunctionSpec}
 
 ///|
-typealias @parser.AlignmentSpec
+using @parser {type AlignmentSpec}
 
 ///|
-typealias @parser.TypeName
+using @parser {type TypeName}
 
 ///|
-typealias @parser.AbstractDeclarator
+using @parser {type AbstractDeclarator}
 
 ///|
-typealias @parser.DirectAbstractDeclarator
+using @parser {type DirectAbstractDeclarator}
 
 ///|
-typealias @parser.Statement
+using @parser {type Statement}
 
 ///|
-typealias @parser.LabeledStatement
+using @parser {type LabeledStatement}
 
 ///|
-typealias @parser.CompoundStatement
+using @parser {type CompoundStatement}
 
 ///|
-typealias @parser.BlockItem
+using @parser {type BlockItem}
 
 ///|
-typealias @parser.SelectionStatement
+using @parser {type SelectionStatement}
 
 ///|
-typealias @parser.IterationStatement
+using @parser {type IterationStatement}
 
 ///|
-typealias @parser.(ForCondition, ForInit)
+using @parser {type ForCondition, type ForInit}
 
 ///|
-typealias @parser.JumpStatement
+using @parser {type JumpStatement}
 
 ///|
-typealias @parser.CompilationUnit
+using @parser {type CompilationUnit}
 
 ///|
-typealias @parser.ExternalDeclaration
+using @parser {type ExternalDeclaration}
 
 ///|
-typealias @parser.FunctionDefinition
+using @parser {type FunctionDefinition}
 
 ///|
-typealias @parser.ParameterTypeList
+using @parser {type ParameterTypeList}
 
 ///|
-typealias @parser.ParameterDecl
+using @parser {type ParameterDecl}
 
 ///|
-typealias @parser.ParamDeclarator
+using @parser {type ParamDeclarator}
 
 ///|
-typealias @parser.ParserContext
+using @parser {type ParserContext}

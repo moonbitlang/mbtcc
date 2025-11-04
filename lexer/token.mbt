@@ -184,6 +184,11 @@ pub struct Token {
 }
 
 ///|
+pub impl Show for Token with output(self, logger) {
+  logger.write_object(self.kind)
+}
+
+///|
 fn Token::new(
   kind : TokenKind,
   line : Int,

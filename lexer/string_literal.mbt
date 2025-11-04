@@ -139,4 +139,3 @@ fn Context::lex_char_literal(
   }
   (token, rest)
 }
-

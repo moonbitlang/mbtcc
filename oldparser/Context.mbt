@@ -13,7 +13,7 @@
 // limitations under the License.
 
 ///|
-typealias @env.Env
+using @env {type Env}
 
 ///|
 pub struct TokenInfo {

@@ -32,6 +32,7 @@ pub fn taint(msg : String, color : Color) -> String {
   }
 }
 
+///|
 pub fn strip_color(msg : String) -> String {
   msg
   .replace(old="\u{1b}[31m", new="")
@@ -42,7 +43,8 @@ pub fn strip_color(msg : String) -> String {
   .replace(old="\u{1b}[0m", new="")
 }
 
-pub fn[T: Show] strip_object_color(obj : T) -> String {
+///|
+pub fn[T : Show] strip_object_color(obj : T) -> String {
   let msg = obj.to_string()
   strip_color(msg)
 }

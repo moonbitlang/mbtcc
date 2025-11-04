@@ -13,10 +13,10 @@
 // limitations under the License.
 
 ///|
-traitalias @IR.Type as LLVMType
+using @IR {trait Type as LLVMType}
 
 ///|
-traitalias @IR.Value as LLVMValue
+using @IR {trait Value as LLVMValue}
 
 ///|
 pub enum Type {
