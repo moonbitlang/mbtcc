@@ -353,6 +353,35 @@ pub fn CType::is_integral(self : CType) -> Bool {
 }
 
 ///|
+/// Check if the type is a scalar type.
+/// Scalar types include arithmetic types (integers and floats) and pointer types.
+/// This excludes void, struct, union, and enum types.
+pub fn CType::is_scalar(self : CType) -> Bool {
+  match self.dataKind {
+    // Arithmetic types
+    Char => true
+    UChar => true
+    Int16 => true
+    UInt16 => true
+    Int => true
+    UInt => true
+    Long => true
+    LongLong => true
+    ULong => true
+    ULongLong => true
+    Float => true
+    Double => true
+    // Pointer types
+    Ptr(_) => true
+    // Not scalar
+    Void => false
+    Struct(_, _) => false
+    Union(_, _) => false
+    Enum(_, _) => false
+  }
+}
+
+///|
 pub fn CType::get_field_ctype_by_dot_acc(
   self : CType,
   field_name : String,

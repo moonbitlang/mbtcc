@@ -35,17 +35,26 @@ pub enum AddiExprKind {
 impl Eq for AddiExprKind
 
 pub struct AndExpr {
-  left : EqualityExpr
-  right : EqualityExpr
+  kind : AndExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn AndExpr::to_string(Self, color? : Bool) -> String
+impl Eq for AndExpr
+impl Show for AndExpr
+
+pub enum AndExprKind {
+  EqualityExpr(EqualityExpr)
+  AndExpr(AndExpr, EqualityExpr)
+}
+impl Eq for AndExprKind
 
 pub struct AssignExpr {
   kind : AssignExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+impl Eq for AssignExpr
 
 pub enum AssignExprKind {
   Conditional(ConditionalExpr)
@@ -61,6 +70,7 @@ pub enum AssignExprKind {
   XorAssign(UnaryExpr, AssignExpr)
   OrAssign(UnaryExpr, AssignExpr)
 }
+impl Eq for AssignExprKind
 
 pub(all) struct CType {
   dataKind : CTypeDataKind
@@ -88,6 +98,7 @@ fn CType::int16() -> Self
 fn CType::is_inc_ok(Self) -> Bool
 fn CType::is_integral(Self) -> Bool
 fn CType::is_numeric(Self) -> Bool
+fn CType::is_scalar(Self) -> Bool
 fn CType::long() -> Self
 fn CType::longlong() -> Self
 fn CType::ptr_to(Self) -> Self
@@ -134,17 +145,21 @@ impl Eq for CastExpr
 impl Show for CastExpr
 
 pub struct ConditionalExpr {
-  cond : LogicalOrExpr
-  then_expr : LogicalOrExpr
-  else_expr : LogicalOrExpr
+  kind : ConditionalExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+impl Eq for ConditionalExpr
+
+pub enum ConditionalExprKind {
+  LogicalOrExpr(LogicalOrExpr)
+  ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)
+}
+impl Eq for ConditionalExprKind
 
 pub struct ConstantExpr {
-  cond : LogicalOrExpr
-  then_expr : LogicalOrExpr
-  else_expr : LogicalOrExpr
+  kind : ConditionalExprKind
+  ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
 
@@ -166,8 +181,13 @@ fn Context::is_type_name(Self, String) -> Bool
 fn Context::is_var_name(Self, String) -> Bool
 fn Context::new(code~ : String, source_file? : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_logical_and_expr(Self, ArrayView[@lexer.Token]) -> (LogicalAndExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_logical_or_expr(Self, ArrayView[@lexer.Token]) -> (LogicalOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_multi_expr(Self, ArrayView[@lexer.Token]) -> (MultiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_postfix_expr(Self, ArrayView[@lexer.Token]) -> (PostfixExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -192,37 +212,70 @@ pub enum EqualityExprKind {
 impl Eq for EqualityExprKind
 
 pub struct ExclusiveOrExpr {
-  left : AndExpr
-  right : AndExpr
+  kind : ExclusiveOrExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn ExclusiveOrExpr::to_string(Self, color? : Bool) -> String
+impl Eq for ExclusiveOrExpr
+impl Show for ExclusiveOrExpr
+
+pub enum ExclusiveOrExprKind {
+  AndExpr(AndExpr)
+  ExclusiveOrExpr(ExclusiveOrExpr, AndExpr)
+}
+impl Eq for ExclusiveOrExprKind
 
 pub struct Expr {
   assign_exprs : Array[AssignExpr]
   tokens : ArrayView[@lexer.Token]
 }
+impl Eq for Expr
 
 pub struct InclusiveOrExpr {
-  left : ExclusiveOrExpr
-  right : ExclusiveOrExpr
+  kind : InclusiveOrExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn InclusiveOrExpr::to_string(Self, color? : Bool) -> String
+impl Eq for InclusiveOrExpr
+impl Show for InclusiveOrExpr
+
+pub enum InclusiveOrExprKind {
+  ExclusiveOrExpr(ExclusiveOrExpr)
+  InclusiveOrExpr(InclusiveOrExpr, ExclusiveOrExpr)
+}
+impl Eq for InclusiveOrExprKind
 
 pub struct LogicalAndExpr {
-  left : InclusiveOrExpr
-  right : InclusiveOrExpr
+  kind : LogicalAndExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn LogicalAndExpr::to_string(Self, color? : Bool) -> String
+impl Eq for LogicalAndExpr
+impl Show for LogicalAndExpr
+
+pub enum LogicalAndExprKind {
+  InclusiveOrExpr(InclusiveOrExpr)
+  LogicalAndExpr(LogicalAndExpr, InclusiveOrExpr)
+}
+impl Eq for LogicalAndExprKind
 
 pub struct LogicalOrExpr {
-  left : LogicalAndExpr
-  right : LogicalAndExpr
+  kind : LogicalOrExprKind
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn LogicalOrExpr::to_string(Self, color? : Bool) -> String
+impl Eq for LogicalOrExpr
+impl Show for LogicalOrExpr
+
+pub enum LogicalOrExprKind {
+  LogicalAndExpr(LogicalAndExpr)
+  LogicalOrExpr(LogicalOrExpr, LogicalAndExpr)
+}
+impl Eq for LogicalOrExprKind
 
 pub struct MultiExpr {
   kind : MultiExprKind
