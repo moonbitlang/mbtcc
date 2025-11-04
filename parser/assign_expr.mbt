@@ -6,6 +6,11 @@ pub struct AssignExpr {
 }
 
 ///|
+pub impl Eq for AssignExpr with equal(self, other) {
+  self.kind == other.kind
+}
+
+///|
 pub enum AssignExprKind {
   Conditional(ConditionalExpr)
   Assign(UnaryExpr, AssignExpr)
@@ -19,4 +24,9 @@ pub enum AssignExprKind {
   AndAssign(UnaryExpr, AssignExpr)
   XorAssign(UnaryExpr, AssignExpr)
   OrAssign(UnaryExpr, AssignExpr)
+} derive(Eq)
+
+///|
+test "Assign Expr Parse Test" {
+
 }
