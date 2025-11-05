@@ -259,6 +259,25 @@ pub fn Context::parse_postfix_expr(
 }
 
 ///|
+pub fn PostfixExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    PrimExpr(prim_expr) => prim_expr.is_constant()
+    _ => false
+  }
+}
+
+///|
+pub fn PostfixExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    PrimExpr(prim_expr) => prim_expr.eval_as_int()
+    _ => {
+      let msg = "Cannot evaluate PostfixExpr as int: not a constant expression"
+      raise ParseError(self.tokens[0], msg)
+    }
+  }
+}
+
+///|
 test "Postfix Expr Parse Test" {
   let color = false
   let code =

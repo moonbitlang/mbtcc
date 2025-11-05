@@ -25,39 +25,27 @@ pub fn Context::parse_conditional_expr(
 }
 
 ///|
-///
-/// Convert From ConditionalExpr, but check all
-/// operands are constant expressions
-pub struct ConstantExpr {
-  kind : ConditionalExprKind
-  ctype : CType
-  tokens : ArrayView[Token]
+pub fn ConditionalExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    LogicalOrExpr(expr) => expr.is_constant()
+    ConditionalExpr(cond, then_expr, else_expr) =>
+      cond.is_constant() && then_expr.is_constant() && else_expr.is_constant()
+  }
 }
 
 ///|
-///
-/// Check if all operands are constant
-pub fn ConstantExpr::from_conditional_expr(
-  expr : ConditionalExpr,
-) -> ConstantExpr raise ParseError {
-  ...
-}
-
-///|
-pub fn Context::parse_constant_expr(
-  self : Self,
-  tokens : ArrayView[Token],
-) -> (ConstantExpr, ArrayView[Token]) raise ParseError {
-  let (cond_expr, rest) = self.parse_conditional_expr(tokens)
-  let const_expr = ConstantExpr::from_conditional_expr(cond_expr)
-  (const_expr, rest)
-}
-
-///|
-///
-/// All Operands must be Int Type
-pub fn ConstantExpr::eval_as_int(self : Self) -> Int raise ParseError {
-  raise ParseError(self.tokens[0], "Not implemented yet")
+pub fn ConditionalExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    LogicalOrExpr(expr) => expr.eval_as_int()
+    ConditionalExpr(cond, then_expr, else_expr) => {
+      let cond_val = cond.eval_as_int()
+      if cond_val != 0 {
+        then_expr.eval_as_int()
+      } else {
+        else_expr.eval_as_int()
+      }
+    }
+  }
 }
 
 ///|

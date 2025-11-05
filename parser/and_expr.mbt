@@ -177,6 +177,26 @@ pub fn Context::parse_and_expr(
 }
 
 ///|
+pub fn AndExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    EqualityExpr(equality_expr) => equality_expr.is_constant()
+    AndExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn AndExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    EqualityExpr(equality_expr) => equality_expr.eval_as_int()
+    AndExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val & right_val
+    }
+  }
+}
+
+///|
 ///
 /// Logical And Expression (Logical AND)
 ///
@@ -363,6 +383,34 @@ pub fn Context::parse_logical_and_expr(
     tokens => break tokens
   }
   (logical_and_expr, rest)
+}
+
+///|
+pub fn LogicalAndExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    InclusiveOrExpr(or_expr) => or_expr.is_constant()
+    LogicalAndExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn LogicalAndExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    InclusiveOrExpr(or_expr) => or_expr.eval_as_int()
+    LogicalAndExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      // Short-circuit evaluation
+      if left_val == 0 {
+        return 0
+      }
+      let right_val = right.eval_as_int()
+      if right_val != 0 {
+        1
+      } else {
+        0
+      }
+    }
+  }
 }
 
 ///|

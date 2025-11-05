@@ -264,6 +264,60 @@ pub fn Context::parse_relational_expr(
 }
 
 ///|
+pub fn RelationalExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    ShiftExpr(shift_expr) => shift_expr.is_constant()
+    LTExpr(left, right) => left.is_constant() && right.is_constant()
+    GTExpr(left, right) => left.is_constant() && right.is_constant()
+    LEExpr(left, right) => left.is_constant() && right.is_constant()
+    GEExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn RelationalExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    ShiftExpr(shift_expr) => shift_expr.eval_as_int()
+    LTExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      if left_val < right_val {
+        1
+      } else {
+        0
+      }
+    }
+    GTExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      if left_val > right_val {
+        1
+      } else {
+        0
+      }
+    }
+    LEExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      if left_val <= right_val {
+        1
+      } else {
+        0
+      }
+    }
+    GEExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      if left_val >= right_val {
+        1
+      } else {
+        0
+      }
+    }
+  }
+}
+
+///|
 test "Relational Expr Parse Test" {
   let color = false
   let code =

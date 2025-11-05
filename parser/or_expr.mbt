@@ -177,6 +177,26 @@ pub fn Context::parse_inclusive_or_expr(
 }
 
 ///|
+pub fn InclusiveOrExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    ExclusiveOrExpr(xor_expr) => xor_expr.is_constant()
+    InclusiveOrExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn InclusiveOrExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    ExclusiveOrExpr(xor_expr) => xor_expr.eval_as_int()
+    InclusiveOrExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val | right_val
+    }
+  }
+}
+
+///|
 ///
 /// Logical Or Expression (Logical OR)
 ///
@@ -363,6 +383,32 @@ pub fn Context::parse_logical_or_expr(
     tokens => break tokens
   }
   (logical_or_expr, rest)
+}
+
+///|
+pub fn LogicalOrExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    LogicalAndExpr(and_expr) => and_expr.is_constant()
+    LogicalOrExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn LogicalOrExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    LogicalAndExpr(and_expr) => and_expr.eval_as_int()
+    LogicalOrExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      if left_val != 0 {
+        return 1
+      }
+      let right_val = right.eval_as_int()
+      if right_val != 0 {
+        return 1
+      }
+      0
+    }
+  }
 }
 
 ///|

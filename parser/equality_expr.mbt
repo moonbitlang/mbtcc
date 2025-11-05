@@ -220,6 +220,32 @@ pub fn Context::parse_equality_expr(
 }
 
 ///|
+pub fn EqualityExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    RelationalExpr(relational_expr) => relational_expr.is_constant()
+    EQExpr(left, right) | NEExpr(left, right) =>
+      left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn EqualityExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    RelationalExpr(relational_expr) => relational_expr.eval_as_int()
+    EQExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      (left_val == right_val).to_int()
+    }
+    NEExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      (left_val == right_val).to_int()
+    }
+  }
+}
+
+///|
 test "Equality Expr Parse Test" {
   let color = false
   let code =

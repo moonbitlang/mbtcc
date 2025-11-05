@@ -177,6 +177,26 @@ pub fn Context::parse_exclusive_or_expr(
 }
 
 ///|
+pub fn ExclusiveOrExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    AndExpr(and_expr) => and_expr.is_constant()
+    ExclusiveOrExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn ExclusiveOrExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    AndExpr(and_expr) => and_expr.eval_as_int()
+    ExclusiveOrExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val ^ right_val
+    }
+  }
+}
+
+///|
 test "Exclusive Or Expr Parse Test" {
   let color = false
   let code =

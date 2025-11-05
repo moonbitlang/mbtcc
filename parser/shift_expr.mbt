@@ -203,6 +203,32 @@ pub fn Context::parse_shift_expr(
 }
 
 ///|
+pub fn ShiftExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    AddiExpr(addi_expr) => addi_expr.is_constant()
+    ShlExpr(left, right) | ShrExpr(left, right) =>
+      left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn ShiftExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    AddiExpr(addi_expr) => addi_expr.eval_as_int()
+    ShlExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val << right_val
+    }
+    ShrExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val >> right_val
+    }
+  }
+}
+
+///|
 test "Shift Expr Parse Test" {
   let color = false
   let code =

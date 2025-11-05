@@ -203,6 +203,32 @@ pub fn Context::parse_addi_expr(
 }
 
 ///|
+pub fn AddiExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    MultiExpr(multi_expr) => multi_expr.is_constant()
+    AddExpr(left, right) => left.is_constant() && right.is_constant()
+    SubExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn AddiExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    MultiExpr(multi_expr) => multi_expr.eval_as_int()
+    AddExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val + right_val
+    }
+    SubExpr(left, right) => {
+      let left_val = left.eval_as_int()
+      let right_val = right.eval_as_int()
+      left_val - right_val
+    }
+  }
+}
+
+///|
 test "Additive Expr Parse Test" {
   let color = false
   let code =

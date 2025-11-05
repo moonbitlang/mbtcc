@@ -313,6 +313,37 @@ pub fn Context::parse_unary_expr(
 }
 
 ///|
+pub fn UnaryExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    PostfixExpr(postfix_expr) => postfix_expr.is_constant()
+    PreInc(_) => false
+    PreDec(_) => false
+    AddrOf(_) => false
+    Deref(_) => false
+    Negate(inner) => inner.is_constant()
+    BitNot(inner) => inner.is_constant()
+    LogicalNot(inner) => inner.is_constant()
+  }
+}
+
+///|
+pub fn UnaryExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    PostfixExpr(postfix_expr) => postfix_expr.eval_as_int()
+    Negate(inner) => -inner.eval_as_int()
+    BitNot(inner) => inner.eval_as_int().lnot()
+    LogicalNot(inner) => {
+      let val = inner.eval_as_int()
+      (val == 0).to_int()
+    }
+    _ => {
+      let msg = "Cannot evaluate unary expression as int"
+      raise ParseError(self.tokens[0], msg)
+    }
+  }
+}
+
+///|
 test "Unary Expr Parse Test" {
   let color = false
   let code =

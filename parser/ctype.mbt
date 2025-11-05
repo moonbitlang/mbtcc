@@ -498,7 +498,7 @@ fn Context::parse_array_abstract_declarator(
     }
     [{ kind: Bracket(']'), .. }, .. rest] => break rest
     tokens => {
-      let (const_expr, rest) = self.parse_constant_expr(tokens)
+      let (const_expr, rest) = self.parse_conditional_expr(tokens)
       size = Some(const_expr.eval_as_int())
       continue rest
     }

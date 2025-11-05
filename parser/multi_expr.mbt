@@ -214,6 +214,40 @@ pub fn Context::parse_multi_expr(
 }
 
 ///|
+pub fn MultiExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    CastExpr(cast_expr) => cast_expr.is_constant()
+    MulExpr(left, right) => left.is_constant() && right.is_constant()
+    DivExpr(left, right) => left.is_constant() && right.is_constant()
+    ModExpr(left, right) => left.is_constant() && right.is_constant()
+  }
+}
+
+///|
+pub fn MultiExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    CastExpr(cast_expr) => cast_expr.eval_as_int()
+    MulExpr(left, right) => left.eval_as_int() * right.eval_as_int()
+    DivExpr(left, right) => {
+      let divisor = right.eval_as_int()
+      if divisor == 0 {
+        let msg = "Division by zero in multiplicative expression"
+        raise ParseError(right.tokens[0], msg)
+      }
+      left.eval_as_int() / divisor
+    }
+    ModExpr(left, right) => {
+      let divisor = right.eval_as_int()
+      if divisor == 0 {
+        let msg = "Modulo by zero in multiplicative expression"
+        raise ParseError(right.tokens[0], msg)
+      }
+      left.eval_as_int() % divisor
+    }
+  }
+}
+
+///|
 test "Multiplicative Expr Parse Test" {
   let color = false
   let code =

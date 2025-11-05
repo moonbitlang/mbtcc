@@ -137,6 +137,21 @@ pub fn Context::parse_cast_expr(
 }
 
 ///|
+pub fn CastExpr::is_constant(self : Self) -> Bool {
+  self.unary_expr.is_constant()
+}
+
+///|
+pub fn CastExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  if !(self.cast_to.dataKind
+    is (Int | UInt | Long | ULong | LongLong | ULongLong)) {
+    let msg = "Cannot evaluate CastExpr as int: cast_to type is not integer"
+    raise ParseError(self.tokens[0], msg)
+  }
+  self.unary_expr.eval_as_int()
+}
+
+///|
 ///
 /// TODO: need another test way.
 ///

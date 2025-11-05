@@ -252,6 +252,30 @@ fn Context::get_literal_ctype(self : Context, kind : PrimExprKind) -> CType {
 }
 
 ///|
+pub fn PrimExpr::is_constant(self : Self) -> Bool {
+  match self.kind {
+    Ident(_) => false
+    _ => true
+  }
+}
+
+///|
+pub fn PrimExpr::eval_as_int(self : Self) -> Int raise ParseError {
+  match self.kind {
+    Int(v) => v
+    Long(v) => v.to_int()
+    LongLong(v) => v.to_int()
+    UInt(v) => v.reinterpret_as_int()
+    ULong(v) => v.to_int()
+    ULongLong(v) => v.to_int()
+    _ => {
+      let msg = "Cannot evaluate PrimExpr as int: not an integer literal"
+      raise ParseError(self.tokens[0], msg)
+    }
+  }
+}
+
+///|
 test "PrimExpr Parse Test" {
   let color = false
   let code =
