@@ -121,9 +121,9 @@ pub(all) enum CTypeDataKind {
   UInt16
   Int
   UInt
-  LongLong
   Long
   ULong
+  LongLong
   ULongLong
   Float
   Double
@@ -131,6 +131,7 @@ pub(all) enum CTypeDataKind {
   Union(String, Array[(String, CType)])
   Enum(String, Array[String])
   Ptr(CType)
+  Array(CType, Int)
 }
 impl Eq for CTypeDataKind
 impl Show for CTypeDataKind

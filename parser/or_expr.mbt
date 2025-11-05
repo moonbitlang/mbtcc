@@ -623,7 +623,6 @@ test "Logical Or Expr Parse Test" {
 
   // Setup variables
   let ctype_int = CType::int()
-  let ctype_ptr = CType::int().ptr_to()
   ctx
   ..add_var("x", ctype_int)
   ..add_var("y", ctype_int)

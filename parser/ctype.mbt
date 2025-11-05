@@ -103,54 +103,50 @@ fn CType::to_string(self : CType, spec_first~ : Bool) -> String {
 }
 
 ///|
-pub fn CType::default_with(kind : CTypeDataKind) -> CType {
-  return CType::{
-    dataKind: kind,
-    is_const: false,
-    is_volatile: false,
-    is_restrict: false,
-    is_atomic: false,
-    is_static: false,
-    is_thread_local: false,
-    is_extern: false,
-    tokens: [],
-  }
-}
-
-///|
-pub fn CType::const_with(kind : CTypeDataKind) -> CType {
-  return CType::{
-    dataKind: kind,
-    is_const: true,
-    is_volatile: false,
-    is_restrict: false,
-    is_atomic: false,
-    is_static: false,
-    is_thread_local: false,
-    is_extern: false,
-    tokens: [],
-  }
-}
-
-///|
 pub(all) enum CTypeDataKind {
-  Void // void
-  Char // char
-  UChar // unsigned char
-  Int16 // short
-  UInt16 // unsigned short
-  Int // int
-  UInt // unsigned int
-  LongLong // long long
-  Long // long
-  ULong // unsigned long or unsigned long long
+  // void
+  Void
+
+  // char
+  Char
+
+  // unsigned char
+  UChar
+
+  // short
+  Int16
+
+  // unsigned short
+  UInt16
+
+  // int
+  Int
+
+  // unsigned int
+  UInt
+
+  // long
+  Long
+
+  // unsigned long
+  ULong
+
+  // long long
+  LongLong
+
+  // unsigned long long
   ULongLong
-  Float // float
-  Double // double
+
+  // float
+  Float
+
+  // double
+  Double
   Struct(String, Array[(String, CType)])
   Union(String, Array[(String, CType)])
   Enum(String, Array[String])
   Ptr(CType)
+  Array(CType, Int)
 } derive(Eq)
 
 ///|
@@ -209,79 +205,151 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     }
     Enum(name, _) => "enum \{name}"
     Ptr(inner_ctype) => "\{inner_ctype} *"
+    Array(inner_ctype, size) => "\{inner_ctype}[\{size}]"
   }
   logger.write_string(s)
 }
 
 ///|
+pub fn CType::default_with(kind : CTypeDataKind) -> CType {
+  return CType::{
+    dataKind: kind,
+    is_const: false,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    is_static: false,
+    is_thread_local: false,
+    is_extern: false,
+    tokens: [],
+  }
+}
+
+///|
+pub fn CType::const_with(kind : CTypeDataKind) -> CType {
+  return CType::{
+    dataKind: kind,
+    is_const: true,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    is_static: false,
+    is_thread_local: false,
+    is_extern: false,
+    tokens: [],
+  }
+}
+
+///|
+let void_ty : CType = CType::default_with(Void)
+
+///|
+let char_ty : CType = CType::default_with(Char)
+
+///|
+let uchar_ty : CType = CType::default_with(UChar)
+
+///|
+let int16_ty : CType = CType::default_with(Int16)
+
+///|
+let uint16_ty : CType = CType::default_with(UInt16)
+
+///|
+let int_ty : CType = CType::default_with(Int)
+
+///|
+let uint_ty : CType = CType::default_with(UInt)
+
+///|
+let long_ty : CType = CType::default_with(Long)
+
+///|
+let longlong_ty : CType = CType::default_with(LongLong)
+
+///|
+let ulong_ty : CType = CType::default_with(ULong)
+
+///|
+let ulonglong_ty : CType = CType::default_with(ULongLong)
+
+///|
+let string_ty : CType = CType::default_with(Ptr(CType::const_with(Char)))
+
+///|
+let float_ty : CType = CType::default_with(Float)
+
+///|
+let double_ty : CType = CType::default_with(Double)
+
+///|
 pub fn CType::void_() -> CType {
-  CType::default_with(Void)
+  void_ty
 }
 
 ///|
 pub fn CType::char() -> CType {
-  CType::default_with(Char)
+  char_ty
 }
 
 ///|
 pub fn CType::string() -> CType {
-  let const_char = CType::const_with(Char)
-  CType::default_with(Ptr(const_char))
+  string_ty
 }
 
 ///|
 pub fn CType::uchar() -> CType {
-  CType::default_with(UChar)
+  uchar_ty
 }
 
 ///|
 pub fn CType::int16() -> CType {
-  CType::default_with(Int16)
+  int16_ty
 }
 
 ///|
 pub fn CType::uint16() -> CType {
-  CType::default_with(UInt16)
+  uint16_ty
 }
 
 ///|
 pub fn CType::int() -> CType {
-  CType::default_with(Int)
+  int_ty
 }
 
 ///|
 pub fn CType::uint() -> CType {
-  CType::default_with(UInt)
+  uint_ty
 }
 
 ///|
 pub fn CType::long() -> CType {
-  CType::default_with(Long)
+  long_ty
 }
 
 ///|
 pub fn CType::longlong() -> CType {
-  CType::default_with(LongLong)
+  longlong_ty
 }
 
 ///|
 pub fn CType::ulong() -> CType {
-  CType::default_with(ULong)
+  ulong_ty
 }
 
 ///|
 pub fn CType::ulonglong() -> CType {
-  CType::default_with(ULongLong)
+  ulonglong_ty
 }
 
 ///|
 pub fn CType::float() -> CType {
-  CType::default_with(Float)
+  float_ty
 }
 
 ///|
 pub fn CType::double() -> CType {
-  CType::default_with(Double)
+  double_ty
 }
 
 ///|
@@ -378,6 +446,7 @@ pub fn CType::is_scalar(self : CType) -> Bool {
     Struct(_, _) => false
     Union(_, _) => false
     Enum(_, _) => false
+    Array(_, _) => false
   }
 }
 
