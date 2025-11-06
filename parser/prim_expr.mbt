@@ -37,7 +37,7 @@
 ///   | Double   // Double literal
 ///   | Char     // Character literal
 ///   | Strings  // String literal(s)
-///   | '(' Expr ')' // Parenthesized expression (TODO)
+///   | '(' Expr ')' // Parenthesized expression
 ///   ;
 ///
 /// ## Parse Function
@@ -67,6 +67,9 @@ pub impl Eq for PrimExpr with equal(self, other) {
 
 ///|
 pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
+  if self.kind is Paren(expr) {
+    return expr.to_string(color~)
+  }
   let prefix = match self.kind {
     Ident(_) => "variable"
     Char(_) => "char literal"
@@ -79,6 +82,7 @@ pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
     Float(_) => "float literal"
     Double(_) => "double literal"
     Strings(_) => "string literal"
+    Paren(_) => ""
   }
   let prefix = if color { @color.taint(prefix, Magenta) } else { prefix }
   let ctype = if color {
@@ -102,7 +106,7 @@ pub enum PrimExprKind {
   Float(Float)
   Double(Double)
   Strings(Array[String])
-  // Paren(Expr) // TODO
+  Paren(Expr) // TODO
 } derive(Eq)
 
 ///|
@@ -122,6 +126,7 @@ pub impl Show for PrimExprKind with output(self, logger) {
       let joined = strs.join("")
       "\"\{joined}\""
     }
+    Paren(expr) => expr.to_string(color=true)
   }
   logger.write_string(s)
 }
@@ -221,23 +226,35 @@ pub fn Context::parse_prim_expr(
       }
       (Strings(strs), rest_tokens)
     }
-    [{ kind: Bracket('('), .. } as tok, ..] =>
-      // TODO: Implement parenthesized expressions
-      raise ParseError(tok, "Parenthesized expressions are not yet implemented")
+    [{ kind: Bracket('('), .. }, ..rest] => {
+      let (expr, rest) = self.parse_expr(rest)
+      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
+        raise ParseError(
+          rest[0],
+          "Expected ')' to close parenthesized expression",
+        )
+      }
+      (Paren(expr), rest)
+    }
     tokens => raise ParseError(tokens[0], "Expected a primary expression")
   }
   let end_offset = rest_toks.start_offset()
   let offset_range = end_offset - start_offset
   let tok_view = tokens[0:offset_range]
-  let ctype = self.get_literal_ctype(prim_expr_kind)
+  let ctype = if prim_expr_kind is Paren(expr) {
+    expr.ctype
+  } else {
+    self.get_literal_ctype(prim_expr_kind)
+  }
   let prim_expr = PrimExpr::{ kind: prim_expr_kind, ctype, tokens: tok_view }
   (prim_expr, rest_toks)
 }
 
 ///|
-fn Context::get_literal_ctype(self : Context, kind : PrimExprKind) -> CType {
+fn Context::get_literal_ctype(
+  self : Context, kind : PrimExprKind
+) -> CType {
   match kind {
-    Int(_) => CType::int()
     Long(_) => CType::long()
     LongLong(_) => CType::longlong()
     UInt(_) => CType::uint()
@@ -248,6 +265,8 @@ fn Context::get_literal_ctype(self : Context, kind : PrimExprKind) -> CType {
     Char(_) => CType::char()
     Strings(_) => CType::string()
     Ident(name) => self.get_var_ctype(name).unwrap() // safe unwrap
+    // Including Int(_) and Paren(_), but Paren(_) will be handled separately
+    _ => CType::int()
   }
 }
 
