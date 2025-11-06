@@ -4179,8 +4179,7 @@ fn ExternalDeclaration::parse(
   ctx : ParserContext,
 ) -> (ExternalDeclaration, ArrayView[Token]) raise {
   try FunctionDefinition::parse(toks, ctx) catch {
-    FunctionDefinitionParseError::CompoundStatementParseError(err) =>
-      raise err
+    FunctionDefinitionParseError::CompoundStatementParseError(err) => raise err
     _ => {
       let (decl, rest_toks) = Declaration::parse(toks, ctx)
       (ExternalDeclaration::Declaration(decl), rest_toks)

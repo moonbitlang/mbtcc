@@ -23,6 +23,8 @@ pub struct AddiExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn AddiExpr::eval_as_int(Self) -> Int raise ParseError
+fn AddiExpr::is_constant(Self) -> Bool
 fn AddiExpr::to_string(Self, color? : Bool) -> String
 impl Eq for AddiExpr
 impl Show for AddiExpr
@@ -39,6 +41,8 @@ pub struct AndExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn AndExpr::eval_as_int(Self) -> Int raise ParseError
+fn AndExpr::is_constant(Self) -> Bool
 fn AndExpr::to_string(Self, color? : Bool) -> String
 impl Eq for AndExpr
 impl Show for AndExpr
@@ -54,33 +58,38 @@ pub struct AssignExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn AssignExpr::eval_as_int(Self) -> Int raise ParseError
+fn AssignExpr::is_constant(Self) -> Bool
 impl Eq for AssignExpr
 
 pub enum AssignExprKind {
   Conditional(ConditionalExpr)
-  Assign(UnaryExpr, AssignExpr)
-  MulAssign(UnaryExpr, AssignExpr)
-  DivAssign(UnaryExpr, AssignExpr)
-  ModAssign(UnaryExpr, AssignExpr)
-  AddAssign(UnaryExpr, AssignExpr)
-  SubAssign(UnaryExpr, AssignExpr)
-  ShlAssign(UnaryExpr, AssignExpr)
-  ShrAssign(UnaryExpr, AssignExpr)
-  AndAssign(UnaryExpr, AssignExpr)
-  XorAssign(UnaryExpr, AssignExpr)
-  OrAssign(UnaryExpr, AssignExpr)
+  Assign(UnaryExpr, AssignOp, AssignExpr)
 }
 impl Eq for AssignExprKind
 
+pub(all) enum AssignOp {
+  Assign
+  MulAssign
+  DivAssign
+  ModAssign
+  AddAssign
+  SubAssign
+  ShlAssign
+  ShrAssign
+  AndAssign
+  XorAssign
+  OrAssign
+}
+impl Eq for AssignOp
+
+#alias(TypeName)
 pub(all) struct CType {
   dataKind : CTypeDataKind
   is_const : Bool
   is_volatile : Bool
   is_restrict : Bool
   is_atomic : Bool
-  is_static : Bool
-  is_thread_local : Bool
-  is_extern : Bool
   tokens : ArrayView[@lexer.Token]
 }
 fn CType::additive_result_type(Self, Self, String) -> Self?
@@ -127,6 +136,7 @@ pub(all) enum CTypeDataKind {
   ULongLong
   Float
   Double
+  LongDouble
   Struct(String, Array[(String, CType)])
   Union(String, Array[(String, CType)])
   Enum(String, Array[String])
@@ -141,6 +151,8 @@ pub struct CastExpr {
   cast_to : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn CastExpr::eval_as_int(Self) -> Int raise ParseError
+fn CastExpr::is_constant(Self) -> Bool
 fn CastExpr::to_string(Self, color? : Bool) -> String
 impl Eq for CastExpr
 impl Show for CastExpr
@@ -150,6 +162,8 @@ pub struct ConditionalExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn ConditionalExpr::eval_as_int(Self) -> Int raise ParseError
+fn ConditionalExpr::is_constant(Self) -> Bool
 impl Eq for ConditionalExpr
 
 pub enum ConditionalExprKind {
@@ -157,12 +171,6 @@ pub enum ConditionalExprKind {
   ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)
 }
 impl Eq for ConditionalExprKind
-
-pub struct ConstantExpr {
-  kind : ConditionalExprKind
-  ctype : CType
-  tokens : ArrayView[@lexer.Token]
-}
 
 pub struct Context {
   code : String
@@ -184,6 +192,9 @@ fn Context::new(code~ : String, source_file? : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_conditional_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
+#alias(parse_type_name)
+fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -201,6 +212,8 @@ pub struct EqualityExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn EqualityExpr::eval_as_int(Self) -> Int raise ParseError
+fn EqualityExpr::is_constant(Self) -> Bool
 fn EqualityExpr::to_string(Self, color? : Bool) -> String
 impl Eq for EqualityExpr
 impl Show for EqualityExpr
@@ -217,6 +230,8 @@ pub struct ExclusiveOrExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn ExclusiveOrExpr::eval_as_int(Self) -> Int raise ParseError
+fn ExclusiveOrExpr::is_constant(Self) -> Bool
 fn ExclusiveOrExpr::to_string(Self, color? : Bool) -> String
 impl Eq for ExclusiveOrExpr
 impl Show for ExclusiveOrExpr
@@ -231,6 +246,8 @@ pub struct Expr {
   assign_exprs : Array[AssignExpr]
   tokens : ArrayView[@lexer.Token]
 }
+fn Expr::eval_as_int(Self) -> Int raise ParseError
+fn Expr::is_constant(Self) -> Bool
 impl Eq for Expr
 
 pub struct InclusiveOrExpr {
@@ -238,6 +255,8 @@ pub struct InclusiveOrExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn InclusiveOrExpr::eval_as_int(Self) -> Int raise ParseError
+fn InclusiveOrExpr::is_constant(Self) -> Bool
 fn InclusiveOrExpr::to_string(Self, color? : Bool) -> String
 impl Eq for InclusiveOrExpr
 impl Show for InclusiveOrExpr
@@ -253,6 +272,8 @@ pub struct LogicalAndExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn LogicalAndExpr::eval_as_int(Self) -> Int raise ParseError
+fn LogicalAndExpr::is_constant(Self) -> Bool
 fn LogicalAndExpr::to_string(Self, color? : Bool) -> String
 impl Eq for LogicalAndExpr
 impl Show for LogicalAndExpr
@@ -268,6 +289,8 @@ pub struct LogicalOrExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn LogicalOrExpr::eval_as_int(Self) -> Int raise ParseError
+fn LogicalOrExpr::is_constant(Self) -> Bool
 fn LogicalOrExpr::to_string(Self, color? : Bool) -> String
 impl Eq for LogicalOrExpr
 impl Show for LogicalOrExpr
@@ -283,6 +306,8 @@ pub struct MultiExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn MultiExpr::eval_as_int(Self) -> Int raise ParseError
+fn MultiExpr::is_constant(Self) -> Bool
 fn MultiExpr::to_string(Self, color? : Bool) -> String
 impl Eq for MultiExpr
 impl Show for MultiExpr
@@ -300,6 +325,8 @@ pub struct PostfixExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn PostfixExpr::eval_as_int(Self) -> Int raise ParseError
+fn PostfixExpr::is_constant(Self) -> Bool
 fn PostfixExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PostfixExpr
 impl Show for PostfixExpr
@@ -318,6 +345,8 @@ pub struct PrimExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn PrimExpr::eval_as_int(Self) -> Int raise ParseError
+fn PrimExpr::is_constant(Self) -> Bool
 fn PrimExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PrimExpr
 impl Show for PrimExpr
@@ -343,6 +372,8 @@ pub struct RelationalExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn RelationalExpr::eval_as_int(Self) -> Int raise ParseError
+fn RelationalExpr::is_constant(Self) -> Bool
 fn RelationalExpr::to_string(Self, color? : Bool) -> String
 impl Eq for RelationalExpr
 impl Show for RelationalExpr
@@ -361,6 +392,8 @@ pub struct ShiftExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn ShiftExpr::eval_as_int(Self) -> Int raise ParseError
+fn ShiftExpr::is_constant(Self) -> Bool
 fn ShiftExpr::to_string(Self, color? : Bool) -> String
 impl Eq for ShiftExpr
 impl Show for ShiftExpr
@@ -377,6 +410,8 @@ pub struct UnaryExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn UnaryExpr::eval_as_int(Self) -> Int raise ParseError
+fn UnaryExpr::is_constant(Self) -> Bool
 fn UnaryExpr::to_string(Self, color? : Bool) -> String
 impl Eq for UnaryExpr
 impl Show for UnaryExpr

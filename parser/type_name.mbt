@@ -223,9 +223,6 @@ fn Context::parse_function_abstract_declarator(
   )
 }
 
-
-
-
 ///|
 fn Context::parse_type_spec_qual_list(
   self : Self,
@@ -351,14 +348,13 @@ fn Context::parse_type_spec_qual_list(
 ///
 /// only test ctype without `*`
 test "Basic TypeName Parse Test" {
-  let code = 
+  let code =
     #|int ; const int ;
   let ctx = Context::new(code~, source_file="demo")
 
   // Setup typenames
   let ctype_int = CType::int()
-  ctx
-  ..add_typedef("MyInt", ctype_int)
+  ctx..add_typedef("MyInt", ctype_int)
 
   // Parse `int`
   let (ty, rest) = ctx.parse_type_name(ctx.tokens)
