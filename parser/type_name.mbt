@@ -346,7 +346,10 @@ fn Context::parse_type_spec_qual_list(
 
 ///|
 ///
-/// only test ctype without `*`
+///
+/// AI: Delete the notations after finishing the tests.
+///
+/// only test ctype without `*`, need more tests
 test "Basic TypeName Parse Test" {
   let code =
     #|int ; const int ;
@@ -378,4 +381,41 @@ test "Basic TypeName Parse Test" {
   // rest must be `[EOF]`
   let rest = next_check_point(rest2)
   assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
+test "Basic TypeName Parse Error Test" {
+
+}
+
+///|
+///
+/// AI: Delete the notations after finishing the tests.
+///
+/// test typename with pointer `*`
+/// e.g. `int *`, `const int *`, `int **`, `const int * const * volatile`
+test "Pointer Type TypeName Parse Test" {
+
+}
+
+///|
+test "Pointer Type TypeName Parse Error Test" {
+
+}
+
+///|
+///
+/// AI: Delete the notations after finishing the tests.
+///
+/// test typename with `[]`
+/// e.g. `int []`, `const int [5]`, `int [static 10]`, `const int [static 20]`
+///
+/// note: `int[]` => `int *`, only `int [static N]` is array type
+test "Array Type TypeName Parse Test" {
+
+}
+
+///|
+test "Array Type TypeName Parse Error Test" {
+
 }

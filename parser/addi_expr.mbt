@@ -461,3 +461,8 @@ test "Additive Expr Error Test" {
   let r = try? ctx_err4.parse_addi_expr(ctx_err4.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "Additive Expr Constant Eval Test" {
+
+}

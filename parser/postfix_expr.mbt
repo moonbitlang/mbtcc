@@ -418,3 +418,9 @@ test "Postfix Expr Error Test" {
   let r = try? ctx_err4.parse_postfix_expr(ctx_err4.tokens)
   assert_true(r is Err(_))
 }
+
+
+///|
+test "PostfixExpr Constant Eval Test" {
+
+}

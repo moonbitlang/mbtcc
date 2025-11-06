@@ -619,3 +619,8 @@ test "Relational Expr Parse Error Test" {
   let r = try? ctx_err6.parse_relational_expr(ctx_err6.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "RelationalExpr Constant Eval Test" {
+
+}

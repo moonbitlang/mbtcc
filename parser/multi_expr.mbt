@@ -450,3 +450,8 @@ test "Multiplicative Expr Error Test" {
   let r = try? ctx_err3.parse_multi_expr(ctx_err3.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "Multiplicative Expr Constant Eval Test" {
+
+}

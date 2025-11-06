@@ -539,3 +539,8 @@ test "Unary Expr Error Test" {
   let r = try? ctx_err6.parse_unary_expr(ctx_err6.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "UnaryExpr Constant Eval Test" {
+
+}

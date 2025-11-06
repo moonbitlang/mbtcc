@@ -350,3 +350,8 @@ test "CastExpr Parse Test" {
     re_rest is [],
   )
 }
+
+///|
+test "CastExpr Constant Eval Test" {
+
+}

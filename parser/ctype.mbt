@@ -186,7 +186,7 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     }
     Enum(name, _) => "enum \{name}"
     Ptr(inner_ctype) => "\{inner_ctype} *"
-    Array(inner_ctype, size) => "\{inner_ctype}[\{size}]"
+    Array(inner_ctype, size) => "\{inner_ctype}[static \{size}]"
   }
   logger.write_string(s)
 }

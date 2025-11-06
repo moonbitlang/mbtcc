@@ -660,6 +660,11 @@ test "Inclusive Or Expr Parse Error Test" {
 }
 
 ///|
+test "InclusiveOrExpr Constant Eval Test" {
+
+}
+
+///|
 test "Logical Or Expr Parse Test" {
   let color = false
   let code =
@@ -904,4 +909,9 @@ test "Logical Or Expr Parse Error Test" {
   ctx_err4.add_var("s", point_struct)
   let r = try? ctx_err4.parse_logical_or_expr(ctx_err4.tokens)
   assert_true(r is Err(_))
+}
+
+///|
+test "Logical Or Expr Constant Eval Test" {
+
 }

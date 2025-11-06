@@ -662,6 +662,11 @@ test "And Expr Parse Error Test" {
 }
 
 ///|
+test "AndExpr Constant Eval Test" {
+
+}
+
+///|
 test "Logical And Expr Parse Test" {
   let color = false
   let code =
@@ -671,7 +676,6 @@ test "Logical And Expr Parse Test" {
 
   // Setup variables
   let ctype_int = CType::int()
-  let ctype_ptr = CType::int().ptr_to()
   ctx
   ..add_var("x", ctype_int)
   ..add_var("y", ctype_int)
@@ -908,3 +912,9 @@ test "Logical And Expr Parse Error Test" {
   let r = try? ctx_err4.parse_logical_and_expr(ctx_err4.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "Logical And Expr Constant Eval Test" {
+
+}
+
