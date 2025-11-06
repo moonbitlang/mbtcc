@@ -64,7 +64,9 @@ pub fn CastExpr::to_string(self : Self, color? : Bool = true) -> String {
         "cast expr: cast to \{ctype}"
       }
       let s = cast_expr.to_string(color~)
-      "\{prefix}\n" + "└-\{s}"
+      let lines = s.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix}\n" + "\{lines_formatted}"
     }
   }
 }
@@ -268,7 +270,7 @@ test "CastExpr Explicit Cast Parse Test" {
     content=(
       #|cast expr: cast to unsigned int
       #|└-unary operator - (int)
-      #|└-int literal 1 (int)
+      #|   └-int literal 1 (int)
     ),
   )
   assert_true(cast_expr.ctype == CType::uint())
@@ -355,7 +357,7 @@ test "CastExpr Explicit Cast Parse Test" {
     content=(
       #|cast expr: cast to long
       #|└-cast expr: cast to long
-      #|└-variable x (int)
+      #|   └-variable x (int)
     ),
   )
   assert_true(cast_expr.ctype == CType::long())
@@ -375,7 +377,7 @@ test "CastExpr Parse Test" {
   let color = false
   let code =
     #|x ; ++y ; *ptr ; -z ; 42 ; 10.0f ; "hello" ; i++ ; --j ;
-    #|(x) ; (42) ; (1 + 2) ; (int)(x) ; (long)(10) ;
+    #|(x) ; (42) ; (1 + 2) ; (int)(x) ; (long)(10 + 5) ;
     #|&var ; ~flag ; !cond ;
   let ctx = Context::new(code~, source_file="demo")
 
@@ -577,7 +579,9 @@ test "CastExpr Parse Test" {
     cast_expr.to_string(color~),
     content=(
       #|cast expr: cast to long
-      #|└-int literal 10 (int)
+      #|└-additive expr: + (int)
+      #|   ├-int literal 10 (int)
+      #|   └-int literal 5 (int)
     ),
   )
   assert_true(

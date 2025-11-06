@@ -83,31 +83,45 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     PostfixExpr(postfix_expr) => postfix_expr.to_string(color~)
     PreInc(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     PreDec(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     AddrOf(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     Deref(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     Negate(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     BitNot(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     LogicalNot(inner) => {
       let inner_str = inner.to_string(color~)
-      "\{prefix} \{ctype}\n" + "└-\{inner_str}"
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
   }
   s
@@ -370,7 +384,7 @@ test "Unary Expr Parse Test" {
   let color = false
   let code =
     #|++x ; --y ; *p ; -x ; ~f; !cond ; ++point; --point2;
-    #|++(x) ; --(y) ; *(p) ; -(x) ; ~(f) ; !(cond) ;
+    #|++(x) ; --(y) ; *(p++) ; -(x + 1) ; ~(f + 5) ; !(cond) ;
     #|~point; !point2;
   let ctx = Context::new(code~, source_file="demo")
 
@@ -531,7 +545,8 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator * (int)
-      #|└-variable p (int *)
+      #|└-unary operator ++ (int *)
+      #|   └-variable p (int *)
     ),
   )
   assert_true(
@@ -547,7 +562,9 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator - (int)
-      #|└-variable x (int)
+      #|└-additive expr: + (int)
+      #|   ├-variable x (int)
+      #|   └-int literal 1 (int)
     ),
   )
   assert_true(
@@ -563,7 +580,9 @@ test "Unary Expr Parse Test" {
     unary_expr.to_string(color~),
     content=(
       #|unary operator ~ (int)
-      #|└-variable f (int)
+      #|└-additive expr: + (int)
+      #|   ├-variable f (int)
+      #|   └-int literal 5 (int)
     ),
   )
   assert_true(
