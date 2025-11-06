@@ -353,5 +353,90 @@ test "CastExpr Parse Test" {
 
 ///|
 test "CastExpr Constant Eval Test" {
+  // Test eval_as_int for cast expressions
+  let code =
+    #|42 ; -10 ; ~5 ; !0 ; !1 ;
+    #|100l ; 200u ;
+    #|10.0f ; 3.14 ;
+    #|x ; ++y ; --z ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
+  ctx.add_var("z", CType::int())
 
+  // Parse and eval `42` (int literal wrapped in CastExpr)
+  let (cast_expr, rest) = ctx.parse_cast_expr(ctx.tokens)
+  inspect(cast_expr.eval_as_int(), content="42")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `-10` (negation wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="-10")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `~5` (bitwise NOT wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="-6")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `!0` (logical NOT wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="1")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `!1` (logical NOT wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="0")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `100l` (long literal wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="100")
+  assert_true(cast_expr.is_constant())
+
+  // Parse and eval `200u` (unsigned int literal wrapped in CastExpr)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.eval_as_int(), content="200")
+  assert_true(cast_expr.is_constant())
+
+  // Error test: float literal (cast_to is float, not integer)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  assert_true(cast_expr.is_constant())
+  let r = try? cast_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: double literal (cast_to is double, not integer)
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  assert_true(cast_expr.is_constant())
+  let r = try? cast_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: variable is not constant
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  assert_false(cast_expr.is_constant())
+  let r = try? cast_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: pre-increment is not constant
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  assert_false(cast_expr.is_constant())
+  let r = try? cast_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: pre-decrement is not constant
+  let rest = next_check_point(rest)
+  let (cast_expr, _rest) = ctx.parse_cast_expr(rest)
+  assert_false(cast_expr.is_constant())
+  let r = try? cast_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

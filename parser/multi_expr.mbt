@@ -453,5 +453,95 @@ test "Multiplicative Expr Error Test" {
 
 ///|
 test "Multiplicative Expr Constant Eval Test" {
+  // Test eval_as_int for multiplicative expressions
+  let code =
+    #|42 ; 10 * 2 ; 20 / 4 ; 17 % 5 ;
+    #|3 * 4 * 5 ; 100 / 5 / 2 ; 23 % 7 % 3 ;
+    #|6 * 3 / 2 ; 10 * 3 % 7 ;
+    #|10 / 0 ; 10 % 0 ;
+    #|x * 2 ; 5 / y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just a cast expr wrapped in MultiExpr)
+  let (multi_expr, rest) = ctx.parse_multi_expr(ctx.tokens)
+  inspect(multi_expr.eval_as_int(), content="42")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `10 * 2` (multiplication)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="20")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `20 / 4` (division)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="5")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `17 % 5` (modulo)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="2")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `3 * 4 * 5` (multiple multiplications, left-associative: (3*4)*5 = 12*5 = 60)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="60")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `100 / 5 / 2` (multiple divisions, left-associative: (100/5)/2 = 20/2 = 10)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="10")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `23 % 7 % 3` (multiple modulo, left-associative: (23%7)%3 = 2%3 = 2)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="2")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `6 * 3 / 2` (mixed operations, left-associative: (6*3)/2 = 18/2 = 9)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="9")
+  assert_true(multi_expr.is_constant())
+
+  // Parse and eval `10 * 3 % 7` (mixed operations, left-associative: (10*3)%7 = 30%7 = 2)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(multi_expr.eval_as_int(), content="2")
+  assert_true(multi_expr.is_constant())
+
+  // Error test: `10 / 0` (division by zero)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  assert_true(multi_expr.is_constant())
+  let r = try? multi_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `10 % 0` (modulo by zero)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  assert_true(multi_expr.is_constant())
+  let r = try? multi_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `x * 2` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  assert_false(multi_expr.is_constant())
+  let r = try? multi_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `5 / y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (multi_expr, _rest) = ctx.parse_multi_expr(rest)
+  assert_false(multi_expr.is_constant())
+  let r = try? multi_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

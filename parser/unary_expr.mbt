@@ -542,5 +542,103 @@ test "Unary Expr Error Test" {
 
 ///|
 test "UnaryExpr Constant Eval Test" {
+  // Test eval_as_int for unary expressions
+  let code =
+    #|42 ; -10 ; ~5 ; !0 ; !1 ; 
+    #|-100 ; ~0 ; !!5 ; -~3 ;
+    #|x ; ++y ; --z ; *p ; &i ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
+  ctx.add_var("z", CType::int())
+  ctx.add_var("p", CType::int().ptr_to())
+  ctx.add_var("i", CType::int())
 
+  // Parse and eval `42` (int literal wrapped in UnaryExpr)
+  let (unary_expr, rest) = ctx.parse_unary_expr(ctx.tokens)
+  inspect(unary_expr.eval_as_int(), content="42")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `-10` (negation)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="-10")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `~5` (bitwise NOT)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="-6")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `!0` (logical NOT of 0 = 1)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="1")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `!1` (logical NOT of 1 = 0)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="0")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `-100` (negation of larger number)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="-100")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `~0` (bitwise NOT of 0 = -1)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="-1")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `!!5` (double logical NOT: 5 -> 0 -> 1)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="1")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `-~3` (negation of bitwise NOT: ~3 = -4, then -(-4) = 4)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="4")
+  assert_true(unary_expr.is_constant())
+
+  // Error test: variable is not constant
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_false(unary_expr.is_constant())
+  let r = try? unary_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: pre-increment is not constant
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_false(unary_expr.is_constant())
+  let r = try? unary_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: pre-decrement is not constant
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_false(unary_expr.is_constant())
+  let r = try? unary_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: dereference is not constant
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_false(unary_expr.is_constant())
+  let r = try? unary_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: address-of is not constant
+  let rest = next_check_point(rest)
+  let (unary_expr, _rest) = ctx.parse_unary_expr(rest)
+  assert_false(unary_expr.is_constant())
+  let r = try? unary_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

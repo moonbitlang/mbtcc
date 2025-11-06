@@ -622,5 +622,117 @@ test "Relational Expr Parse Error Test" {
 
 ///|
 test "RelationalExpr Constant Eval Test" {
+  // Test eval_as_int for relational expressions
+  let code =
+    #|42 ; 10 < 20 ; 30 > 15 ; 5 <= 5 ; 8 >= 8 ;
+    #|10 < 5 ; 5 > 10 ; 10 <= 5 ; 5 >= 10 ;
+    #|3 < 5 < 7 ; 10 > 8 > 6 ; 3 < 5 <= 5 ;
+    #|2 + 3 < 10 ; 20 > 4 * 3 ; 8 << 1 >= 10 ;
+    #|x < 10 ; 20 > y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just a shift expr wrapped in RelationalExpr)
+  let (relational_expr, rest) = ctx.parse_relational_expr(ctx.tokens)
+  inspect(relational_expr.eval_as_int(), content="42")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `10 < 20` (less than: true = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `30 > 15` (greater than: true = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `5 <= 5` (less than or equal: true = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `8 >= 8` (greater than or equal: true = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `10 < 5` (less than: false = 0)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="0")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `5 > 10` (greater than: false = 0)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="0")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `10 <= 5` (less than or equal: false = 0)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="0")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `5 >= 10` (greater than or equal: false = 0)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="0")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `3 < 5 < 7` (left-associative: (3<5)<7 = 1<7 = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `10 > 8 > 6` (left-associative: (10>8)>6 = 1>6 = 0)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="0")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `3 < 5 <= 5` (left-associative: (3<5)<=5 = 1<=5 = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `2 + 3 < 10` (additive has higher precedence: (2+3)<10 = 5<10 = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `20 > 4 * 3` (multiplicative has higher precedence: 20>(4*3) = 20>12 = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Parse and eval `8 << 1 >= 10` (shift has higher precedence: (8<<1)>=10 = 16>=10 = 1)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  inspect(relational_expr.eval_as_int(), content="1")
+  assert_true(relational_expr.is_constant())
+
+  // Error test: `x < 10` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (relational_expr, rest) = ctx.parse_relational_expr(rest)
+  assert_false(relational_expr.is_constant())
+  let r = try? relational_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `20 > y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (relational_expr, _rest) = ctx.parse_relational_expr(rest)
+  assert_false(relational_expr.is_constant())
+  let r = try? relational_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

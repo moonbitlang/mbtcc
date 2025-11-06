@@ -419,8 +419,71 @@ test "Postfix Expr Error Test" {
   assert_true(r is Err(_))
 }
 
-
 ///|
 test "PostfixExpr Constant Eval Test" {
+  // Test eval_as_int for postfix expressions
+  let code =
+    #|42 ; 100l ; 200u ; 
+    #|x ; i++ ; j-- ; p.x ; p2->y ;
+  let ctx = Context::new(code~, source_file="demo")
+  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_struct = CType::struct_type("Point", point_fields)
+  let point_ptr = point_struct.ptr_to()
+  ctx.add_var("x", CType::int())
+  ctx.add_var("i", CType::int())
+  ctx.add_var("j", CType::int())
+  ctx.add_var("p", point_struct)
+  ctx.add_var("p2", point_ptr)
 
+  // Parse and eval `42` (int literal wrapped in PostfixExpr)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(ctx.tokens)
+  inspect(postfix_expr.eval_as_int(), content="42")
+  assert_true(postfix_expr.is_constant())
+
+  // Parse and eval `100l` (long literal wrapped in PostfixExpr)
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(postfix_expr.eval_as_int(), content="100")
+  assert_true(postfix_expr.is_constant())
+
+  // Parse and eval `200u` (unsigned int literal wrapped in PostfixExpr)
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(postfix_expr.eval_as_int(), content="200")
+  assert_true(postfix_expr.is_constant())
+
+  // Error test: variable is not constant
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  assert_false(postfix_expr.is_constant())
+  let r = try? postfix_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: post-increment is not constant
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  assert_false(postfix_expr.is_constant())
+  let r = try? postfix_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: post-decrement is not constant
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  assert_false(postfix_expr.is_constant())
+  let r = try? postfix_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: member access is not constant
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  assert_false(postfix_expr.is_constant())
+  let r = try? postfix_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: pointer member access is not constant
+  let rest = next_check_point(rest)
+  let (postfix_expr, _rest) = ctx.parse_postfix_expr(rest)
+  assert_false(postfix_expr.is_constant())
+  let r = try? postfix_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

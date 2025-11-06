@@ -496,5 +496,99 @@ test "PrimExpr Error Test" {
 
 ///|
 test "PrimExpr Constant Eval Test" {
+  // Test eval_as_int for integer literals
+  let code =
+    #|42 ; 100l ; 200ll ; 300u ; 400ul ; 500ull ; 
+    #|0 ; 1000 ; 2147483647 ;
+    #|3.14 ; 2.5f ; 'c' ; "hello" ; x ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
 
+  // Parse and eval `42` (int literal)
+  let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
+  inspect(prim_expr.eval_as_int(), content="42")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `100l` (long literal)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="100")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `200ll` (long long literal)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="200")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `300u` (unsigned int literal)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="300")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `400ul` (unsigned long literal)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="400")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `500ull` (unsigned long long literal)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="500")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `0` (zero)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="0")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `1000` (larger int)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="1000")
+  assert_true(prim_expr.is_constant())
+
+  // Parse and eval `2147483647` (max int)
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.eval_as_int(), content="2147483647")
+  assert_true(prim_expr.is_constant())
+
+  // Error test: double literal cannot be evaluated as int
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  assert_true(prim_expr.is_constant())
+  let r = try? prim_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: float literal cannot be evaluated as int
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  assert_true(prim_expr.is_constant())
+  let r = try? prim_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: char literal cannot be evaluated as int
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  assert_true(prim_expr.is_constant())
+  let r = try? prim_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: string literal cannot be evaluated as int
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  assert_true(prim_expr.is_constant())
+  let r = try? prim_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: variable identifier is not constant
+  let rest = next_check_point(rest)
+  let (prim_expr, _rest) = ctx.parse_prim_expr(rest)
+  assert_false(prim_expr.is_constant())
+  let r = try? prim_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

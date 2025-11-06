@@ -478,5 +478,74 @@ test "Shift Expr Parse Error Test" {
 
 ///|
 test "ShiftExpr Constant Eval Test" {
+  // Test eval_as_int for shift expressions
+  let code =
+    #|42 ; 8 << 2 ; 64 >> 3 ;
+    #|2 << 3 << 1 ; 128 >> 2 >> 1 ; 16 << 1 >> 2 ;
+    #|2 + 3 << 2 ; 4 << 10 - 8 ;
+    #|x << 2 ; 8 >> y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just an addi expr wrapped in ShiftExpr)
+  let (shift_expr, rest) = ctx.parse_shift_expr(ctx.tokens)
+  inspect(shift_expr.eval_as_int(), content="42")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `8 << 2` (left shift: 8 << 2 = 32)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="32")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `64 >> 3` (right shift: 64 >> 3 = 8)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="8")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `2 << 3 << 1` (multiple left shifts, left-associative: (2<<3)<<1 = 16<<1 = 32)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="32")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `128 >> 2 >> 1` (multiple right shifts, left-associative: (128>>2)>>1 = 32>>1 = 16)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="16")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `16 << 1 >> 2` (mixed shifts, left-associative: (16<<1)>>2 = 32>>2 = 8)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="8")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `2 + 3 << 2` (additive has higher precedence: (2+3)<<2 = 5<<2 = 20)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="20")
+  assert_true(shift_expr.is_constant())
+
+  // Parse and eval `4 << 10 - 8` (additive has higher precedence: 4<<(10-8) = 4<<2 = 16)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  inspect(shift_expr.eval_as_int(), content="16")
+  assert_true(shift_expr.is_constant())
+
+  // Error test: `x << 2` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (shift_expr, rest) = ctx.parse_shift_expr(rest)
+  assert_false(shift_expr.is_constant())
+  let r = try? shift_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `8 >> y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (shift_expr, _rest) = ctx.parse_shift_expr(rest)
+  assert_false(shift_expr.is_constant())
+  let r = try? shift_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

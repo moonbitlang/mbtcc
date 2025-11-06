@@ -446,5 +446,80 @@ test "Exclusive Or Expr Parse Error Test" {
 
 ///|
 test "ExclusiveOrExpr Constant Eval Test" {
+  // Test eval_as_int for bitwise xor expressions
+  let code =
+    #|42 ; 15 ^ 7 ; 255 ^ 15 ; 12 ^ 10 ;
+    #|7 ^ 3 ^ 1 ; 255 ^ 240 ^ 15 ;
+    #|5 == 5 ^ 1 ; 10 != 5 ^ 1 ; 15 & 7 ^ 3 ;
+    #|x ^ 7 ; 15 ^ y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just an and expr wrapped in ExclusiveOrExpr)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(ctx.tokens)
+  inspect(xor_expr.eval_as_int(), content="42")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `15 ^ 7` (bitwise XOR: 15 ^ 7 = 8)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="8")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `255 ^ 15` (bitwise XOR: 255 ^ 15 = 240)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="240")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `12 ^ 10` (bitwise XOR: 12 ^ 10 = 6)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="6")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `7 ^ 3 ^ 1` (left-associative: (7^3)^1 = 4^1 = 5)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="5")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `255 ^ 240 ^ 15` (left-associative: (255^240)^15 = 15^15 = 0)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="0")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `5 == 5 ^ 1` (equality has higher precedence: (5==5)^1 = 1^1 = 0)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="0")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `10 != 5 ^ 1` (equality has higher precedence: (10!=5)^1 = 1^1 = 0)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="0")
+  assert_true(xor_expr.is_constant())
+
+  // Parse and eval `15 & 7 ^ 3` (and has higher precedence: (15&7)^3 = 7^3 = 4)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  inspect(xor_expr.eval_as_int(), content="4")
+  assert_true(xor_expr.is_constant())
+
+  // Error test: `x ^ 7` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (xor_expr, rest) = ctx.parse_exclusive_or_expr(rest)
+  assert_false(xor_expr.is_constant())
+  let r = try? xor_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `15 ^ y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (xor_expr, _rest) = ctx.parse_exclusive_or_expr(rest)
+  assert_false(xor_expr.is_constant())
+  let r = try? xor_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

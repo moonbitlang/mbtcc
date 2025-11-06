@@ -661,7 +661,88 @@ test "Inclusive Or Expr Parse Error Test" {
 
 ///|
 test "InclusiveOrExpr Constant Eval Test" {
+  // Test eval_as_int for bitwise or expressions
+  let code =
+    #|42 ; 8 | 4 ; 240 | 15 ; 12 | 10 ;
+    #|4 | 2 | 1 ; 240 | 15 | 3 ;
+    #|5 == 5 | 2 ; 10 != 5 | 2 ; 15 & 3 | 8 ; 7 ^ 3 | 1 ;
+    #|x | 7 ; 15 | y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just an xor expr wrapped in InclusiveOrExpr)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(ctx.tokens)
+  inspect(or_expr.eval_as_int(), content="42")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `8 | 4` (bitwise OR: 8 | 4 = 12)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="12")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `240 | 15` (bitwise OR: 240 | 15 = 255)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="255")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `12 | 10` (bitwise OR: 12 | 10 = 14)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="14")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `4 | 2 | 1` (left-associative: (4|2)|1 = 6|1 = 7)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="7")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `240 | 15 | 3` (left-associative: (240|15)|3 = 255|3 = 255)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="255")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `5 == 5 | 2` (equality has higher precedence: (5==5)|2 = 1|2 = 3)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="3")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `10 != 5 | 2` (equality has higher precedence: (10!=5)|2 = 1|2 = 3)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="3")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `15 & 3 | 8` (and/xor have higher precedence: (15&3)|8 = 3|8 = 11)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="11")
+  assert_true(or_expr.is_constant())
+
+  // Parse and eval `7 ^ 3 | 1` (xor has higher precedence: (7^3)|1 = 4|1 = 5)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  inspect(or_expr.eval_as_int(), content="5")
+  assert_true(or_expr.is_constant())
+
+  // Error test: `x | 7` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (or_expr, rest) = ctx.parse_inclusive_or_expr(rest)
+  assert_false(or_expr.is_constant())
+  let r = try? or_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `15 | y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (or_expr, _rest) = ctx.parse_inclusive_or_expr(rest)
+  assert_false(or_expr.is_constant())
+  let r = try? or_expr.eval_as_int()
+  assert_true(r is Err(_))
 }
 
 ///|
@@ -913,5 +994,130 @@ test "Logical Or Expr Parse Error Test" {
 
 ///|
 test "Logical Or Expr Constant Eval Test" {
+  // Test eval_as_int for logical or expressions
+  let code =
+    #|42 ; 1 || 1 ; 0 || 1 ; 1 || 0 ; 0 || 0 ;
+    #|5 || 3 ; 0 || 10 ; 10 || 0 ;
+    #|1 || 1 || 1 ; 1 || 0 || 1 ; 0 || 1 || 0 ; 0 || 0 || 1 ;
+    #|5 < 10 || 3 > 2 ; 10 > 5 || 5 < 3 ; 5 > 10 || 3 < 2 ;
+    #|1 && 0 || 1 && 1 ; 0 || 1 && 0 ;
+    #|x || 1 ; 0 || y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just an and expr wrapped in LogicalOrExpr)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(ctx.tokens)
+  inspect(logical_or_expr.eval_as_int(), content="42")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `1 || 1` (logical OR: true || true = 1, short-circuit)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 1` (logical OR: false || true = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `1 || 0` (logical OR: true || false = 1, short-circuit)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 0` (logical OR: false || false = 0)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="0")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `5 || 3` (logical OR: true || true = 1, short-circuit)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 10` (logical OR: false || true = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `10 || 0` (logical OR: true || false = 1, short-circuit)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `1 || 1 || 1` (left-associative: (1||1)||1 = 1||1 = 1, short-circuit twice)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `1 || 0 || 1` (left-associative: (1||0)||1 = 1||1 = 1, short-circuit twice)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 1 || 0` (left-associative: (0||1)||0 = 1||0 = 1, short-circuit)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 0 || 1` (left-associative: (0||0)||1 = 0||1 = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `5 < 10 || 3 > 2` (relational has higher precedence: (5<10)||(3>2) = 1||1 = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `10 > 5 || 5 < 3` (relational has higher precedence: (10>5)||(5<3) = 1||0 = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `5 > 10 || 3 < 2` (relational has higher precedence: (5>10)||(3<2) = 0||0 = 0)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="0")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `1 && 0 || 1 && 1` (and has higher precedence: (1&&0)||(1&&1) = 0||1 = 1)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="1")
+  assert_true(logical_or_expr.is_constant())
+
+  // Parse and eval `0 || 1 && 0` (and has higher precedence: 0||(1&&0) = 0||0 = 0)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  inspect(logical_or_expr.eval_as_int(), content="0")
+  assert_true(logical_or_expr.is_constant())
+
+  // Error test: `x || 1` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, rest) = ctx.parse_logical_or_expr(rest)
+  assert_false(logical_or_expr.is_constant())
+  let r = try? logical_or_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `0 || y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (logical_or_expr, _rest) = ctx.parse_logical_or_expr(rest)
+  assert_false(logical_or_expr.is_constant())
+  let r = try? logical_or_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

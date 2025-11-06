@@ -464,5 +464,80 @@ test "Additive Expr Error Test" {
 
 ///|
 test "Additive Expr Constant Eval Test" {
+  // Test eval_as_int for additive expressions
+  let code =
+    #|42 ; 10 + 20 ; 50 - 15 ;
+    #|3 + 4 + 5 ; 100 - 20 - 30 ; 10 + 5 - 3 ;
+    #|2 * 3 + 4 ; 10 + 5 * 2 ; 20 - 4 * 3 ;
+    #|x + 5 ; 10 - y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just a multi expr wrapped in AddiExpr)
+  let (addi_expr, rest) = ctx.parse_addi_expr(ctx.tokens)
+  inspect(addi_expr.eval_as_int(), content="42")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `10 + 20` (addition)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="30")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `50 - 15` (subtraction)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="35")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `3 + 4 + 5` (multiple additions, left-associative: (3+4)+5 = 7+5 = 12)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="12")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `100 - 20 - 30` (multiple subtractions, left-associative: (100-20)-30 = 80-30 = 50)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="50")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `10 + 5 - 3` (mixed operations, left-associative: (10+5)-3 = 15-3 = 12)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="12")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `2 * 3 + 4` (multiplication has higher precedence: (2*3)+4 = 6+4 = 10)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="10")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `10 + 5 * 2` (multiplication has higher precedence: 10+(5*2) = 10+10 = 20)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="20")
+  assert_true(addi_expr.is_constant())
+
+  // Parse and eval `20 - 4 * 3` (multiplication has higher precedence: 20-(4*3) = 20-12 = 8)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  inspect(addi_expr.eval_as_int(), content="8")
+  assert_true(addi_expr.is_constant())
+
+  // Error test: `x + 5` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (addi_expr, rest) = ctx.parse_addi_expr(rest)
+  assert_false(addi_expr.is_constant())
+  let r = try? addi_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `10 - y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (addi_expr, _rest) = ctx.parse_addi_expr(rest)
+  assert_false(addi_expr.is_constant())
+  let r = try? addi_expr.eval_as_int()
+  assert_true(r is Err(_))
 }

@@ -240,7 +240,7 @@ pub fn EqualityExpr::eval_as_int(self : Self) -> Int raise ParseError {
     NEExpr(left, right) => {
       let left_val = left.eval_as_int()
       let right_val = right.eval_as_int()
-      (left_val == right_val).to_int()
+      (left_val != right_val).to_int()
     }
   }
 }
@@ -537,5 +537,92 @@ test "Equality Expr Parse Error Test" {
 
 ///|
 test "EqualityExpr Constant Eval Test" {
+  // Test eval_as_int for equality expressions
+  let code =
+    #|42 ; 10 == 10 ; 10 == 20 ; 10 != 20 ; 10 != 10 ;
+    #|5 == 5 == 1 ; 3 != 4 != 1 ; 10 == 5 != 0 ;
+    #|5 < 10 == 1 ; 10 > 5 == 1 ; 5 <= 5 != 0 ;
+    #|x == 10 ; 20 != y ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
 
+  // Parse and eval `42` (just a relational expr wrapped in EqualityExpr)
+  let (equality_expr, rest) = ctx.parse_equality_expr(ctx.tokens)
+  inspect(equality_expr.eval_as_int(), content="42")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 == 10` (equal: true = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 == 20` (equal: false = 0)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="0")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 != 20` (not equal: true = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 != 10` (not equal: false = 0)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="0")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `5 == 5 == 1` (left-associative: (5==5)==1 = 1==1 = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `3 != 4 != 1` (left-associative: (3!=4)!=1 = 1!=1 = 0)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="0")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 == 5 != 0` (left-associative: (10==5)!=0 = 0!=0 = 0)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="0")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `5 < 10 == 1` (relational has higher precedence: (5<10)==1 = 1==1 = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `10 > 5 == 1` (relational has higher precedence: (10>5)==1 = 1==1 = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Parse and eval `5 <= 5 != 0` (relational has higher precedence: (5<=5)!=0 = 1!=0 = 1)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  inspect(equality_expr.eval_as_int(), content="1")
+  assert_true(equality_expr.is_constant())
+
+  // Error test: `x == 10` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (equality_expr, rest) = ctx.parse_equality_expr(rest)
+  assert_false(equality_expr.is_constant())
+  let r = try? equality_expr.eval_as_int()
+  assert_true(r is Err(_))
+
+  // Error test: `20 != y` (contains variable, not constant)
+  let rest = next_check_point(rest)
+  let (equality_expr, _rest) = ctx.parse_equality_expr(rest)
+  assert_false(equality_expr.is_constant())
+  let r = try? equality_expr.eval_as_int()
+  assert_true(r is Err(_))
 }
