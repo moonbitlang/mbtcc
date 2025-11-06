@@ -260,6 +260,11 @@ pub fn PrimExpr::is_constant(self : Self) -> Bool {
 }
 
 ///|
+pub fn PrimExpr::is_assignable(self : Self) -> Bool {
+  self.kind is Ident(_) && !self.ctype.is_const
+}
+
+///|
 pub fn PrimExpr::eval_as_int(self : Self) -> Int raise ParseError {
   match self.kind {
     Int(v) => v

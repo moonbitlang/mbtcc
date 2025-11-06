@@ -21,7 +21,35 @@ pub fn Context::parse_conditional_expr(
   self : Self,
   tokens : ArrayView[Token],
 ) -> (ConditionalExpr, ArrayView[Token]) raise ParseError {
-  ...
+  let init_tokens = tokens
+  let start_offset = init_tokens.start_offset()
+  let (logical_or_expr, rest) = self.parse_logical_or_expr(tokens)
+  guard rest is [{ kind: Question, .. }, .. rest] else {
+    let cond_expr = ConditionalExpr::{
+      kind: LogicalOrExpr(logical_or_expr),
+      ctype: logical_or_expr.ctype,
+      tokens: init_tokens[0:rest.start_offset() - start_offset],
+    }
+    return (cond_expr, rest)
+  }
+  let (then_expr, rest) = self.parse_expr(rest)
+  guard rest is [{ kind: Colon, .. }, .. rest] else {
+    raise ParseError(rest[0], "Expected ':' in conditional expression")
+  }
+  let (else_expr, rest) = self.parse_conditional_expr(rest)
+  let ctype = CType::common_type(then_expr.ctype, else_expr.ctype)
+  guard ctype is Some(ctype) else {
+    raise ParseError(
+      init_tokens[0],
+      "Incompatible types in conditional expression",
+    )
+  }
+  let cond_expr = ConditionalExpr::{
+    kind: ConditionalExpr(logical_or_expr, then_expr, else_expr),
+    ctype,
+    tokens: init_tokens[0:rest.start_offset() - start_offset],
+  }
+  (cond_expr, rest)
 }
 
 ///|

@@ -114,6 +114,7 @@ pub enum TokenKind {
 
   // Operators
   Operator(String)
+  AssignOp(String)
 
   // Symbols
   Comma // ,
@@ -148,6 +149,7 @@ pub impl Show for TokenKind with output(self, logger) {
     Keyword(k) => logger.write_object(k)
     Bracket(c) => logger.write_char(c)
     Operator(op) => logger.write_string(op)
+    AssignOp(op) => logger.write_string(op)
     Comma => logger.write_string(",")
     Dot => logger.write_string(".")
     Arrow => logger.write_string("->")

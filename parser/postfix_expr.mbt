@@ -278,6 +278,15 @@ pub fn PostfixExpr::eval_as_int(self : Self) -> Int raise ParseError {
 }
 
 ///|
+pub fn PostfixExpr::is_assignable(self : Self) -> Bool {
+  ignore(self)
+  println(
+    "PostfixExpr::is_assignable is not implemented yet, function defined in postfix_expr.mbt",
+  )
+  panic()
+}
+
+///|
 test "Postfix Expr Parse Test" {
   let color = false
   let code =

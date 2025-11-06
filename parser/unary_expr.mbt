@@ -344,6 +344,15 @@ pub fn UnaryExpr::eval_as_int(self : Self) -> Int raise ParseError {
 }
 
 ///|
+pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
+  ignore(self)
+  println(
+    "UnaryExpr::is_assignable is not implemented yet, func implemented in: unary_expr.mbt",
+  )
+  panic()
+}
+
+///|
 test "Unary Expr Parse Test" {
   let color = false
   let code =
