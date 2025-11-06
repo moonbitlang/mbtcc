@@ -393,12 +393,20 @@ fn UnaryPrefix::parse(
     }
     // if `sizeof(` check it if it is `sizeof(typename)`, if so, need to break
     [Sizeof, LParen, .. rest_toks] as toks =>
-      match (try? TypeName::parse(rest_toks, ctx)) {
-        Err(_) => {
+      //match (try? TypeName::parse(rest_toks, ctx)) {
+      //  Err(_) => {
+      //    prefixes.push(UnaryPrefix::Sizeof)
+      //    continue toks[1:]
+      //  }
+      //  Ok(_) => break toks
+      //}
+      try TypeName::parse(rest_toks, ctx) catch {
+        _ => {
           prefixes.push(UnaryPrefix::Sizeof)
           continue toks[1:]
         }
-        Ok(_) => break toks
+      } noraise {
+        _ => break toks
       }
     [Sizeof, .. rest_toks] => {
       prefixes.push(UnaryPrefix::Sizeof)
@@ -4170,15 +4178,16 @@ fn ExternalDeclaration::parse(
   toks : ArrayView[Token],
   ctx : ParserContext,
 ) -> (ExternalDeclaration, ArrayView[Token]) raise {
-  match (try? FunctionDefinition::parse(toks, ctx)) {
-    Ok((func_def, rest_toks)) =>
-      (ExternalDeclaration::FunctionDefinition(func_def), rest_toks)
-    Err(e) if e is FunctionDefinitionParseError::CompoundStatementParseError(ce) =>
-      raise ce
-    Err(_) => {
+  try FunctionDefinition::parse(toks, ctx) catch {
+    FunctionDefinitionParseError::CompoundStatementParseError(err) =>
+      raise err
+    _ => {
       let (decl, rest_toks) = Declaration::parse(toks, ctx)
       (ExternalDeclaration::Declaration(decl), rest_toks)
     }
+  } noraise {
+    (func_def, rest_toks) =>
+      (ExternalDeclaration::FunctionDefinition(func_def), rest_toks)
   }
 }
 

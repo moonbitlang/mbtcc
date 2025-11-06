@@ -19,9 +19,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
       println("Hex float literal: '\{hf}'")
-      let (number, err_msg) = match (try? @strconv.parse_double(hf)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid hexadecimal floating-point literal")
+      let (number, err_msg) = try @strconv.parse_double(hf) catch {
+        _ => (0.0, "Invalid hexadecimal floating-point literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s {
         "f" | "F" => TokenKind::Float(number.to_float())
@@ -43,9 +44,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(df_dot.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_double(df_dot)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid decimal floating-point literal")
+      let (number, err_msg) = try @strconv.parse_double(df_dot) catch {
+        _ => (0.0, "Invalid decimal floating-point literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s {
         "f" | "F" => TokenKind::Float(number.to_float())
@@ -63,9 +65,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(df_exp.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_double(df_exp)) {
-        Ok(n) => (n, "")
-        Err(_) => (0.0, "Invalid decimal floating-point literal")
+      let (number, err_msg) = try @strconv.parse_double(df_exp) catch {
+        _ => (0.0, "Invalid decimal floating-point literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s {
         "f" | "F" => TokenKind::Float(number.to_float())
@@ -88,9 +91,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(h.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(h, base=16)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid hexadecimal integer literal\{h} ")
+      let (number, err_msg) = try @strconv.parse_uint(h, base=16) catch {
+        _ => (0U, "Invalid hexadecimal integer literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s.to_lower() {
         "ull" | "llu" | "ULL" | "LLU" =>
@@ -118,9 +122,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(b.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(b, base=2)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid binary integer literal")
+      let (number, err_msg) = try @strconv.parse_uint(b, base=2) catch {
+        _ => (0U, "Invalid binary integer literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s.to_lower() {
         "ull" | "llu" | "ULL" | "LLU" =>
@@ -147,9 +152,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(o.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(o, base=8)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid octal integer literal")
+      let (number, err_msg) = try @strconv.parse_uint(o, base=8) catch {
+        _ => (0U, "Invalid octal integer literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s.to_lower() {
         "ull" | "llu" | "ULL" | "LLU" =>
@@ -176,9 +182,10 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(d.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = match (try? @strconv.parse_uint(d, base=10)) {
-        Ok(n) => (n, "")
-        Err(_) => (0, "Invalid decimal integer literal")
+      let (number, err_msg) = try @strconv.parse_uint(d, base=10) catch {
+        _ => (0U, "Invalid decimal integer literal")
+      } noraise {
+        n => (n, "")
       }
       let token_kind = match s.to_lower() {
         "ull" | "llu" | "ULL" | "LLU" =>
