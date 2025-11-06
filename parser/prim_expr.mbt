@@ -281,6 +281,18 @@ pub fn PrimExpr::eval_as_int(self : Self) -> Int raise ParseError {
 }
 
 ///|
+pub fn PrimExpr::eval_as_double(self : Self) -> Double raise ParseError {
+  match self.kind {
+    Float(v) => v.to_double()
+    Double(v) => v
+    _ => {
+      let msg = "Cannot evaluate PrimExpr as double: not a floating-point literal"
+      raise ParseError(self.tokens[0], msg)
+    }
+  }
+}
+
+///|
 test "PrimExpr Parse Test" {
   let color = false
   let code =

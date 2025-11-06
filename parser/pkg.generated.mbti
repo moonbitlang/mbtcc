@@ -149,15 +149,22 @@ impl Eq for CTypeDataKind
 impl Show for CTypeDataKind
 
 pub struct CastExpr {
-  unary_expr : UnaryExpr
-  cast_to : CType
+  kind : CastExprKind
+  ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn CastExpr::eval_as_double(Self) -> Double raise ParseError
 fn CastExpr::eval_as_int(Self) -> Int raise ParseError
 fn CastExpr::is_constant(Self) -> Bool
 fn CastExpr::to_string(Self, color? : Bool) -> String
 impl Eq for CastExpr
 impl Show for CastExpr
+
+pub enum CastExprKind {
+  UnaryExpr(UnaryExpr)
+  CastTo(CType, CastExpr)
+}
+impl Eq for CastExprKind
 
 pub struct ConditionalExpr {
   kind : ConditionalExprKind
@@ -334,6 +341,7 @@ pub struct PostfixExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn PostfixExpr::eval_as_double(Self) -> Double raise ParseError
 fn PostfixExpr::eval_as_int(Self) -> Int raise ParseError
 fn PostfixExpr::is_assignable(Self) -> Bool
 fn PostfixExpr::is_constant(Self) -> Bool
@@ -355,6 +363,7 @@ pub struct PrimExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn PrimExpr::eval_as_double(Self) -> Double raise ParseError
 fn PrimExpr::eval_as_int(Self) -> Int raise ParseError
 fn PrimExpr::is_assignable(Self) -> Bool
 fn PrimExpr::is_constant(Self) -> Bool
@@ -421,6 +430,7 @@ pub struct UnaryExpr {
   ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
+fn UnaryExpr::eval_as_double(Self) -> Double raise ParseError
 fn UnaryExpr::eval_as_int(Self) -> Int raise ParseError
 fn UnaryExpr::is_assignable(Self) -> Bool
 fn UnaryExpr::is_constant(Self) -> Bool

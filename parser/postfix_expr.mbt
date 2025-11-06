@@ -278,6 +278,17 @@ pub fn PostfixExpr::eval_as_int(self : Self) -> Int raise ParseError {
 }
 
 ///|
+pub fn PostfixExpr::eval_as_double(self : Self) -> Double raise ParseError {
+  match self.kind {
+    PrimExpr(prim_expr) => prim_expr.eval_as_double()
+    _ => {
+      let msg = "Cannot evaluate PostfixExpr as double: not a constant expression"
+      raise ParseError(self.tokens[0], msg)
+    }
+  }
+}
+
+///|
 pub fn PostfixExpr::is_assignable(self : Self) -> Bool {
   match self.kind {
     PrimExpr(prim_expr) => prim_expr.is_assignable()

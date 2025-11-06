@@ -343,6 +343,14 @@ fn Context::parse_type_spec_qual_list(
       }
       continue rest
     }
+    [{ kind: Keyword(Float), .. }, .. rest] => {
+      data_ty = Some(Float)
+      continue rest
+    }
+    [{ kind: Keyword(Double), .. }, .. rest] => {
+      data_ty = Some(Double)
+      continue rest
+    }
     [{ kind: Identifier(name), .. }, .. rest] if self.get_typename_ctype(name)
       is Some(ty) => {
       data_ty = Some(ty.dataKind)
