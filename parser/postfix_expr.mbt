@@ -302,6 +302,7 @@ test "Postfix Expr Parse Test" {
   let color = false
   let code =
     #|p.x ; p2->y ; i++ ; j-- ;
+    #|(x).y ; (p2)->x ; (i)++ ; (j)-- ;
     #|p.z ; p2->zz ; p++ ; p-- ;
   let ctx = Context::new(code~, source_file="demo")
   let point_fields = [("x", CType::int()), ("y", CType::int())]
@@ -309,6 +310,7 @@ test "Postfix Expr Parse Test" {
   let point_ptr = point_struct.ptr_to()
   ctx.add_var("p", point_struct)
   ctx.add_var("p2", point_ptr)
+  ctx.add_var("x", point_struct)
   ctx.add_var("i", CType::int())
   ctx.add_var("j", CType::int())
 
@@ -360,6 +362,70 @@ test "Postfix Expr Parse Test" {
   )
 
   // Parse `j--`
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(
+    postfix_expr.to_string(color~),
+    content=(
+      #|unary operator -- (int)
+      #|└-variable j (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens) is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x).y` - parenthesized struct with member access
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(
+    postfix_expr.to_string(color~),
+    content=(
+      #|member access : .y (int)
+      #|└-variable x (struct Point)
+    ),
+  )
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens) is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(p2)->x` - parenthesized pointer with member access
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(
+    postfix_expr.to_string(color~),
+    content=(
+      #|pointer member access : ->x (int)
+      #|└-variable p2 (struct Point *)
+    ),
+  )
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens) is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(i)++` - parenthesized variable with post-increment
+  let rest = next_check_point(rest)
+  let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
+  inspect(
+    postfix_expr.to_string(color~),
+    content=(
+      #|unary operator ++ (int)
+      #|└-variable i (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_postfix_expr(postfix_expr.tokens) is (re_postfix_expr, re_rest) &&
+    re_postfix_expr == postfix_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(j)--` - parenthesized variable with post-decrement
   let rest = next_check_point(rest)
   let (postfix_expr, rest) = ctx.parse_postfix_expr(rest)
   inspect(

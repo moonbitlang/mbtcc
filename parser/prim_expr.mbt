@@ -226,15 +226,20 @@ pub fn Context::parse_prim_expr(
       }
       (Strings(strs), rest_tokens)
     }
-    [{ kind: Bracket('('), .. }, ..rest] => {
+    [{ kind: Bracket('('), .. }, .. rest] => {
       let (expr, rest) = self.parse_expr(rest)
-      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
-        raise ParseError(
-          rest[0],
-          "Expected ')' to close parenthesized expression",
-        )
+      match rest {
+        [{ kind: Bracket(')'), .. }, .. rest] => (Paren(expr), rest)
+        [tok, ..] =>
+          raise ParseError(
+            tok, "Expected ')' to close parenthesized expression",
+          )
+        [] =>
+          raise ParseError(
+            tokens[0],
+            "Expected ')' to close parenthesized expression",
+          )
       }
-      (Paren(expr), rest)
     }
     tokens => raise ParseError(tokens[0], "Expected a primary expression")
   }
@@ -251,9 +256,7 @@ pub fn Context::parse_prim_expr(
 }
 
 ///|
-fn Context::get_literal_ctype(
-  self : Context, kind : PrimExprKind
-) -> CType {
+fn Context::get_literal_ctype(self : Context, kind : PrimExprKind) -> CType {
   match kind {
     Long(_) => CType::long()
     LongLong(_) => CType::longlong()
@@ -527,6 +530,159 @@ test "PrimExpr Error Test" {
   let code_err3 = "?"
   let ctx_err3 = Context::new(code=code_err3)
   let r = try? ctx_err3.parse_prim_expr(ctx_err3.tokens)
+  assert_true(r is Err(_))
+}
+
+///|
+test "PrimExpr Parenthesized Expression Test" {
+  let color = false
+  let code =
+    #|(1) ; (x) ; (1 + 2) ; ((3 + 4)) ; (x * y) ;
+    #|(1 + 2 * 3) ; (a = 10) ; (i++, j++) ;
+    #|(1  // missing closing paren
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+  ctx.add_var("y", CType::int())
+  ctx.add_var("a", CType::int())
+  ctx.add_var("i", CType::int())
+  ctx.add_var("j", CType::int())
+
+  // Parse `(1)`
+  let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
+  inspect(prim_expr.to_string(color~), content="int literal 1 (int)")
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(prim_expr.to_string(color~), content="variable x (int)")
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(1 + 2)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|additive expr: + (int)
+      #|├-int literal 1 (int)
+      #|└-int literal 2 (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `((3 + 4))` - nested parentheses
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|additive expr: + (int)
+      #|├-int literal 3 (int)
+      #|└-int literal 4 (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x * y)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|multiplicative expr: * (int)
+      #|├-variable x (int)
+      #|└-variable y (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(1 + 2 * 3)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|additive expr: + (int)
+      #|├-int literal 1 (int)
+      #|└-multiplicative expr: * (int)
+      #|  ├-int literal 2 (int)
+      #|  └-int literal 3 (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(a = 10)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|assignment expr: = (int)
+      #|├-lvalue: variable a (int)
+      #|└-rvalue: int literal 10 (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(i++, j++)`
+  let rest = next_check_point(rest)
+  let (prim_expr, rest) = ctx.parse_prim_expr(rest)
+  inspect(
+    prim_expr.to_string(color~),
+    content=(
+      #|comma expr: , (int)
+      #|├-[0]: unary operator ++ (int)
+      #|│     └-variable i (int)
+      #|└-[1]: unary operator ++ (int)
+      #|      └-variable j (int)
+    ),
+  )
+  assert_true(prim_expr.ctype == CType::int())
+  assert_true(
+    ctx.parse_prim_expr(prim_expr.tokens) is (re_prim_expr, re_rest) &&
+    re_prim_expr == prim_expr &&
+    re_rest is [],
+  )
+
+  // Error test: missing closing parenthesis
+  let rest = next_check_point(rest)
+  let r = try? ctx.parse_prim_expr(rest)
   assert_true(r is Err(_))
 }
 

@@ -383,6 +383,7 @@ pub enum PrimExprKind {
   Float(Float)
   Double(Double)
   Strings(Array[String])
+  Paren(Expr)
 }
 impl Eq for PrimExprKind
 impl Show for PrimExprKind

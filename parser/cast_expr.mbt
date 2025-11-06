@@ -375,6 +375,7 @@ test "CastExpr Parse Test" {
   let color = false
   let code =
     #|x ; ++y ; *ptr ; -z ; 42 ; 10.0f ; "hello" ; i++ ; --j ;
+    #|(x) ; (42) ; (1 + 2) ; (int)(x) ; (long)(10) ;
     #|&var ; ~flag ; !cond ;
   let ctx = Context::new(code~, source_file="demo")
 
@@ -508,6 +509,75 @@ test "CastExpr Parse Test" {
     content=(
       #|unary operator -- (int)
       #|└-variable j (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_cast_expr(cast_expr.tokens) is (re_cast_expr, re_rest) &&
+    re_cast_expr == cast_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x)` - parenthesized variable
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.to_string(color~), content="variable x (int)")
+  assert_true(
+    ctx.parse_cast_expr(cast_expr.tokens) is (re_cast_expr, re_rest) &&
+    re_cast_expr == cast_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(42)` - parenthesized literal
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(cast_expr.to_string(color~), content="int literal 42 (int)")
+  assert_true(
+    ctx.parse_cast_expr(cast_expr.tokens) is (re_cast_expr, re_rest) &&
+    re_cast_expr == cast_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(1 + 2)` - parenthesized expression
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(
+    cast_expr.to_string(color~),
+    content=(
+      #|additive expr: + (int)
+      #|├-int literal 1 (int)
+      #|└-int literal 2 (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_cast_expr(cast_expr.tokens) is (re_cast_expr, re_rest) &&
+    re_cast_expr == cast_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(int)(x)` - cast with parenthesized variable
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(
+    cast_expr.to_string(color~),
+    content=(
+      #|cast expr: cast to int
+      #|└-variable x (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_cast_expr(cast_expr.tokens) is (re_cast_expr, re_rest) &&
+    re_cast_expr == cast_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(long)(10)` - cast with parenthesized literal
+  let rest = next_check_point(rest)
+  let (cast_expr, rest) = ctx.parse_cast_expr(rest)
+  inspect(
+    cast_expr.to_string(color~),
+    content=(
+      #|cast expr: cast to long
+      #|└-int literal 10 (int)
     ),
   )
   assert_true(

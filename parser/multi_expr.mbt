@@ -252,6 +252,7 @@ test "Multiplicative Expr Parse Test" {
   let color = false
   let code =
     #|x ; x * y ; a / b ; m % n ; x * y / z ; a * b % c ; 
+    #|(x) * (y) ; (a) / (b) ; (m) % (n) ; (x) * y / (z) ;
     #|10 * 2 ; 3.14 / 2.0 ; i * j * k ;
   let ctx = Context::new(code~, source_file="demo")
 
@@ -360,6 +361,76 @@ test "Multiplicative Expr Parse Test" {
       #|│ ├-variable a (int)
       #|│ └-variable b (int)
       #|└-variable c (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_multi_expr(multi_expr.tokens) is (re_multi_expr, re_rest) &&
+    re_multi_expr == multi_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x) * (y)` - multiplication with parenthesized operands
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(
+    multi_expr.to_string(color~),
+    content=(
+      #|multiplicative expr: * (int)
+      #|├-variable x (int)
+      #|└-variable y (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_multi_expr(multi_expr.tokens) is (re_multi_expr, re_rest) &&
+    re_multi_expr == multi_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(a) / (b)` - division with parenthesized operands
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(
+    multi_expr.to_string(color~),
+    content=(
+      #|multiplicative expr: / (int)
+      #|├-variable a (int)
+      #|└-variable b (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_multi_expr(multi_expr.tokens) is (re_multi_expr, re_rest) &&
+    re_multi_expr == multi_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(m) % (n)` - modulo with parenthesized operands
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(
+    multi_expr.to_string(color~),
+    content=(
+      #|multiplicative expr: % (int)
+      #|├-variable m (int)
+      #|└-variable n (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_multi_expr(multi_expr.tokens) is (re_multi_expr, re_rest) &&
+    re_multi_expr == multi_expr &&
+    re_rest is [],
+  )
+
+  // Parse `(x) * y / (z)` - mixed with partial parentheses
+  let rest = next_check_point(rest)
+  let (multi_expr, rest) = ctx.parse_multi_expr(rest)
+  inspect(
+    multi_expr.to_string(color~),
+    content=(
+      #|multiplicative expr: / (int)
+      #|├-multiplicative expr: * (int)
+      #|│ ├-variable x (int)
+      #|│ └-variable y (int)
+      #|└-variable z (int)
     ),
   )
   assert_true(

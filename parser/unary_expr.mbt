@@ -370,6 +370,7 @@ test "Unary Expr Parse Test" {
   let color = false
   let code =
     #|++x ; --y ; *p ; -x ; ~f; !cond ; ++point; --point2;
+    #|++(x) ; --(y) ; *(p) ; -(x) ; ~(f) ; !(cond) ;
     #|~point; !point2;
   let ctx = Context::new(code~, source_file="demo")
 
@@ -398,9 +399,9 @@ test "Unary Expr Parse Test" {
     re_unary_expr == unary_expr &&
     re_rest is [],
   )
-  let rest = skip_semi(rest)
 
   // Parse `--y`
+  let rest = next_check_point(rest)
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
   inspect(
     unary_expr.to_string(color~),
@@ -416,7 +417,7 @@ test "Unary Expr Parse Test" {
   )
 
   // Parse `*p`
-  let rest = skip_semi(rest)
+  let rest = next_check_point(rest)
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
   inspect(
     unary_expr.to_string(color~),
@@ -432,7 +433,7 @@ test "Unary Expr Parse Test" {
   )
 
   // Parse `-x`
-  let rest = skip_semi(rest)
+  let rest = next_check_point(rest)
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
   inspect(
     unary_expr.to_string(color~),
@@ -448,7 +449,7 @@ test "Unary Expr Parse Test" {
   )
 
   // Parse `~f`
-  let rest = skip_semi(rest)
+  let rest = next_check_point(rest)
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
   inspect(
     unary_expr.to_string(color~),
@@ -464,7 +465,7 @@ test "Unary Expr Parse Test" {
   )
 
   // Parse `!cond`
-  let rest = skip_semi(rest)
+  let rest = next_check_point(rest)
   let (unary_expr, rest) = ctx.parse_unary_expr(rest)
   inspect(
     unary_expr.to_string(color~),
@@ -480,20 +481,116 @@ test "Unary Expr Parse Test" {
   )
 
   // Parse `++point` (Should raise error)
-  let rest = skip_semi(rest)
+  let rest = next_check_point(rest)
   assert_true(rest[0].kind is Operator("++"))
   let r = try? ctx.parse_unary_expr(rest)
   assert_true(r is Err(_))
 
-  // adjust rest to skip invalid `++point`
-  let rest = next_check_point(rest)
   // Parse `--point2` (Should raise error)
+  let rest = next_check_point(rest)
   assert_true(rest[0].kind is Operator("--"))
   let r = try? ctx.parse_unary_expr(rest)
   assert_true(r is Err(_))
 
-  // adjust rest to skip invalid `--point2`
+  // Parse `++(x)` - pre-increment with parenthesized variable
   let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator ++ (int)
+      #|└-variable x (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Parse `--(y)` - pre-decrement with parenthesized variable
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator -- (int)
+      #|└-variable y (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Parse `*(p)` - dereference with parenthesized pointer
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator * (int)
+      #|└-variable p (int *)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Parse `-(x)` - negation with parenthesized variable
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator - (int)
+      #|└-variable x (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Parse `~(f)` - bitwise NOT with parenthesized variable
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator ~ (int)
+      #|└-variable f (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Parse `!(cond)` - logical NOT with parenthesized variable
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(
+    unary_expr.to_string(color~),
+    content=(
+      #|unary operator ! (int)
+      #|└-variable cond (int)
+    ),
+  )
+  assert_true(
+    ctx.parse_unary_expr(unary_expr.tokens) is (re_unary_expr, re_rest) &&
+    re_unary_expr == unary_expr &&
+    re_rest is [],
+  )
+
+  // Skip to error tests section
+  let rest = next_check_point(rest)
+
   // Parse `~point` (Should raise error)
   assert_true(rest[0].kind is Operator("~"))
   let r = try? ctx.parse_unary_expr(rest)
