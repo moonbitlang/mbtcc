@@ -345,11 +345,12 @@ pub fn UnaryExpr::eval_as_int(self : Self) -> Int raise ParseError {
 
 ///|
 pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
-  ignore(self)
-  println(
-    "UnaryExpr::is_assignable is not implemented yet, func implemented in: unary_expr.mbt",
-  )
-  panic()
+  match self.kind {
+    PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
+    Deref(_) => !self.ctype.is_const
+    PreInc(_) | PreDec(_) | AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) =>
+      false
+  }
 }
 
 ///|

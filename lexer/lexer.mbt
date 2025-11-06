@@ -84,13 +84,13 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
         [] => break
       }
     [.. "<<=", .. rest] => {
-      tokens.push(Token::new(Operator("<<="), line, col, idx, "<<="))
+      tokens.push(Token::new(AssignOp("<<="), line, col, idx, "<<="))
       idx += 3
       col += 3
       continue rest
     }
     [.. ">>=", .. rest] => {
-      tokens.push(Token::new(Operator(">>="), line, col, idx, ">>="))
+      tokens.push(Token::new(AssignOp(">>="), line, col, idx, ">>="))
       idx += 3
       col += 3
       continue rest
@@ -348,7 +348,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['=', .. rest] => {
-      tokens.push(Token::new(Operator("="), line, col, idx, "="))
+      tokens.push(Token::new(AssignOp("="), line, col, idx, "="))
       idx += 1
       col += 1
       continue rest

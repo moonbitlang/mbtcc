@@ -82,6 +82,7 @@ pub enum TokenKind {
   Keyword(Keyword)
   Bracket(Char)
   Operator(String)
+  AssignOp(String)
   Comma
   Dot
   Arrow

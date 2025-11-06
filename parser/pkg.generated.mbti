@@ -60,7 +60,9 @@ pub struct AssignExpr {
 }
 fn AssignExpr::eval_as_int(Self) -> Int raise ParseError
 fn AssignExpr::is_constant(Self) -> Bool
+fn AssignExpr::to_string(Self, color? : Bool) -> String
 impl Eq for AssignExpr
+impl Show for AssignExpr
 
 pub enum AssignExprKind {
   Conditional(ConditionalExpr)
@@ -164,7 +166,9 @@ pub struct ConditionalExpr {
 }
 fn ConditionalExpr::eval_as_int(Self) -> Int raise ParseError
 fn ConditionalExpr::is_constant(Self) -> Bool
+fn ConditionalExpr::to_string(Self, color? : Bool) -> String
 impl Eq for ConditionalExpr
+impl Show for ConditionalExpr
 
 pub enum ConditionalExprKind {
   LogicalOrExpr(LogicalOrExpr)
@@ -191,12 +195,14 @@ fn Context::is_var_name(Self, String) -> Bool
 fn Context::new(code~ : String, source_file? : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_assign_expr(Self, ArrayView[@lexer.Token]) -> (AssignExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_conditional_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
 #alias(parse_type_name)
 fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_expr(Self, ArrayView[@lexer.Token]) -> (Expr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_and_expr(Self, ArrayView[@lexer.Token]) -> (LogicalAndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_or_expr(Self, ArrayView[@lexer.Token]) -> (LogicalOrExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -244,11 +250,14 @@ impl Eq for ExclusiveOrExprKind
 
 pub struct Expr {
   assign_exprs : Array[AssignExpr]
+  ctype : CType
   tokens : ArrayView[@lexer.Token]
 }
 fn Expr::eval_as_int(Self) -> Int raise ParseError
 fn Expr::is_constant(Self) -> Bool
+fn Expr::to_string(Self, color? : Bool) -> String
 impl Eq for Expr
+impl Show for Expr
 
 pub struct InclusiveOrExpr {
   kind : InclusiveOrExprKind
@@ -326,6 +335,7 @@ pub struct PostfixExpr {
   tokens : ArrayView[@lexer.Token]
 }
 fn PostfixExpr::eval_as_int(Self) -> Int raise ParseError
+fn PostfixExpr::is_assignable(Self) -> Bool
 fn PostfixExpr::is_constant(Self) -> Bool
 fn PostfixExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PostfixExpr
@@ -346,6 +356,7 @@ pub struct PrimExpr {
   tokens : ArrayView[@lexer.Token]
 }
 fn PrimExpr::eval_as_int(Self) -> Int raise ParseError
+fn PrimExpr::is_assignable(Self) -> Bool
 fn PrimExpr::is_constant(Self) -> Bool
 fn PrimExpr::to_string(Self, color? : Bool) -> String
 impl Eq for PrimExpr
@@ -411,6 +422,7 @@ pub struct UnaryExpr {
   tokens : ArrayView[@lexer.Token]
 }
 fn UnaryExpr::eval_as_int(Self) -> Int raise ParseError
+fn UnaryExpr::is_assignable(Self) -> Bool
 fn UnaryExpr::is_constant(Self) -> Bool
 fn UnaryExpr::to_string(Self, color? : Bool) -> String
 impl Eq for UnaryExpr
