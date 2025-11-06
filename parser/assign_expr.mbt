@@ -188,13 +188,13 @@ pub fn Context::parse_assign_expr(
     e.kind is ShiftExpr(e) &&
     e.kind is AddiExpr(e) &&
     e.kind is MultiExpr(e) &&
-    e.kind is CastExpr(e) else {
+    e.kind is CastExpr(e) &&
+    e.kind is UnaryExpr(unary_expr) else {
     raise ParseError(
       rest[0],
       "Left-hand side of assignment must be a modifiable lvalue",
     )
   }
-  let unary_expr = e.unary_expr
   guard unary_expr.is_assignable() else {
     raise ParseError(
       tok, "Left-hand side of assignment must be a modifiable lvalue",
@@ -419,11 +419,14 @@ test "Assign Expr Parse Test" {
   // Parse `m <<= 1`
   let rest = next_check_point(rest)
   let (assign_expr, rest) = ctx.parse_assign_expr(rest)
-  inspect(assign_expr.to_string(color~), content=(
-    #|assignment expr: <<= (int)
-    #|├-lvalue: variable m (int)
-    #|└-rvalue: int literal 1 (int)
-  ))
+  inspect(
+    assign_expr.to_string(color~),
+    content=(
+      #|assignment expr: <<= (int)
+      #|├-lvalue: variable m (int)
+      #|└-rvalue: int literal 1 (int)
+    ),
+  )
   assert_true(
     ctx.parse_assign_expr(assign_expr.tokens) is (re_assign_expr, re_rest) &&
     re_assign_expr == assign_expr &&
@@ -433,11 +436,14 @@ test "Assign Expr Parse Test" {
   // Parse `n >>= 2`
   let rest = next_check_point(rest)
   let (assign_expr, rest) = ctx.parse_assign_expr(rest)
-  inspect(assign_expr.to_string(color~), content=(
-    #|assignment expr: >>= (int)
-    #|├-lvalue: variable n (int)
-    #|└-rvalue: int literal 2 (int)
-  ))
+  inspect(
+    assign_expr.to_string(color~),
+    content=(
+      #|assignment expr: >>= (int)
+      #|├-lvalue: variable n (int)
+      #|└-rvalue: int literal 2 (int)
+    ),
+  )
   assert_true(
     ctx.parse_assign_expr(assign_expr.tokens) is (re_assign_expr, re_rest) &&
     re_assign_expr == assign_expr &&

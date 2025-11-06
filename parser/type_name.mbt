@@ -1,4 +1,82 @@
 ///|
+/// Parse a type name from the given tokens.
+///
+/// Type names are used in cast expressions, sizeof/alignof expressions,
+/// and other contexts where a type is specified without a variable name.
+///
+/// Returns a tuple containing the parsed CType and the remaining tokens.
+///
+/// ## Example Parse:
+///
+/// ```c
+/// int                     // Basic integer type
+/// const int               // Const qualified integer
+/// unsigned long           // Unsigned long type
+/// int *                   // Pointer to int
+/// const int *             // Pointer to const int
+/// int * const             // Const pointer to int
+/// int **                  // Pointer to pointer to int
+/// int [10]                // Array (treated as pointer)
+/// int [static 10]         // Static array of 10 integers
+/// const int [static 5]    // Static array of const integers
+/// ```
+///
+/// ## Example Usage
+///
+/// ```mbt
+/// let code = "int *"
+/// let ctx = Context::new(code~, source_file="demo")
+/// let (ctype, rest) = ctx.parse_type_name(ctx.tokens)
+/// inspect(
+///   ctype,
+///   content="int *"
+/// )
+/// assert_true(rest is [{ kind: EOF, ..}])
+/// ```
+///
+/// ## Raises
+///
+/// Parser will raise ParseError if:
+///
+/// 1. No type specifier is found.
+///
+///    e.g.,
+///    
+///    ```c
+///    *      // missing type specifier before '*'
+///    ```
+///
+/// 2. Duplicate type qualifiers are specified.
+///
+///    e.g.,
+///
+///    ```c
+///    const const int    // duplicate 'const' qualifier
+///    ```
+///
+/// 3. Conflicting type specifiers.
+///
+///    e.g.,
+///
+///    ```c
+///    signed unsigned int    // conflicting signed/unsigned
+///    ```
+///
+/// 4. Function type abstract declarators (not yet implemented).
+///
+///    e.g.,
+///
+///    ```c
+///    int (int, int)    // function type not supported yet
+///    ```
+///
+/// 5. Struct/union/enum types (not yet implemented).
+///
+///    e.g.,
+///
+///    ```c
+///    struct Point    // struct not supported yet
+///    ```
 #alias(parse_type_name)
 pub fn Context::parse_ctype(
   self : Context,
@@ -325,12 +403,29 @@ fn Context::parse_type_spec_qual_list(
       raise ParseError(tok, "enum type specifier not implemented yet")
     tokens => break tokens
   }
-  let dataKind = match data_ty {
+  let base_kind = match data_ty {
     Some(ty) => ty
-    None => {
-      let msg = "Expected type specifier but found none"
-      raise ParseError(tokens[0], msg)
+    None =>
+      // If no explicit type, default to 'int' only if unsigned/signed is specified
+      if is_unsigned || is_signed {
+        Int
+      } else {
+        let msg = "Expected type specifier but found none"
+        raise ParseError(tokens[0], msg)
+      }
+  }
+  // Apply unsigned/signed modifier
+  let dataKind = if is_unsigned {
+    match base_kind {
+      Char => UChar
+      Int16 => UInt16
+      Int => UInt
+      Long => ULong
+      LongLong => ULongLong
+      _ => base_kind
     }
+  } else {
+    base_kind
   }
   let tokens = init_tokens[0:rest.start_offset() - start_offset]
   let ctype = CType::{
@@ -345,19 +440,15 @@ fn Context::parse_type_spec_qual_list(
 }
 
 ///|
-///
-///
-/// AI: Delete the notations after finishing the tests.
-///
-/// only test ctype without `*`, need more tests
 test "Basic TypeName Parse Test" {
   let code =
-    #|int ; const int ;
+    #|int ; const int ; unsigned long ; volatile char ;
+    #|long long ; short ; unsigned int ; const volatile int ;
   let ctx = Context::new(code~, source_file="demo")
 
   // Setup typenames
   let ctype_int = CType::int()
-  ctx..add_typedef("MyInt", ctype_int)
+  ctx.add_typedef("MyInt", ctype_int)
 
   // Parse `int`
   let (ty, rest) = ctx.parse_type_name(ctx.tokens)
@@ -370,52 +461,290 @@ test "Basic TypeName Parse Test" {
 
   // Parse `const int`
   let rest = next_check_point(rest)
-  let (ty2, rest2) = ctx.parse_type_name(rest)
-  inspect(ty2, content="const int")
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int")
   assert_true(
-    ctx.parse_type_name(ty2.tokens) is (re_ty2, re_rest2) &&
-    re_ty2 == ty2 &&
-    re_rest2 is [],
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `unsigned long`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="unsigned long")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `volatile char`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="volatile char")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `long long`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="long long")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `short`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="short")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `unsigned int`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="unsigned int")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const volatile int`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const volatile int")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
   )
 
   // rest must be `[EOF]`
-  let rest = next_check_point(rest2)
+  let rest = next_check_point(rest)
   assert_true(rest is [{ kind: EOF, .. }])
 }
 
 ///|
 test "Basic TypeName Parse Error Test" {
+  // Error test: duplicate const qualifier
+  let code_err1 = "const const int"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_type_name(ctx_err1.tokens)
+  assert_true(r is Err(_))
 
+  // Error test: conflicting signed/unsigned specifiers
+  let code_err2 = "signed unsigned int"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate volatile qualifier
+  let code_err3 = "volatile volatile int"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: no type specifier
+  let code_err4 = "const"
+  let ctx_err4 = Context::new(code=code_err4)
+  let r = try? ctx_err4.parse_type_name(ctx_err4.tokens)
+  assert_true(r is Err(_))
 }
 
 ///|
-///
-/// AI: Delete the notations after finishing the tests.
-///
-/// test typename with pointer `*`
-/// e.g. `int *`, `const int *`, `int **`, `const int * const * volatile`
 test "Pointer Type TypeName Parse Test" {
+  let code =
+    #|int * ; const int * ; int ** ; int * const ;
+    #|const int * const ; int * volatile ; const int * const * volatile ;
+  let ctx = Context::new(code~, source_file="demo")
 
+  // Parse `int *`
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const int *`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `int **`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int * *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `int * const`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int * const")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const int * const`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int * const")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `int * volatile`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int * volatile")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const int * const * volatile`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int * const * volatile")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // rest must be `[EOF]`
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
 }
 
 ///|
 test "Pointer Type TypeName Parse Error Test" {
+  // Error test: duplicate const qualifier on pointer
+  let code_err1 = "int * const const"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_type_name(ctx_err1.tokens)
+  assert_true(r is Err(_))
 
+  // Error test: duplicate volatile qualifier on pointer
+  let code_err2 = "int * volatile volatile"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
 }
 
 ///|
-///
-/// AI: Delete the notations after finishing the tests.
-///
-/// test typename with `[]`
-/// e.g. `int []`, `const int [5]`, `int [static 10]`, `const int [static 20]`
-///
-/// note: `int[]` => `int *`, only `int [static N]` is array type
 test "Array Type TypeName Parse Test" {
+  let code =
+    #|int [] ; const int [5] ; int [static 10] ; const int [static 20] ;
+    #|int [static 100] ; volatile int [] ;
+  let ctx = Context::new(code~, source_file="demo")
 
+  // Parse `int []` => `int *`
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const int [5]` => `const int *`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `int [static 10]` => `int[static 10]`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int[static 10]")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `const int [static 20]` => `const int[static 20]`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="const int[static 20]")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `int [static 100]`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int[static 100]")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `volatile int []` => `volatile int *`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="volatile int *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // rest must be `[EOF]`
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
 }
 
 ///|
 test "Array Type TypeName Parse Error Test" {
+  // Error test: static array without size
+  let code_err1 = "int [static]"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_type_name(ctx_err1.tokens)
+  assert_true(r is Err(_))
 
+  // Error test: duplicate static keyword
+  let code_err2 = "int [static static 10]"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate const in array declarator
+  let code_err3 = "int [const const 10]"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
 }

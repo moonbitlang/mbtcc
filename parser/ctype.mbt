@@ -1,5 +1,41 @@
 ///|
 ///
+/// CType: C Type System
+///
+/// CType represents C language types including basic types, qualifiers,
+/// pointers, arrays, structs, unions, and enums.
+///
+/// ## Examples
+///
+/// ```c
+/// int                    // Basic integer type
+/// const int              // Const qualified integer
+/// int *                  // Pointer to int
+/// const int *            // Pointer to const int
+/// int * const            // Const pointer to int
+/// volatile int           // Volatile integer
+/// int [static 10]        // Static array of 10 integers
+/// struct Point           // Struct type
+/// ```
+///
+/// ## Type Qualifiers
+///
+/// - `const`: The value cannot be modified
+/// - `volatile`: The value may change unexpectedly
+/// - `restrict`: Pointer aliasing optimization hint
+/// - `_Atomic`: Atomic type specifier
+///
+/// ## Parse Function
+///
+/// ```mbt skip
+/// fn Context::parse_ctype(
+///   self: Context,
+///   tokens: ArrayView[Token]
+/// ) -> (CType, ArrayView[Token]) raise ParseError
+/// ```
+///
+/// ## Note
+///
 /// if tokens is empty (aka, []), it means it didn't come from 
 /// source code.
 #alias(TypeName)

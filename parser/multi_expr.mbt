@@ -148,16 +148,16 @@ pub fn Context::parse_multi_expr(
   let (first_cast_expr, rest) = self.parse_cast_expr(tokens)
   let mut multi_expr = MultiExpr::{
     kind: CastExpr(first_cast_expr),
-    ctype: first_cast_expr.cast_to,
+    ctype: first_cast_expr.ctype,
     tokens: first_cast_expr.tokens,
   }
   let rest = loop rest {
     [{ kind: Operator("*"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.ctype) {
         Some(common) => common
         None => {
-          let msg = "Invalid operands to '*': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          let msg = "Invalid operands to '*': '\{multi_expr.ctype}' and '\{right_cast_expr.ctype}'"
           raise ParseError(op_tok, msg)
         }
       }
@@ -170,10 +170,10 @@ pub fn Context::parse_multi_expr(
     }
     [{ kind: Operator("/"), .. } as op_tok, .. rest] => {
       let (right_cast_expr, rest) = self.parse_cast_expr(rest)
-      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.ctype) {
         Some(common) => common
         None => {
-          let msg = "Invalid operands to '/': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          let msg = "Invalid operands to '/': '\{multi_expr.ctype}' and '\{right_cast_expr.ctype}'"
           raise ParseError(op_tok, msg)
         }
       }
@@ -190,14 +190,14 @@ pub fn Context::parse_multi_expr(
         let msg = "Invalid operands to '%': left operand '\{multi_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
-      if !right_cast_expr.cast_to.is_integral() {
-        let msg = "Invalid operands to '%': right operand '\{right_cast_expr.cast_to}' is not an integer type"
+      if !right_cast_expr.ctype.is_integral() {
+        let msg = "Invalid operands to '%': right operand '\{right_cast_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
-      let ctype = match multi_expr.ctype.common_type(right_cast_expr.cast_to) {
+      let ctype = match multi_expr.ctype.common_type(right_cast_expr.ctype) {
         Some(common) => common
         None => {
-          let msg = "Invalid operands to '%': '\{multi_expr.ctype}' and '\{right_cast_expr.cast_to}'"
+          let msg = "Invalid operands to '%': '\{multi_expr.ctype}' and '\{right_cast_expr.ctype}'"
           raise ParseError(op_tok, msg)
         }
       }

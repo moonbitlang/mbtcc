@@ -33,16 +33,14 @@
 /// ) -> (CastExpr, ArrayView[Token]) raise ParseError
 /// ```
 pub struct CastExpr {
-  unary_expr : UnaryExpr
-  // if no `(typename)` cast
-  // set `cst_to` is same as `unary_expr.ctype`
-  cast_to : CType
+  kind : CastExprKind
+  ctype : CType
   tokens : ArrayView[Token]
 }
 
 ///|
 pub impl Eq for CastExpr with equal(self, other) {
-  self.unary_expr == other.unary_expr && self.cast_to == other.cast_to
+  self.kind == other.kind
 }
 
 ///|
@@ -57,16 +55,18 @@ pub impl Show for CastExpr with output(self, logger) {
 /// cast expr: cast to \{cast_to}
 /// `\{unary_expr}
 pub fn CastExpr::to_string(self : Self, color? : Bool = true) -> String {
-  if self.cast_to == self.unary_expr.ctype {
-    return self.unary_expr.to_string(color~)
+  match self.kind {
+    UnaryExpr(unary_expr) => unary_expr.to_string(color~)
+    CastTo(ctype, cast_expr) => {
+      let prefix = if color {
+        @color.taint("cast expr: cast to \{ctype}", Magenta)
+      } else {
+        "cast expr: cast to \{ctype}"
+      }
+      let s = cast_expr.to_string(color~)
+      "\{prefix}\n" + "└-\{s}"
+    }
   }
-  let prefix = if color {
-    @color.taint("cast expr: cast to \{self.cast_to}", Magenta)
-  } else {
-    "cast expr: cast to \{self.cast_to}"
-  }
-  let s = self.unary_expr.to_string(color~)
-  "\{prefix}\n" + "└-\{s}"
 }
 
 ///|
@@ -123,32 +123,53 @@ pub fn Context::parse_cast_expr(
   let init_toks = tokens
   let start_offset = tokens.start_offset()
   match tokens {
-    [{ kind: Bracket('('), .. }, tok, ..] if self.is_keyword_or_type_name(tok) =>
-      //TODO: Skip for we didn't implement type_name parser yet
-      // Call parse_cast_expr recursively, so it will return
-      ...
+    [{ kind: Bracket('('), .. }, tok, ..] if self.is_keyword_or_type_name(tok) => {
+      let (ctype, rest) = self.parse_type_name(tokens[1:])
+      guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
+        let msg = "Expected ')' after type name in cast expression"
+        raise ParseError(rest[0], msg)
+      }
+      let (cast_expr, rest) = self.parse_cast_expr(rest)
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let cast_expr = CastExpr::{
+        kind: CastTo(ctype, cast_expr),
+        ctype,
+        tokens,
+      }
+      return (cast_expr, rest)
+    }
     _ => ()
   }
   let (unary_expr, rest) = self.parse_unary_expr(tokens)
   let tokens = init_toks[0:rest.start_offset() - start_offset]
-  let cast_to = unary_expr.ctype
-  let cast_expr = CastExpr::{ unary_expr, cast_to, tokens }
+  let cast_expr = CastExpr::{
+    kind: UnaryExpr(unary_expr),
+    ctype: unary_expr.ctype,
+    tokens,
+  }
   (cast_expr, rest)
 }
 
 ///|
+pub enum CastExprKind {
+  UnaryExpr(UnaryExpr)
+  CastTo(CType, CastExpr)
+} derive(Eq)
+
+///|
 pub fn CastExpr::is_constant(self : Self) -> Bool {
-  self.unary_expr.is_constant()
+  match self.kind {
+    UnaryExpr(unary_expr) => unary_expr.is_constant()
+    CastTo(_, cast_expr) => cast_expr.is_constant()
+  }
 }
 
 ///|
 pub fn CastExpr::eval_as_int(self : Self) -> Int raise ParseError {
-  if !(self.cast_to.dataKind
-    is (Int | UInt | Long | ULong | LongLong | ULongLong)) {
-    let msg = "Cannot evaluate CastExpr as int: cast_to type is not integer"
-    raise ParseError(self.tokens[0], msg)
+  match self.kind {
+    UnaryExpr(unary_expr) => unary_expr.eval_as_int()
+    CastTo(_) => raise ParseError(self.tokens[0], "CastTo not implemented yet")
   }
-  self.unary_expr.eval_as_int()
 }
 
 ///|
