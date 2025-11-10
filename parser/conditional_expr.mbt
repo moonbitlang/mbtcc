@@ -30,6 +30,7 @@
 ///   tokens: ArrayView[Token]
 /// ) -> (ConditionalExpr, ArrayView[Token]) raise ParseError
 /// ```
+#alias(ConstantExpr)
 pub struct ConditionalExpr {
   kind : ConditionalExprKind
   ctype : CType
@@ -85,6 +86,7 @@ pub fn ConditionalExpr::to_string(self : Self, color? : Bool = true) -> String {
 }
 
 ///|
+#alias(ConstantExprKind)
 pub enum ConditionalExprKind {
   LogicalOrExpr(LogicalOrExpr)
   ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)

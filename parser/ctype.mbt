@@ -163,7 +163,7 @@ pub(all) enum CTypeDataKind {
   Enum(String, Array[String])
   Ptr(CType)
   Array(CType, Int)
-  Function(Array[CType], CType, is_variadic~:Bool)
+  Function(Array[(CType, String)], CType, is_variadic~:Bool)
 } derive(Eq)
 
 ///|
@@ -227,11 +227,16 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     Function(param_types, ret_ty, is_variadic~) => {
       let sb = StringBuilder::new()
       sb.write_string("\{ret_ty} (")
-      for i, param_ty in param_types {
+      for i, param in param_types {
+        let (param_ty, param_name) = param
         if i > 0 {
           sb.write_string(", ")
         }
-        sb.write_string("\{param_ty}")
+        if param_name != "" {
+          sb.write_string("\{param_ty} \{param_name}")
+        } else {
+          sb.write_string("\{param_ty}")
+        }
       }
       if is_variadic {
         if param_types.length() > 0 {

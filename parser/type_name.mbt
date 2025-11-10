@@ -173,16 +173,16 @@ fn Context::parse_abstract_declarator(
         "Expected ')' to close abstract declarator",
       )
     }
-    let (new_base_ty, rest) = self.parse_direct_abstract_declarator(rest, ty, init_tokens)
+    let (new_base_ty, rest) = self.parse_type_suffix(rest, ty, init_tokens)
     let (ctype, _) = self.parse_abstract_declarator(rest2, new_base_ty, init_tokens)
     return (ctype, rest)
   }
 
-  self.parse_direct_abstract_declarator(rest, ty, init_tokens)
+  self.parse_type_suffix(rest, ty, init_tokens)
 }
 
 ///|
-fn Context::parse_direct_abstract_declarator(
+fn Context::parse_type_suffix(
   self : Context,
   tokens : ArrayView[Token],
   base_ty : CType,
