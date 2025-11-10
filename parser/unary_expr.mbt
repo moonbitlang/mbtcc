@@ -84,43 +84,71 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     PreInc(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     PreDec(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     AddrOf(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     Deref(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     Negate(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     BitNot(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     LogicalNot(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
   }

@@ -65,7 +65,11 @@ pub fn CastExpr::to_string(self : Self, color? : Bool = true) -> String {
       }
       let s = cast_expr.to_string(color~)
       let lines = s.split("\n")
-      let lines_formatted = format_lines(lines, head_with="└-", continue_with="   ")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
       "\{prefix}\n" + "\{lines_formatted}"
     }
   }

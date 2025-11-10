@@ -163,7 +163,7 @@ pub(all) enum CTypeDataKind {
   Enum(String, Array[String])
   Ptr(CType)
   Array(CType, Int)
-  Function(Array[(CType, String)], CType, is_variadic~:Bool)
+  Function(Array[(CType, String)], CType, is_variadic~ : Bool)
 } derive(Eq)
 
 ///|

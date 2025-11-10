@@ -144,6 +144,7 @@ pub(all) enum CTypeDataKind {
   Enum(String, Array[String])
   Ptr(CType)
   Array(CType, Int)
+  Function(Array[(CType, String)], CType, is_variadic~ : Bool)
 }
 impl Eq for CTypeDataKind
 impl Show for CTypeDataKind
@@ -166,6 +167,7 @@ pub enum CastExprKind {
 }
 impl Eq for CastExprKind
 
+#alias(ConstantExpr)
 pub struct ConditionalExpr {
   kind : ConditionalExprKind
   ctype : CType
@@ -177,6 +179,7 @@ fn ConditionalExpr::to_string(Self, color? : Bool) -> String
 impl Eq for ConditionalExpr
 impl Show for ConditionalExpr
 
+#alias(ConstantExprKind)
 pub enum ConditionalExprKind {
   LogicalOrExpr(LogicalOrExpr)
   ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)
@@ -207,10 +210,14 @@ fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayVi
 fn Context::parse_conditional_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
 #alias(parse_type_name)
 fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_declaration(Self, ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_declarator(Self, CType, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_expr(Self, ArrayView[@lexer.Token]) -> (Expr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_init_declarator_list(Self, CType, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_initializer(Self, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (Initializer, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_and_expr(Self, ArrayView[@lexer.Token]) -> (LogicalAndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_or_expr(Self, ArrayView[@lexer.Token]) -> (LogicalOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_multi_expr(Self, ArrayView[@lexer.Token]) -> (MultiExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -219,6 +226,28 @@ fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayVi
 fn Context::parse_relational_expr(Self, ArrayView[@lexer.Token]) -> (RelationalExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_shift_expr(Self, ArrayView[@lexer.Token]) -> (ShiftExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_unary_expr(Self, ArrayView[@lexer.Token]) -> (UnaryExpr, ArrayView[@lexer.Token]) raise ParseError
+
+pub struct Declaration {
+  kind : DeclarationKind
+  tokens : ArrayView[@lexer.Token]
+}
+fn Declaration::to_string(Self, color? : Bool) -> String
+impl Eq for Declaration
+
+pub enum DeclarationKind {
+  TypeDeclaration(CType)
+  TypeDef(CType, String)
+  VariableDeclaration(CType, String, Initializer?)
+}
+impl Eq for DeclarationKind
+
+pub(all) enum Designator {
+  Field(String)
+  Index(ConditionalExpr)
+  DesignatorList(Array[Designator])
+}
+impl Eq for Designator
+impl Show for Designator
 
 pub struct EqualityExpr {
   kind : EqualityExprKind
@@ -282,6 +311,21 @@ pub enum InclusiveOrExprKind {
   InclusiveOrExpr(InclusiveOrExpr, ExclusiveOrExpr)
 }
 impl Eq for InclusiveOrExprKind
+
+pub(all) struct Initializer {
+  kind : InitializerKind
+  tokens : ArrayView[@lexer.Token]
+}
+impl Eq for Initializer
+impl Show for Initializer
+
+pub(all) enum InitializerKind {
+  AssignExpr(AssignExpr)
+  Designation(Designator, AssignExpr)
+  InitializerList(Array[Initializer])
+}
+impl Eq for InitializerKind
+impl Show for InitializerKind
 
 pub struct LogicalAndExpr {
   kind : LogicalAndExprKind

@@ -86,11 +86,12 @@ pub fn Context::parse_ctype(
   self.parse_abstract_declarator(rest, base_ty, tokens)
 }
 
+///|
 fn Context::parse_pointers(
-  _: Context,
-  tokens: ArrayView[Token],
-  base_ty: CType,
-  init_tokens: ArrayView[Token],
+  _ : Context,
+  tokens : ArrayView[Token],
+  base_ty : CType,
+  init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
   let start_offset = init_tokens.start_offset()
   let mut is_const = base_ty.is_const
@@ -164,20 +165,20 @@ fn Context::parse_abstract_declarator(
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
-  if rest is [{ kind: Bracket('('), ..}, ..rest2] {
+  if rest is [{ kind: Bracket('('), .. }, .. rest2] {
     let dummy_base_ty = CType::void_()
-    let (_, rest) = self.parse_abstract_declarator(rest2, dummy_base_ty, init_tokens)
-    guard rest is [{ kind: Bracket(')'), ..}, ..rest] else {
-      raise ParseError(
-        rest[0],
-        "Expected ')' to close abstract declarator",
-      )
+    let (_, rest) = self.parse_abstract_declarator(
+      rest2, dummy_base_ty, init_tokens,
+    )
+    guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
+      raise ParseError(rest[0], "Expected ')' to close abstract declarator")
     }
     let (new_base_ty, rest) = self.parse_type_suffix(rest, ty, init_tokens)
-    let (ctype, _) = self.parse_abstract_declarator(rest2, new_base_ty, init_tokens)
+    let (ctype, _) = self.parse_abstract_declarator(
+      rest2, new_base_ty, init_tokens,
+    )
     return (ctype, rest)
   }
-
   self.parse_type_suffix(rest, ty, init_tokens)
 }
 
@@ -188,15 +189,12 @@ fn Context::parse_type_suffix(
   base_ty : CType,
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
-
   match tokens {
     [{ kind: Bracket('['), .. }, ..] =>
       self.parse_array_abstract_declarator(tokens, base_ty, init_tokens)
     [{ kind: Bracket('('), .. }, ..] =>
       self.parse_function_abstract_declarator(tokens, base_ty, init_tokens)
-    tokens => {
-      (base_ty, tokens)
-    }
+    tokens => (base_ty, tokens)
   }
 }
 
