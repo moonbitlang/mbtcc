@@ -163,6 +163,7 @@ pub(all) enum CTypeDataKind {
   Enum(String, Array[String])
   Ptr(CType)
   Array(CType, Int)
+  Function(Array[CType], CType, is_variadic~:Bool)
 } derive(Eq)
 
 ///|
@@ -223,6 +224,24 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     Enum(name, _) => "enum \{name}"
     Ptr(inner_ctype) => "\{inner_ctype} *"
     Array(inner_ctype, size) => "\{inner_ctype}[static \{size}]"
+    Function(param_types, ret_ty, is_variadic~) => {
+      let sb = StringBuilder::new()
+      sb.write_string("\{ret_ty} (")
+      for i, param_ty in param_types {
+        if i > 0 {
+          sb.write_string(", ")
+        }
+        sb.write_string("\{param_ty}")
+      }
+      if is_variadic {
+        if param_types.length() > 0 {
+          sb.write_string(", ")
+        }
+        sb.write_string("...")
+      }
+      sb.write_string(")")
+      sb.to_string()
+    }
   }
   logger.write_string(s)
 }
@@ -459,6 +478,7 @@ pub fn CType::is_scalar(self : CType) -> Bool {
     Union(_, _) => false
     Enum(_, _) => false
     Array(_, _) => false
+    Function(_) => false
   }
 }
 

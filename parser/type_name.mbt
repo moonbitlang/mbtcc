@@ -82,35 +82,22 @@ pub fn Context::parse_ctype(
   self : Context,
   tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
-  let (base_ty, rest) = self.parse_type_spec_qual_list(tokens)
-  if rest is [{ kind: Bracket('[' | '(') | Operator("*"), .. }, ..] {
-    return self.parse_abstract_declarator(rest, base_ty, tokens)
-  }
-  (base_ty, rest)
+  let (base_ty, rest) = self.parse_decl_spec(tokens)
+  self.parse_abstract_declarator(rest, base_ty, tokens)
 }
 
-///|
-fn Context::parse_abstract_declarator(
-  self : Self,
-  tokens : ArrayView[Token],
-  base_ty : CType,
-  init_tokens : ArrayView[Token],
+fn Context::parse_pointers(
+  _: Context,
+  tokens: ArrayView[Token],
+  base_ty: CType,
+  init_tokens: ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
-  let { dataKind, is_const, is_volatile, is_restrict, is_atomic, .. } = base_ty
   let start_offset = init_tokens.start_offset()
-  let mut is_const = is_const
-  let mut is_volatile = is_volatile
-  let mut is_restrict = is_restrict
-  let mut is_atomic = is_atomic
-  let mut dataKind = dataKind
-  fn reset_type_quals() {
-    is_const = false
-    is_volatile = false
-    is_restrict = false
-    is_atomic = false
-  }
-
-  // Parse Pointer
+  let mut is_const = base_ty.is_const
+  let mut is_volatile = base_ty.is_volatile
+  let mut is_restrict = base_ty.is_restrict
+  let mut is_atomic = base_ty.is_atomic
+  let mut dataKind = base_ty.dataKind
   let rest = loop tokens {
     [{ kind: Operator("*"), .. }, .. rest] => {
       let ctype = CType::{
@@ -121,7 +108,10 @@ fn Context::parse_abstract_declarator(
         is_atomic,
         tokens: init_tokens[0:rest.start_offset() - start_offset],
       }
-      reset_type_quals()
+      is_const = false
+      is_volatile = false
+      is_restrict = false
+      is_atomic = false
       dataKind = Ptr(ctype)
       continue rest
     }
@@ -163,11 +153,32 @@ fn Context::parse_abstract_declarator(
     is_atomic,
     tokens: init_tokens[0:rest.start_offset() - start_offset],
   }
-  if rest is [{ kind: Bracket('[' | '('), .. }, ..] {
-    self.parse_direct_abstract_declarator(rest, ctype, init_tokens)
-  } else {
-    (ctype, rest)
+  (ctype, rest)
+}
+
+///|
+fn Context::parse_abstract_declarator(
+  self : Self,
+  tokens : ArrayView[Token],
+  base_ty : CType,
+  init_tokens : ArrayView[Token],
+) -> (CType, ArrayView[Token]) raise ParseError {
+  let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
+  if rest is [{ kind: Bracket('('), ..}, ..rest2] {
+    let dummy_base_ty = CType::void_()
+    let (_, rest) = self.parse_abstract_declarator(rest2, dummy_base_ty, init_tokens)
+    guard rest is [{ kind: Bracket(')'), ..}, ..rest] else {
+      raise ParseError(
+        rest[0],
+        "Expected ')' to close abstract declarator",
+      )
+    }
+    let (new_base_ty, rest) = self.parse_direct_abstract_declarator(rest, ty, init_tokens)
+    let (ctype, _) = self.parse_abstract_declarator(rest2, new_base_ty, init_tokens)
+    return (ctype, rest)
   }
+
+  self.parse_direct_abstract_declarator(rest, ty, init_tokens)
 }
 
 ///|
@@ -177,13 +188,15 @@ fn Context::parse_direct_abstract_declarator(
   base_ty : CType,
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
+
   match tokens {
     [{ kind: Bracket('['), .. }, ..] =>
       self.parse_array_abstract_declarator(tokens, base_ty, init_tokens)
     [{ kind: Bracket('('), .. }, ..] =>
       self.parse_function_abstract_declarator(tokens, base_ty, init_tokens)
-    tokens =>
-      raise ParseError(tokens[0], "Expected '[' or '(' in abstract declarator")
+    tokens => {
+      (base_ty, tokens)
+    }
   }
 }
 
@@ -302,7 +315,7 @@ fn Context::parse_function_abstract_declarator(
 }
 
 ///|
-fn Context::parse_type_spec_qual_list(
+fn Context::parse_decl_spec(
   self : Self,
   tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
