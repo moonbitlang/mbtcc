@@ -241,3 +241,72 @@ pub fn Context::parse_initializer(
   ignore(init_tokens)
   raise ParseError(tokens[0], "initializer parsing not implemented yet")
 }
+
+///|
+test "Normal Declaration Parsing Test" {
+  let color = false
+  let code = 
+    #|int x; int* y; const int z; const double**p; float a, *b, c;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // Parse `int x;`
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(
+    decl.to_string(color~),
+    content="variable declaration: int x",
+  )
+
+  // Parse `int* y;`
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(
+    decl.to_string(color~),
+    content="variable declaration: int * y",
+  )
+
+  // Parse `const int z;`
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(
+    decl.to_string(color~),
+    content="variable declaration: const int z",
+  )
+
+  // Parse `const double**p;`
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(
+    decl.to_string(color~),
+    content="variable declaration: const double * * p",
+  )
+
+  // Parse `float a, *b, c;` - multiple declarators
+  let (decls, _rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="3")
+  
+  // First declarator: `float a`
+  let decl0 = decls[0]
+  inspect(
+    decl0.to_string(color~),
+    content="variable declaration: float a",
+  )
+  
+  // Second declarator: `float *b`
+  let decl1 = decls[1]
+  inspect(
+    decl1.to_string(color~),
+    content="variable declaration: float * b",
+  )
+  
+  // Third declarator: `float c`
+  let decl2 = decls[2]
+  inspect(
+    decl2.to_string(color~),
+    content="variable declaration: float c",
+  )
+}
