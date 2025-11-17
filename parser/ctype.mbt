@@ -49,6 +49,18 @@ pub(all) struct CType {
 }
 
 ///|
+pub struct StorageClass {
+  is_static : Bool
+  is_extern : Bool
+  is_thread_local : Bool
+  is_register : Bool
+  // typdef storage class is handled elsewhere
+  // but in case of we need in the future,
+  // keep the notation here.
+  // is_typedef: Bool
+}
+
+///|
 pub impl Eq for CType with equal(self, other) {
   self.dataKind == other.dataKind &&
   self.is_const == other.is_const &&

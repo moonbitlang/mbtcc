@@ -69,6 +69,14 @@ pub fn Context::is_var_name(self : Context, name : String) -> Bool {
 }
 
 ///|
+pub fn Context::is_name_has_been_defined(self : Context, name : String) -> Bool {
+  match self.defined.get(name) {
+    Some(_) => true
+    _ => false
+  }
+}
+
+///|
 pub fn Context::get_var_ctype(self : Context, name : String) -> CType? {
   match self.defined.get(name) {
     Some(Left(ctype)) => Some(ctype)

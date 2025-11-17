@@ -82,7 +82,7 @@ pub fn Context::parse_ctype(
   self : Context,
   tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
-  let (base_ty, rest) = self.parse_decl_spec(tokens)
+  let (base_ty, _, rest) = self.parse_decl_spec(tokens)
   self.parse_abstract_declarator(rest, base_ty, tokens)
 }
 
@@ -316,7 +316,7 @@ fn Context::parse_function_abstract_declarator(
 fn Context::parse_decl_spec(
   self : Self,
   tokens : ArrayView[Token],
-) -> (CType, ArrayView[Token]) raise ParseError {
+) -> (CType, StorageClass, ArrayView[Token]) raise ParseError {
   let init_tokens = tokens
   let start_offset = tokens.start_offset()
   let mut is_const = false
@@ -325,6 +325,11 @@ fn Context::parse_decl_spec(
   let mut is_atomic = false
   let mut is_unsigned = false
   let mut is_signed = false
+  let mut is_static = false
+  let mut is_extern = false
+  let mut is_thread_local = false
+  let mut is_register = false
+  let mut is_auto = false
   let mut data_ty : CTypeDataKind? = None
   let rest = loop tokens {
     [{ kind: Keyword(Char), .. }, .. rest] => {
@@ -413,6 +418,63 @@ fn Context::parse_decl_spec(
       is_atomic = true
       continue rest
     }
+    [{ kind: Keyword(Static), .. } as tok, .. rest] => {
+      guard !is_static else {
+        raise ParseError(tok, "Duplicate 'static' storage class specifier")
+      }
+      guard !is_auto else {
+        raise ParseError(
+          tok, "'static' and 'auto' storage class specifiers are mutually exclusive",
+        )
+      }
+      is_static = true
+      continue rest
+    }
+    [{ kind: Keyword(Extern), .. } as tok, .. rest] => {
+      guard !is_extern else {
+        raise ParseError(tok, "Duplicate 'extern' storage class specifier")
+      }
+      guard !is_auto else {
+        raise ParseError(
+          tok, "'extern' and 'auto' storage class specifiers are mutually exclusive",
+        )
+      }
+      is_extern = true
+      continue rest
+    }
+    [{ kind: Keyword(ThreadLocal), .. } as tok, .. rest] => {
+      guard !is_thread_local else {
+        raise ParseError(
+          tok, "Duplicate '_Thread_local' storage class specifier",
+        )
+      }
+      guard !is_auto else {
+        raise ParseError(
+          tok, "'_Thread_local' and 'auto' storage class specifiers are mutually exclusive",
+        )
+      }
+      is_thread_local = true
+      continue rest
+    }
+    [{ kind: Keyword(Register), .. } as tok, .. rest] => {
+      guard !is_register else {
+        raise ParseError(tok, "Duplicate 'register' storage class specifier")
+      }
+      guard !is_auto else {
+        raise ParseError(
+          tok, "'register' and 'auto' storage class specifiers are mutually exclusive",
+        )
+      }
+      is_register = true
+      continue rest
+    }
+    [{ kind: Keyword(Auto), .. } as tok, .. rest] => {
+      guard !is_auto else {
+        raise ParseError(tok, "Duplicate 'auto' storage class specifier")
+      }
+      is_auto = true
+      continue rest
+    }
     // struct, union, enum not implemented yet
     [{ kind: Keyword(Struct), .. } as tok, ..] =>
       raise ParseError(tok, "struct type specifier not implemented yet")
@@ -432,6 +494,12 @@ fn Context::parse_decl_spec(
         let msg = "Expected type specifier but found none"
         raise ParseError(tokens[0], msg)
       }
+  }
+  let storage_class = StorageClass::{
+    is_static,
+    is_extern,
+    is_thread_local,
+    is_register,
   }
   // Apply unsigned/signed modifier
   let dataKind = if is_unsigned {
@@ -455,7 +523,7 @@ fn Context::parse_decl_spec(
     is_atomic,
     tokens,
   }
-  (ctype, rest)
+  (ctype, storage_class, rest)
 }
 
 ///|

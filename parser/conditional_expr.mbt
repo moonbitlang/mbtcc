@@ -191,6 +191,18 @@ pub fn Context::parse_conditional_expr(
 }
 
 ///|
+pub fn Context::parse_constant_expr(
+  self : Self,
+  tokens : ArrayView[Token],
+) -> (ConstantExpr, ArrayView[Token]) raise ParseError {
+  let (cond_expr, rest) = self.parse_conditional_expr(tokens)
+  guard cond_expr.is_constant() else {
+    raise ParseError(cond_expr.tokens[0], "Expected constant expression")
+  }
+  (cond_expr, rest)
+}
+
+///|
 pub fn ConditionalExpr::is_constant(self : Self) -> Bool {
   match self.kind {
     LogicalOrExpr(expr) => expr.is_constant()
