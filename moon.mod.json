@@ -4,15 +4,13 @@
   "deps": {
     "moonbitlang/x": "0.4.31",
     "Kaida-Amethyst/path": "0.1.1",
-    "Kaida-Amethyst/MoonLLVM": {
-      "path": "../Aether"
-    },
-    "Kaida-Amethyst/either": "0.1.0"
+    "Kaida-Amethyst/either": "0.1.0",
+    "Kaida-Amethyst/MoonLLVM": "0.1.12"
   },
   "readme": "README.md",
-  "repository": "",
+  "repository": "https://github.com/moonbitlang/mbtcc",
   "license": "Apache-2.0",
   "keywords": [],
-  "description": "",
+  "description": "A C Compiler written in MoonBit",
   "source": "."
 }
