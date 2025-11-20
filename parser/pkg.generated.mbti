@@ -16,6 +16,7 @@ fn next_check_point(ArrayView[@lexer.Token]) -> ArrayView[@lexer.Token]
 pub suberror ParseError {
   ParseError(@lexer.Token, String)
 }
+impl Show for ParseError
 
 // Types and methods
 pub struct AddiExpr {
@@ -92,7 +93,7 @@ pub(all) struct CType {
   is_volatile : Bool
   is_restrict : Bool
   is_atomic : Bool
-  tokens : ArrayView[@lexer.Token]
+  mut tokens : ArrayView[@lexer.Token]
 }
 fn CType::additive_result_type(Self, Self, String) -> Self?
 fn CType::char() -> Self
@@ -167,6 +168,14 @@ pub enum CastExprKind {
 }
 impl Eq for CastExprKind
 
+pub struct CompoundStmt {
+  items : Array[@either.Either[Statement, Declaration]]
+  tokens : ArrayView[@lexer.Token]
+}
+fn CompoundStmt::to_string(Self, color? : Bool) -> String
+impl Eq for CompoundStmt
+impl Show for CompoundStmt
+
 #alias(ConstantExpr)
 pub struct ConditionalExpr {
   kind : ConditionalExprKind
@@ -190,9 +199,10 @@ pub struct Context {
   code : String
   source_file : String
   tokens : Array[@lexer.Token]
-  defined : @env.Env[String, @either.Either[CType, CType]]
+  defined : @env.Env[String, SymbolKind]
   errs : Array[ParseError]
 }
+fn Context::add_label(Self, String) -> Unit
 fn Context::add_typedef(Self, String, CType) -> Unit
 fn Context::add_var(Self, String, CType) -> Unit
 fn Context::catch_err(Self, ParseError) -> Unit
@@ -200,24 +210,32 @@ fn Context::from_lexer(@lexer.Context) -> Self
 fn Context::get_typename_ctype(Self, String) -> CType?
 fn Context::get_var_ctype(Self, String) -> CType?
 fn Context::is_keyword_or_type_name(Self, @lexer.Token) -> Bool
+fn Context::is_label(Self, String) -> Bool
+fn Context::is_name_has_been_defined(Self, String) -> Bool
 fn Context::is_type_name(Self, String) -> Bool
+fn Context::is_type_tok(Self, @lexer.Token) -> Bool
 fn Context::is_var_name(Self, String) -> Bool
 fn Context::new(code~ : String, source_file? : String) -> Self
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_assign_expr(Self, ArrayView[@lexer.Token]) -> (AssignExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_cast_expr(Self, ArrayView[@lexer.Token]) -> (CastExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_compound_statement(Self, ArrayView[@lexer.Token]) -> (CompoundStmt, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_conditional_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_constant_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
 #alias(parse_type_name)
 fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_declaration(Self, ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
-fn Context::parse_declarator(Self, CType, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_designator(Self, ArrayView[@lexer.Token]) -> (Designator, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_expr(Self, ArrayView[@lexer.Token]) -> (Expr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_for_statement(Self, ArrayView[@lexer.Token]) -> (ForStmt, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_if_statement(Self, ArrayView[@lexer.Token]) -> (IfStmt, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
-fn Context::parse_init_declarator_list(Self, CType, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
-fn Context::parse_initializer(Self, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (Initializer, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_init_declarator_list(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_initializer(Self, ArrayView[@lexer.Token]) -> (Initializer, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_and_expr(Self, ArrayView[@lexer.Token]) -> (LogicalAndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_logical_or_expr(Self, ArrayView[@lexer.Token]) -> (LogicalOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_multi_expr(Self, ArrayView[@lexer.Token]) -> (MultiExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -225,7 +243,10 @@ fn Context::parse_postfix_expr(Self, ArrayView[@lexer.Token]) -> (PostfixExpr, A
 fn Context::parse_prim_expr(Self, ArrayView[@lexer.Token]) -> (PrimExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_relational_expr(Self, ArrayView[@lexer.Token]) -> (RelationalExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_shift_expr(Self, ArrayView[@lexer.Token]) -> (ShiftExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_statement(Self, ArrayView[@lexer.Token]) -> (Statement, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_switch_statement(Self, ArrayView[@lexer.Token]) -> (SwitchStmt, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_unary_expr(Self, ArrayView[@lexer.Token]) -> (UnaryExpr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_while_statement(Self, ArrayView[@lexer.Token]) -> (WhileStmt, ArrayView[@lexer.Token]) raise ParseError
 
 pub struct Declaration {
   kind : DeclarationKind
@@ -233,11 +254,12 @@ pub struct Declaration {
 }
 fn Declaration::to_string(Self, color? : Bool) -> String
 impl Eq for Declaration
+impl Show for Declaration
 
 pub enum DeclarationKind {
   TypeDeclaration(CType)
   TypeDef(CType, String)
-  VariableDeclaration(CType, String, Initializer?)
+  VariableDeclaration(CType, is_static~ : Bool, is_extern~ : Bool, is_register~ : Bool, is_thread_local~ : Bool, String, Initializer?)
 }
 impl Eq for DeclarationKind
 
@@ -295,6 +317,33 @@ fn Expr::to_string(Self, color? : Bool) -> String
 impl Eq for Expr
 impl Show for Expr
 
+pub enum ForInit {
+  Expr(Expr)
+  Declaration(Array[Declaration])
+}
+impl Eq for ForInit
+
+pub struct ForStmt {
+  init : ForInit?
+  cond : Expr?
+  update : Expr?
+  body : Statement
+  tokens : ArrayView[@lexer.Token]
+}
+fn ForStmt::to_string(Self, color? : Bool) -> String
+impl Eq for ForStmt
+impl Show for ForStmt
+
+pub struct IfStmt {
+  cond : Expr
+  then_stmt : Statement
+  else_stmt : Statement?
+  tokens : ArrayView[@lexer.Token]
+}
+fn IfStmt::to_string(Self, color? : Bool) -> String
+impl Eq for IfStmt
+impl Show for IfStmt
+
 pub struct InclusiveOrExpr {
   kind : InclusiveOrExprKind
   ctype : CType
@@ -316,14 +365,16 @@ pub(all) struct Initializer {
   kind : InitializerKind
   tokens : ArrayView[@lexer.Token]
 }
+fn Initializer::to_string(Self, color? : Bool) -> String
 impl Eq for Initializer
 impl Show for Initializer
 
 pub(all) enum InitializerKind {
   AssignExpr(AssignExpr)
-  Designation(Designator, AssignExpr)
+  Designation(Designator, Initializer)
   InitializerList(Array[Initializer])
 }
+fn InitializerKind::to_string(Self, color? : Bool) -> String
 impl Eq for InitializerKind
 impl Show for InitializerKind
 
@@ -470,6 +521,51 @@ pub enum ShiftExprKind {
 }
 impl Eq for ShiftExprKind
 
+pub struct Statement {
+  kind : StmtKind
+  tokens : ArrayView[@lexer.Token]
+}
+fn Statement::to_string(Self, color? : Bool) -> String
+impl Eq for Statement
+impl Show for Statement
+
+pub enum StmtKind {
+  Labeled(String, Statement)
+  Case(ConditionalExpr, Statement)
+  DefaultCase(Statement)
+  Compound(CompoundStmt)
+  Expr(Expr)
+  If(IfStmt)
+  Switch(SwitchStmt)
+  For(ForStmt)
+  While(WhileStmt)
+  Goto(String)
+  Continue
+  Break
+  Return(Expr)
+  ReturnVoid
+  Noop
+}
+impl Eq for StmtKind
+
+pub struct StorageClass {
+  is_static : Bool
+  is_extern : Bool
+  is_thread_local : Bool
+  is_register : Bool
+}
+
+pub struct SwitchStmt {
+  expr : Expr
+  body : Statement
+  tokens : ArrayView[@lexer.Token]
+}
+fn SwitchStmt::to_string(Self, color? : Bool) -> String
+impl Eq for SwitchStmt
+impl Show for SwitchStmt
+
+type SymbolKind
+
 pub struct UnaryExpr {
   kind : UnaryExprKind
   ctype : CType
@@ -494,6 +590,20 @@ pub enum UnaryExprKind {
   LogicalNot(UnaryExpr)
 }
 impl Eq for UnaryExprKind
+
+pub struct WhileStmt {
+  kind : WhileStmtKind
+  tokens : ArrayView[@lexer.Token]
+}
+fn WhileStmt::to_string(Self, color? : Bool) -> String
+impl Eq for WhileStmt
+impl Show for WhileStmt
+
+pub enum WhileStmtKind {
+  While(Expr, Statement)
+  DoWhile(Statement, Expr)
+}
+impl Eq for WhileStmtKind
 
 // Type aliases
 

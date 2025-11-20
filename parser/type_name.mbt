@@ -165,7 +165,8 @@ fn Context::parse_abstract_declarator(
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
-  if rest is [{ kind: Bracket('('), .. }, tok, ..] && !self.is_keyword_or_type_name(tok) {
+  if rest is [{ kind: Bracket('('), .. }, tok, ..] &&
+    !self.is_keyword_or_type_name(tok) {
     let rest2 = rest[1:]
     let dummy_base_ty = CType::void_()
     let (_, rest) = self.parse_abstract_declarator(
@@ -308,7 +309,8 @@ fn Context::parse_function_declarator(
     println("Compile ICE: Expected '(' in function declarator")
     panic()
   }
-  if tokens is [{ kind: Keyword(Void), .. }, { kind: Bracket(')'), .. }, .. rest] {
+  if tokens
+    is [{ kind: Keyword(Void), .. }, { kind: Bracket(')'), .. }, .. rest] {
     // function with no parameters
     let start_offset = init_tokens.start_offset()
     let tokens = init_tokens[0:rest.start_offset() - start_offset]
@@ -316,36 +318,51 @@ fn Context::parse_function_declarator(
     let is_volatile = false
     let is_restrict = false
     let is_atomic = false
-
     let dataKind = Function(Array::new(), base_ty, is_variadic=false)
-    let ctype = CType::{ dataKind, is_const, is_volatile, is_restrict, is_atomic, tokens }
+    let ctype = CType::{
+      dataKind,
+      is_const,
+      is_volatile,
+      is_restrict,
+      is_atomic,
+      tokens,
+    }
     return (ctype, rest)
   }
   let parameter_types : Array[(CType, String)] = Array::new()
   let mut is_variadic = false
   let rest = loop tokens {
-    [{ kind: Comma, ..}, { kind: Ellipsis, ..}, { kind: Bracket(')'), ..}, .. rest] => {
+    [
+      { kind: Comma, .. },
+      { kind: Ellipsis, .. },
+      { kind: Bracket(')'), .. },
+      .. rest,
+    ] => {
       is_variadic = true
       break rest
     }
-    [{ kind: Ellipsis, ..}, { kind: Bracket(')'), ..}, .. rest] => {
+    [{ kind: Ellipsis, .. }, { kind: Bracket(')'), .. }, .. rest] => {
       is_variadic = true
       break rest
     }
-    [{ kind: Ellipsis, ..}, tok, ..] => {
+    [{ kind: Ellipsis, .. }, tok, ..] => {
       let msg = "Expected ')' after '...' in function parameter list"
       raise ParseError(tok, msg)
     }
-    [{ kind: Bracket(')'), ..}, .. rest] => break rest
-    [{ kind: Comma, ..}, { kind: Bracket(')'), ..}, .. rest] => break rest
-    [{ kind: Comma, ..}, tok, ..] as tokens if self.is_keyword_or_type_name(tok) => continue tokens[1:]
-    [{ kind: Comma, ..}, tok, ..] => {
+    [{ kind: Bracket(')'), .. }, .. rest] => break rest
+    [{ kind: Comma, .. }, { kind: Bracket(')'), .. }, .. rest] => break rest
+    [{ kind: Comma, .. }, tok, ..] as tokens if self.is_keyword_or_type_name(
+        tok,
+      ) => continue tokens[1:]
+    [{ kind: Comma, .. }, tok, ..] => {
       let msg = "Unexpected token '\{tok}' in function parameter list"
       raise ParseError(tok, msg)
     }
     [tok, ..] as tokens if self.is_keyword_or_type_name(tok) => {
       let (param_ty, storage, rest) = self.parse_decl_spec(tokens)
-      let (param_ty, param_name, rest) = self.parse_declarator(param_ty, storage, rest, init_tokens)
+      let (param_ty, param_name, rest) = self.parse_declarator(
+        param_ty, storage, rest, init_tokens,
+      )
       parameter_types.push((param_ty, param_name))
       continue rest
     }
@@ -364,9 +381,15 @@ fn Context::parse_function_declarator(
   let is_volatile = false
   let is_restrict = false
   let is_atomic = false
-
   let dataKind = Function(parameter_types, base_ty, is_variadic~)
-  let ctype = CType::{ dataKind, is_const, is_volatile, is_restrict, is_atomic, tokens }
+  let ctype = CType::{
+    dataKind,
+    is_const,
+    is_volatile,
+    is_restrict,
+    is_atomic,
+    tokens,
+  }
   (ctype, rest)
 }
 
@@ -898,6 +921,7 @@ test "Array Type TypeName Parse Error Test" {
   assert_true(r is Err(_))
 }
 
+///|
 test "Function Type TypeName Parse Test" {
   let code =
     #|int (int, int) ; void (float, double, ...) ;
@@ -927,6 +951,7 @@ test "Function Type TypeName Parse Test" {
   assert_true(rest is [{ kind: EOF, .. }])
 }
 
+///|
 test "Function Type TypeName Parse Error Test" {
   // Error test: function type without closing parenthesis
   let code_err1 = "int (int, float"
@@ -941,6 +966,7 @@ test "Function Type TypeName Parse Error Test" {
   assert_true(r is Err(_))
 }
 
+///|
 test "Function Pointer Type TypeName Parse Test" {
   let code =
     #|int (*)(int, int) ; void (*)(float, double, ...) ;

@@ -8,6 +8,7 @@ pub struct Context {
   errs : Array[ParseError]
 }
 
+///|
 enum SymbolKind {
   Variable(CType)
   TypeDef(CType)
@@ -50,6 +51,7 @@ pub fn Context::add_var(self : Context, name : String, ctype : CType) -> Unit {
   self.defined.set(name, Variable(ctype))
 }
 
+///|
 pub fn Context::add_label(self : Context, name : String) -> Unit {
   self.defined.set(name, Label)
 }
@@ -63,11 +65,22 @@ pub fn Context::is_type_name(self : Context, name : String) -> Bool {
 }
 
 ///|
-pub fn Context::is_type_tok(self: Context, tok: Token) -> Bool {
+pub fn Context::is_type_tok(self : Context, tok : Token) -> Bool {
   if tok.kind is Keyword(kw) {
     match kw {
-      Void | Char | Short | Int | Long | Float | Double |
-      Signed | Unsigned | Bool | Struct | Union | Enum => true
+      Void
+      | Char
+      | Short
+      | Int
+      | Long
+      | Float
+      | Double
+      | Signed
+      | Unsigned
+      | Bool
+      | Struct
+      | Union
+      | Enum => true
       _ => false
     }
   } else if tok.kind is Identifier(name) {
@@ -86,6 +99,7 @@ pub fn Context::is_keyword_or_type_name(self : Self, tok : Token) -> Bool {
   }
 }
 
+///|
 pub fn Context::is_label(self : Context, name : String) -> Bool {
   match self.defined.get(name) {
     Some(Label) => true

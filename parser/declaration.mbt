@@ -22,7 +22,7 @@ pub fn Declaration::to_string(self : Self, color? : Bool = true) -> String {
       " \{name}"
     TypeDef(ctype, name) => "typedef: \{ctype} \{name}"
     VariableDeclaration(
-      { dataKind: Function(param_types, ret_ty, is_variadic~), ..},
+      { dataKind: Function(param_types, ret_ty, is_variadic~), .. },
       is_extern~,
       is_static~,
       is_register~,
@@ -667,6 +667,7 @@ test "Declaration with Initializer Parsing Test" {
   )
 }
 
+///|
 test "Function Declaration Parsing Test" {
   let color = false
   let code =
@@ -683,7 +684,10 @@ test "Function Declaration Parsing Test" {
   let (decls, _rest) = ctx.parse_declaration(rest)
   inspect(decls.length(), content="1")
   let decl = decls[0]
-  inspect(decl.to_string(color~), content="function declaration: void process(int a, double b)")
+  inspect(
+    decl.to_string(color~),
+    content="function declaration: void process(int a, double b)",
+  )
 }
 
 // TODO: Add "Declaration with Designatorss Initializer Parsing Test"

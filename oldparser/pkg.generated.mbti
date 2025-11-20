@@ -208,6 +208,7 @@ impl Show for EnumSpec
 
 pub struct Enumerator(String, ConditionalExpr?)
 
+
 impl Eq for Enumerator
 impl Show for Enumerator
 
