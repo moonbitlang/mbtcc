@@ -1138,6 +1138,7 @@ test "LogicalOrExpr Parsing Test" {
 //    ;
 
 ///|
+#alias(ConstantExpr)
 pub struct ConditionalExpr {
   expr : LogicalOrExpr
   select : (Expr, ConditionalExpr)?
@@ -1359,8 +1360,6 @@ test "Expr Parsing Test" {
 }
 
 ///|
-pub typealias ConditionalExpr as ConstantExpr
-
 //declaration
 //    : declarationSpecifiers initDeclaratorList? ';'
 //    | staticAssertDeclaration

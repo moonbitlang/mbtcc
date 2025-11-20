@@ -45,7 +45,7 @@ pub(all) struct CType {
   is_volatile : Bool
   is_restrict : Bool
   is_atomic : Bool
-  tokens : ArrayView[Token]
+  mut tokens : ArrayView[Token]
 }
 
 ///|

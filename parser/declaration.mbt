@@ -580,7 +580,7 @@ test "Declaration with Initializer Parsing Test" {
     ),
   )
 
-  // Parse `const double* p = NULL;`
+  // Parse `const double* p = 0;`
   let (decls, rest) = ctx.parse_declaration(rest)
   inspect(decls.length(), content="1")
   let decl = decls[0]

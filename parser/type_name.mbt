@@ -165,7 +165,8 @@ fn Context::parse_abstract_declarator(
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
-  if rest is [{ kind: Bracket('('), .. }, .. rest2] {
+  if rest is [{ kind: Bracket('('), .. }, tok, ..] && !self.is_keyword_or_type_name(tok) {
+    let rest2 = rest[1:]
     let dummy_base_ty = CType::void_()
     let (_, rest) = self.parse_abstract_declarator(
       rest2, dummy_base_ty, init_tokens,
@@ -177,6 +178,8 @@ fn Context::parse_abstract_declarator(
     let (ctype, _) = self.parse_abstract_declarator(
       rest2, new_base_ty, init_tokens,
     )
+    let tokens = init_tokens[0:rest.start_offset() - init_tokens.start_offset()]
+    ctype.tokens = tokens
     return (ctype, rest)
   }
   self.parse_type_suffix(rest, ty, init_tokens)
@@ -193,7 +196,7 @@ fn Context::parse_type_suffix(
     [{ kind: Bracket('['), .. }, ..] =>
       self.parse_array_abstract_declarator(tokens, base_ty, init_tokens)
     [{ kind: Bracket('('), .. }, ..] =>
-      self.parse_function_abstract_declarator(tokens, base_ty, init_tokens)
+      self.parse_function_declarator(tokens, base_ty, init_tokens)
     tokens => (base_ty, tokens)
   }
 }
@@ -295,21 +298,76 @@ fn Context::parse_array_abstract_declarator(
 }
 
 ///|
-fn Context::parse_function_abstract_declarator(
+fn Context::parse_function_declarator(
   self : Context,
   tokens : ArrayView[Token],
   base_ty : CType,
   init_tokens : ArrayView[Token],
 ) -> (CType, ArrayView[Token]) raise ParseError {
-  ignore(self)
-  ignore(tokens)
-  ignore(base_ty)
-  ignore(init_tokens)
-  // Not implemented yet
-  raise ParseError(
-    tokens[0],
-    "Function abstract declarator not implemented yet",
-  )
+  guard tokens is [{ kind: Bracket('('), .. }, .. tokens] else {
+    println("Compile ICE: Expected '(' in function declarator")
+    panic()
+  }
+  if tokens is [{ kind: Keyword(Void), .. }, { kind: Bracket(')'), .. }, .. rest] {
+    // function with no parameters
+    let start_offset = init_tokens.start_offset()
+    let tokens = init_tokens[0:rest.start_offset() - start_offset]
+    let is_const = false
+    let is_volatile = false
+    let is_restrict = false
+    let is_atomic = false
+
+    let dataKind = Function(Array::new(), base_ty, is_variadic=false)
+    let ctype = CType::{ dataKind, is_const, is_volatile, is_restrict, is_atomic, tokens }
+    return (ctype, rest)
+  }
+  let parameter_types : Array[(CType, String)] = Array::new()
+  let mut is_variadic = false
+  let rest = loop tokens {
+    [{ kind: Comma, ..}, { kind: Ellipsis, ..}, { kind: Bracket(')'), ..}, .. rest] => {
+      is_variadic = true
+      break rest
+    }
+    [{ kind: Ellipsis, ..}, { kind: Bracket(')'), ..}, .. rest] => {
+      is_variadic = true
+      break rest
+    }
+    [{ kind: Ellipsis, ..}, tok, ..] => {
+      let msg = "Expected ')' after '...' in function parameter list"
+      raise ParseError(tok, msg)
+    }
+    [{ kind: Bracket(')'), ..}, .. rest] => break rest
+    [{ kind: Comma, ..}, { kind: Bracket(')'), ..}, .. rest] => break rest
+    [{ kind: Comma, ..}, tok, ..] as tokens if self.is_keyword_or_type_name(tok) => continue tokens[1:]
+    [{ kind: Comma, ..}, tok, ..] => {
+      let msg = "Unexpected token '\{tok}' in function parameter list"
+      raise ParseError(tok, msg)
+    }
+    [tok, ..] as tokens if self.is_keyword_or_type_name(tok) => {
+      let (param_ty, storage, rest) = self.parse_decl_spec(tokens)
+      let (param_ty, param_name, rest) = self.parse_declarator(param_ty, storage, rest, init_tokens)
+      parameter_types.push((param_ty, param_name))
+      continue rest
+    }
+    [] => {
+      let msg = "Unexpected end of tokens in function parameter list"
+      raise ParseError(init_tokens[0], msg)
+    }
+    [tok, ..] => {
+      let msg = "Unexpected token in function parameter list"
+      raise ParseError(tok, msg)
+    }
+  }
+  let start_offset = init_tokens.start_offset()
+  let tokens = init_tokens[0:rest.start_offset() - start_offset]
+  let is_const = false
+  let is_volatile = false
+  let is_restrict = false
+  let is_atomic = false
+
+  let dataKind = Function(parameter_types, base_ty, is_variadic~)
+  let ctype = CType::{ dataKind, is_const, is_volatile, is_restrict, is_atomic, tokens }
+  (ctype, rest)
 }
 
 ///|
@@ -332,6 +390,10 @@ fn Context::parse_decl_spec(
   let mut is_auto = false
   let mut data_ty : CTypeDataKind? = None
   let rest = loop tokens {
+    [{ kind: Keyword(Void), .. }, .. rest] => {
+      data_ty = Some(Void)
+      continue rest
+    }
     [{ kind: Keyword(Char), .. }, .. rest] => {
       data_ty = Some(Char)
       continue rest
@@ -834,4 +896,76 @@ test "Array Type TypeName Parse Error Test" {
   let ctx_err3 = Context::new(code=code_err3)
   let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
   assert_true(r is Err(_))
+}
+
+test "Function Type TypeName Parse Test" {
+  let code =
+    #|int (int, int) ; void (float, double, ...) ;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // Parse `int (int, int)`
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int (int, int)")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `void (float, double, ...)`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="void (float, double, ...)")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // rest must be `[EOF]`
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+test "Function Type TypeName Parse Error Test" {
+  // Error test: function type without closing parenthesis
+  let code_err1 = "int (int, float"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_type_name(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: unexpected token in parameter list
+  let code_err2 = "void (int, $, float)"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
+}
+
+test "Function Pointer Type TypeName Parse Test" {
+  let code =
+    #|int (*)(int, int) ; void (*)(float, double, ...) ;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // Parse `int (*) (int, int)`
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int (int, int) *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // Parse `void (*) (float, double, ...)`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="void (float, double, ...) *")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // rest must be `[EOF]`
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
 }
