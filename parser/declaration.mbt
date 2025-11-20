@@ -22,6 +22,55 @@ pub fn Declaration::to_string(self : Self, color? : Bool = true) -> String {
       " \{name}"
     TypeDef(ctype, name) => "typedef: \{ctype} \{name}"
     VariableDeclaration(
+      { dataKind: Function(param_types, ret_ty, is_variadic~), ..},
+      is_extern~,
+      is_static~,
+      is_register~,
+      is_thread_local~,
+      name,
+      None
+    ) => {
+      let storage_strs = Array::new()
+      if is_extern {
+        storage_strs.push("extern")
+      }
+      if is_static {
+        storage_strs.push("static")
+      }
+      if is_register {
+        storage_strs.push("register")
+      }
+      if is_thread_local {
+        storage_strs.push("_Thread_local")
+      }
+      let storage_str = if storage_strs.length() > 0 {
+        storage_strs.join(" ") + " "
+      } else {
+        ""
+      }
+      let params_strs : Array[String] = Array::new()
+      for param_ty in param_types {
+        let (param_ty, param_name) = param_ty
+        let param_str = if param_name != "" {
+          "\{param_ty} \{param_name}"
+        } else {
+          "\{param_ty}"
+        }
+        params_strs.push(param_str)
+      }
+      if is_variadic {
+        params_strs.push("...")
+      }
+      let params_str = params_strs.join(", ")
+      if color {
+        @color.taint("\{storage_str}function declaration: ", Magenta) +
+        @color.taint("\{ret_ty} \{name}(\{params_str})", Green) +
+        " \{name}"
+      } else {
+        "\{storage_str}function declaration: \{ret_ty} \{name}(\{params_str})"
+      }
+    }
+    VariableDeclaration(
       ctype,
       is_extern~,
       is_static~,
@@ -616,4 +665,23 @@ test "Declaration with Initializer Parsing Test" {
       #|  └-variable a (float)
     ),
   )
+}
+
+test "Function Declaration Parsing Test" {
+  let color = false
+  let code =
+    #|int func(); void process(int a, double b);
+  let ctx = Context::new(code~, source_file="demo")
+
+  // Parse `int func();`
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(decl.to_string(color~), content="function declaration: int func()")
+
+  // Parse `void process(int a, double b);`
+  let (decls, _rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  inspect(decl.to_string(color~), content="function declaration: void process(int a, double b)")
 }
