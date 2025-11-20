@@ -685,3 +685,5 @@ test "Function Declaration Parsing Test" {
   let decl = decls[0]
   inspect(decl.to_string(color~), content="function declaration: void process(int a, double b)")
 }
+
+// TODO: Add "Declaration with Designatorss Initializer Parsing Test"

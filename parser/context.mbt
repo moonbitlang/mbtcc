@@ -4,8 +4,15 @@ pub struct Context {
   source_file : String
   tokens : Array[Token]
   // Left Type means Variable defined, Right means type defined.
-  defined : Env[String, Either[CType, CType]]
+  defined : Env[String, SymbolKind]
   errs : Array[ParseError]
+}
+
+enum SymbolKind {
+  Variable(CType)
+  TypeDef(CType)
+  Label
+  // EnumMember(CType, Int)
 }
 
 ///|
@@ -35,19 +42,38 @@ pub fn Context::add_typedef(
   name : String,
   ctype : CType,
 ) -> Unit {
-  self.defined.set(name, Either::Right(ctype))
+  self.defined.set(name, TypeDef(ctype))
 }
 
 ///|
 pub fn Context::add_var(self : Context, name : String, ctype : CType) -> Unit {
-  self.defined.set(name, Either::Left(ctype))
+  self.defined.set(name, Variable(ctype))
+}
+
+pub fn Context::add_label(self : Context, name : String) -> Unit {
+  self.defined.set(name, Label)
 }
 
 ///|
 pub fn Context::is_type_name(self : Context, name : String) -> Bool {
   match self.defined.get(name) {
-    Some(Right(_)) => true
+    Some(TypeDef(_)) => true
     _ => false
+  }
+}
+
+///|
+pub fn Context::is_type_tok(self: Context, tok: Token) -> Bool {
+  if tok.kind is Keyword(kw) {
+    match kw {
+      Void | Char | Short | Int | Long | Float | Double |
+      Signed | Unsigned | Bool | Struct | Union | Enum => true
+      _ => false
+    }
+  } else if tok.kind is Identifier(name) {
+    self.is_type_name(name)
+  } else {
+    false
   }
 }
 
@@ -60,10 +86,17 @@ pub fn Context::is_keyword_or_type_name(self : Self, tok : Token) -> Bool {
   }
 }
 
+pub fn Context::is_label(self : Context, name : String) -> Bool {
+  match self.defined.get(name) {
+    Some(Label) => true
+    _ => false
+  }
+}
+
 ///|
 pub fn Context::is_var_name(self : Context, name : String) -> Bool {
   match self.defined.get(name) {
-    Some(Left(_)) => true
+    Some(Variable(_)) => true
     _ => false
   }
 }
@@ -79,7 +112,7 @@ pub fn Context::is_name_has_been_defined(self : Context, name : String) -> Bool 
 ///|
 pub fn Context::get_var_ctype(self : Context, name : String) -> CType? {
   match self.defined.get(name) {
-    Some(Left(ctype)) => Some(ctype)
+    Some(Variable(ctype)) => Some(ctype)
     _ => None
   }
 }
@@ -87,7 +120,7 @@ pub fn Context::get_var_ctype(self : Context, name : String) -> CType? {
 ///|
 pub fn Context::get_typename_ctype(self : Context, name : String) -> CType? {
   match self.defined.get(name) {
-    Some(Right(ctype)) => Some(ctype)
+    Some(TypeDef(ctype)) => Some(ctype)
     _ => None
   }
 }
