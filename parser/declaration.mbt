@@ -283,6 +283,7 @@ pub fn Context::parse_designator(
 pub fn Context::parse_declaration(
   self : Context,
   tokens : ArrayView[Token],
+  skip_semi? : Bool = true,
 ) -> (Array[Declaration], ArrayView[Token]) raise ParseError {
   let init_tokens = tokens
   let start_offset = tokens.start_offset()
@@ -323,7 +324,21 @@ pub fn Context::parse_declaration(
     let decl = Declaration::{ kind: decl_kind, tokens: decl_tokens }
     return ([decl], tokens)
   }
-  self.parse_init_declarator_list(base_ty, storage, tokens, init_tokens)
+  let (declarations, tokens) = self.parse_init_declarator_list(
+    base_ty, storage, tokens, init_tokens,
+  )
+  let tokens = if skip_semi {
+    guard tokens is [{ kind: Semi, .. }, .. tokens] else {
+      raise ParseError(
+        tokens[0],
+        "expected ';' after declaration, while got \{tokens}",
+      )
+    }
+    tokens
+  } else {
+    tokens
+  }
+  (declarations, tokens)
 }
 
 ///|
@@ -411,12 +426,6 @@ pub fn Context::parse_init_declarator_list(
       continue tokens
     }
     tokens => break tokens
-  }
-  guard tokens is [{ kind: Semi, .. }, .. tokens] else {
-    raise ParseError(
-      tokens[0],
-      "expected ';' after declaration, while got \{tokens}",
-    )
   }
   (decls, tokens)
 }

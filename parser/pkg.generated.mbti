@@ -225,12 +225,13 @@ fn Context::parse_conditional_expr(Self, ArrayView[@lexer.Token]) -> (Conditiona
 fn Context::parse_constant_expr(Self, ArrayView[@lexer.Token]) -> (ConditionalExpr, ArrayView[@lexer.Token]) raise ParseError
 #alias(parse_type_name)
 fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
-fn Context::parse_declaration(Self, ArrayView[@lexer.Token]) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_declaration(Self, ArrayView[@lexer.Token], skip_semi? : Bool) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_designator(Self, ArrayView[@lexer.Token]) -> (Designator, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_expr(Self, ArrayView[@lexer.Token]) -> (Expr, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_external_declaration(Self, ArrayView[@lexer.Token]) -> (Array[ExternalDeclaration], ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_for_statement(Self, ArrayView[@lexer.Token]) -> (ForStmt, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_if_statement(Self, ArrayView[@lexer.Token]) -> (IfStmt, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_inclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (InclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -317,6 +318,20 @@ fn Expr::to_string(Self, color? : Bool) -> String
 impl Eq for Expr
 impl Show for Expr
 
+pub struct ExternalDeclaration {
+  kind : ExternalDeclarationKind
+  tokens : ArrayView[@lexer.Token]
+}
+fn ExternalDeclaration::to_string(Self, color? : Bool) -> String
+impl Eq for ExternalDeclaration
+impl Show for ExternalDeclaration
+
+pub enum ExternalDeclarationKind {
+  FunctionDefinition(FunctionDefinition)
+  Declaration(Declaration)
+}
+impl Eq for ExternalDeclarationKind
+
 pub enum ForInit {
   Expr(Expr)
   Declaration(Array[Declaration])
@@ -333,6 +348,18 @@ pub struct ForStmt {
 fn ForStmt::to_string(Self, color? : Bool) -> String
 impl Eq for ForStmt
 impl Show for ForStmt
+
+pub struct FunctionDefinition {
+  name : String
+  params : Array[(CType, String)]
+  ret_ty : CType
+  is_static : Bool
+  is_variadic : Bool
+  body : CompoundStmt
+}
+fn FunctionDefinition::to_string(Self, color? : Bool) -> String
+impl Eq for FunctionDefinition
+impl Show for FunctionDefinition
 
 pub struct IfStmt {
   cond : Expr
