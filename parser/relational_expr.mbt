@@ -566,7 +566,10 @@ test "Relational Expr Parse Error Test" {
   // Error test: struct < struct (incompatible types)
   let code_err1 = "p1 < p2"
   let ctx_err1 = Context::new(code=code_err1)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err1.add_var("p1", point_struct)
   ctx_err1.add_var("p2", point_struct)
@@ -576,7 +579,10 @@ test "Relational Expr Parse Error Test" {
   // Error test: struct > struct (incompatible types)
   let code_err2 = "p1 > p2"
   let ctx_err2 = Context::new(code=code_err2)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err2.add_var("p1", point_struct)
   ctx_err2.add_var("p2", point_struct)
@@ -602,7 +608,10 @@ test "Relational Expr Parse Error Test" {
   // Error test: struct < int (left operand not comparable)
   let code_err5 = "s < i"
   let ctx_err5 = Context::new(code=code_err5)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err5.add_var("s", point_struct)
   ctx_err5.add_var("i", CType::int())
@@ -612,7 +621,10 @@ test "Relational Expr Parse Error Test" {
   // Error test: int > struct (right operand not comparable)
   let code_err6 = "i > s"
   let ctx_err6 = Context::new(code=code_err6)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err6.add_var("i", CType::int())
   ctx_err6.add_var("s", point_struct)

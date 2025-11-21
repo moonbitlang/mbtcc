@@ -305,7 +305,10 @@ test "Postfix Expr Parse Test" {
     #|(x).y ; (p2)->x ; (i)++ ; (j)-- ;
     #|p.z ; p2->zz ; p++ ; p-- ;
   let ctx = Context::new(code~, source_file="demo")
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   let point_ptr = point_struct.ptr_to()
   ctx.add_var("p", point_struct)
@@ -470,7 +473,10 @@ test "Postfix Expr Error Test" {
   // Error test: member access on type without field
   let code_err1 = "p.z"
   let ctx_err1 = Context::new(code=code_err1)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err1.add_var("p", point_struct)
   let r = try? ctx_err1.parse_postfix_expr(ctx_err1.tokens)
@@ -479,7 +485,10 @@ test "Postfix Expr Error Test" {
   // Error test: pointer member access on type without field
   let code_err2 = "p2->z"
   let ctx_err2 = Context::new(code=code_err2)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   let point_ptr = point_struct.ptr_to()
   ctx_err2.add_var("p2", point_ptr)
@@ -489,7 +498,10 @@ test "Postfix Expr Error Test" {
   // Error test: post-increment on struct type
   let code_err3 = "p++"
   let ctx_err3 = Context::new(code=code_err3)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err3.add_var("p", point_struct)
   let r = try? ctx_err3.parse_postfix_expr(ctx_err3.tokens)
@@ -498,7 +510,10 @@ test "Postfix Expr Error Test" {
   // Error test: post-decrement on struct type
   let code_err4 = "p--"
   let ctx_err4 = Context::new(code=code_err4)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err4.add_var("p", point_struct)
   let r = try? ctx_err4.parse_postfix_expr(ctx_err4.tokens)
@@ -512,7 +527,10 @@ test "PostfixExpr Constant Eval Test" {
     #|42 ; 100l ; 200u ; 
     #|x ; i++ ; j-- ; p.x ; p2->y ;
   let ctx = Context::new(code~, source_file="demo")
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   let point_ptr = point_struct.ptr_to()
   ctx.add_var("x", CType::int())

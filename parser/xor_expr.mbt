@@ -436,7 +436,10 @@ test "Exclusive Or Expr Parse Error Test" {
   // Error test: struct ^ int (struct is not integer)
   let code_err6 = "s ^ i"
   let ctx_err6 = Context::new(code=code_err6)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err6.add_var("s", point_struct)
   ctx_err6.add_var("i", CType::int())

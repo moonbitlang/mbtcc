@@ -170,24 +170,34 @@ pub(all) enum CTypeDataKind {
 
   // long double
   LongDouble
-  Struct(String, Array[(String, CType)])
-  Union(String, Array[(String, CType)])
+  Struct(String, Array[StructField])
+  Union(String, Array[StructField])
   Enum(String, Array[(String, Int)])
   Ptr(CType)
   Array(CType, Int)
   Function(Array[(CType, String)], CType, is_variadic~ : Bool)
 } derive(Eq)
 
+pub struct StructField {
+  name: String
+  ctype: CType
+  bit_width: Int?
+} derive(Eq)
+
 ///|
 pub impl Show for CTypeDataKind with output(self, logger) {
-  fn fields_stringify(fields : Array[(String, CType)]) -> String {
+  fn fields_stringify(fields : Array[StructField]) -> String {
     let sb = StringBuilder::new()
     sb.write_string("{ ")
     for field in fields {
-      let (name, ctype) = field
+      let {name, ctype, bit_width } = field
       sb.write_object(ctype)
       sb.write_string(" ")
       sb.write_string(name)
+      if bit_width is Some(bit_width) {
+        sb.write_string(" : ")
+        sb.write_object(bit_width)
+      }
       sb.write_string("; ")
     }
     sb.write_string("}")
@@ -408,7 +418,7 @@ pub fn CType::ptr_to(self : CType) -> CType {
 ///|
 pub fn CType::struct_type(
   name : String,
-  fields : Array[(String, CType)],
+  fields : Array[StructField],
 ) -> CType {
   CType::default_with(Struct(name, fields))
 }
@@ -511,7 +521,7 @@ pub fn CType::get_field_ctype_by_dot_acc(
     _ => return None
   }
   for field in fields {
-    let (name, ctype) = field
+    let {name, ctype, ..} = field
     if name == field_name {
       return Some(ctype)
     }
@@ -728,10 +738,11 @@ test "Common Type Test" {
   }
 
   // Test incompatible types: int and struct -> None
-  let struct_type = CType::struct_type("Point", [
-    ("x", int_type),
-    ("y", int_type),
-  ])
+  let struct_fields = [
+    { name: "x", ctype: int_type, bit_width: None },
+    { name: "y", ctype: int_type, bit_width: None },
+  ]
+  let struct_type = CType::struct_type("Point", struct_fields)
   match int_type.common_type(struct_type) {
     Some(_) => fail("int and struct should not have common type")
     None => ()
@@ -794,7 +805,10 @@ test "Additive Result Type Test" {
   }
 
   // Test invalid: struct + int
-  let point_fields = [("x", int_type), ("y", int_type)]
+  let point_fields = [
+    { name: "x", ctype: int_type, bit_width: None },
+    { name: "y", ctype: int_type, bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   match point_struct.additive_result_type(int_type, "+") {
     Some(_) => fail("struct + int should be invalid")

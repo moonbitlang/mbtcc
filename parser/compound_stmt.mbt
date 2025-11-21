@@ -56,6 +56,7 @@ pub fn Context::parse_compound_statement(
   guard tokens is [{ kind: Bracket('{'), .. }, .. tokens] else {
     raise ParseError(tokens[0], "Expected '{' to start a compound statement")
   }
+  self.push_scope()
   let items : Array[Either[Statement, Declaration]] = Array::new()
   let rest = loop tokens {
     [{ kind: Bracket('}'), .. }, .. rest] => break rest
@@ -70,6 +71,7 @@ pub fn Context::parse_compound_statement(
       continue rest
     }
   }
+  self.pop_scope()
   let tokens = init_tokens[0:rest.start_offset() - start_offset]
   let compound_stmt = CompoundStmt::{ items, tokens }
   (compound_stmt, rest)

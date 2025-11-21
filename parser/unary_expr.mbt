@@ -417,7 +417,10 @@ test "Unary Expr Parse Test" {
   let ctx = Context::new(code~, source_file="demo")
 
   // Preludes
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx.add_var("x", CType::int())
   ctx.add_var("y", CType::int())
@@ -656,7 +659,10 @@ test "Unary Expr Error Test" {
   // Error test: pre-increment on struct type
   let code_err1 = "++p"
   let ctx_err1 = Context::new(code=code_err1)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err1.add_var("p", point_struct)
   let r = try? ctx_err1.parse_unary_expr(ctx_err1.tokens)
@@ -665,7 +671,10 @@ test "Unary Expr Error Test" {
   // Error test: pre-decrement on struct type
   let code_err2 = "--p"
   let ctx_err2 = Context::new(code=code_err2)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err2.add_var("p", point_struct)
   let r = try? ctx_err2.parse_unary_expr(ctx_err2.tokens)
@@ -681,7 +690,10 @@ test "Unary Expr Error Test" {
   // Error test: negate on struct type
   let code_err4 = "-p"
   let ctx_err4 = Context::new(code=code_err4)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err4.add_var("p", point_struct)
   let r = try? ctx_err4.parse_unary_expr(ctx_err4.tokens)
@@ -690,7 +702,10 @@ test "Unary Expr Error Test" {
   // Error test: bitwise NOT on struct type
   let code_err5 = "~p"
   let ctx_err5 = Context::new(code=code_err5)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err5.add_var("p", point_struct)
   let r = try? ctx_err5.parse_unary_expr(ctx_err5.tokens)
@@ -699,7 +714,10 @@ test "Unary Expr Error Test" {
   // Error test: logical NOT on struct type
   let code_err6 = "!p"
   let ctx_err6 = Context::new(code=code_err6)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err6.add_var("p", point_struct)
   let r = try? ctx_err6.parse_unary_expr(ctx_err6.tokens)

@@ -387,7 +387,10 @@ test "Conditional Expr Parse Error Test" {
   // Error test: incompatible types in conditional
   let code_err1 = "x > 0 ? p : i"
   let ctx_err1 = Context::new(code=code_err1)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err1
   ..add_var("x", CType::int())

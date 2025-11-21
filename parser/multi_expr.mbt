@@ -498,7 +498,10 @@ test "Multiplicative Expr Error Test" {
   // Error test: struct * struct (incompatible types)
   let code_err1 = "p1 * p2"
   let ctx_err1 = Context::new(code=code_err1)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err1.add_var("p1", point_struct)
   ctx_err1.add_var("p2", point_struct)

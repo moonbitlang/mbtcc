@@ -653,7 +653,10 @@ test "And Expr Parse Error Test" {
   // Error test: struct & int (struct is not integer)
   let code_err6 = "s & i"
   let ctx_err6 = Context::new(code=code_err6)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err6.add_var("s", point_struct)
   ctx_err6.add_var("i", CType::int())
@@ -964,7 +967,10 @@ test "Logical And Expr Parse Error Test" {
   // Error test: struct && int (struct is not scalar)
   let code_err3 = "s && i"
   let ctx_err3 = Context::new(code=code_err3)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err3.add_var("s", point_struct)
   ctx_err3.add_var("i", CType::int())
@@ -974,7 +980,10 @@ test "Logical And Expr Parse Error Test" {
   // Error test: int && struct (right operand is struct, not scalar)
   let code_err4 = "i && s"
   let ctx_err4 = Context::new(code=code_err4)
-  let point_fields = [("x", CType::int()), ("y", CType::int())]
+  let point_fields = [
+    { name: "x", ctype: CType::int(), bit_width: None },
+    { name: "y", ctype: CType::int(), bit_width: None },
+  ]
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err4.add_var("i", CType::int())
   ctx_err4.add_var("s", point_struct)

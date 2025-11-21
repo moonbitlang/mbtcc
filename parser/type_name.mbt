@@ -561,19 +561,15 @@ fn Context::parse_decl_spec(
       continue rest
     }
     // struct, union, enum not implemented yet
-    [{ kind: Keyword(Struct), .. } as tok, ..] =>
-      raise ParseError(tok, "struct type specifier not implemented yet")
-    [{ kind: Keyword(Union), .. } as tok, ..] =>
-      raise ParseError(tok, "union type specifier not implemented yet")
+    [{ kind: Keyword(Struct|Union), .. }, ..] as tokens => {
+      let (dataKind, rest) = self.parse_struct_or_union_decl(tokens)
+      data_ty = Some(dataKind)
+      continue rest
+    }
     [{ kind: Keyword(Enum), .. }, ..] as tokens => {
-      let (ty, rest) = self.parse_enum_specifier(tokens)
-      let storage_class = StorageClass::{
-        is_static,
-        is_extern,
-        is_thread_local,
-        is_register,
-      }
-      return (ty, storage_class, rest)
+      let (dataKind, rest) = self.parse_enum_specifier(tokens)
+      data_ty = Some(dataKind)
+      continue rest
     }
     tokens => break tokens
   }
@@ -623,15 +619,15 @@ fn Context::parse_decl_spec(
 pub fn Context::parse_enum_specifier(
   self : Context,
   tokens : ArrayView[Token],
-) -> (CType, ArrayView[Token]) raise ParseError {
+) -> (CTypeDataKind, ArrayView[Token]) raise ParseError {
   guard tokens is [{ kind: Keyword(Enum), .. } as enum_kw_tok, .. tokens] else {
     println("Compile ICE: Expected 'enum' keyword in enum specifier")
     panic()
   }
   let (enum_name, tokens) = if tokens
     is [{ kind: Identifier(name), .. }, .. rest] {
-    guard !self.is_name_has_been_defined(name) else {
-      raise ParseError(rest[0], "Enum name '\{name}' has already been defined")
+    guard !self.is_name_a_tag(name) else {
+      raise ParseError(rest[0], "Enum name '\{name}' is already defined as a tag")
     }
     (name, rest)
   } else {
@@ -639,16 +635,8 @@ pub fn Context::parse_enum_specifier(
   }
   let variants : Array[(String, Int)] = Array::new()
   let dataKind = CTypeDataKind::Enum(enum_name, variants)
-  let ctype = CType::{
-    dataKind,
-    is_const: false,
-    is_volatile: false,
-    is_restrict: false,
-    is_atomic: false,
-    tokens: Array::new(),
-  }
   guard tokens is [{ kind: Bracket('{'), .. }, .. tokens] else {
-    return (ctype, tokens)
+    return (dataKind, tokens)
   }
   let mut value = 0
   let rest = loop tokens {
@@ -663,7 +651,7 @@ pub fn Context::parse_enum_specifier(
         rest
       }
       variants.push((vari, value))
-      self.add_enum_member(vari, ctype, value)
+      self.add_enum_member(vari, dataKind, value)
       value = value + 1
       continue rest
     }
@@ -695,7 +683,83 @@ pub fn Context::parse_enum_specifier(
       raise ParseError(tok, msg)
     }
   }
-  (ctype, rest)
+  (dataKind, rest)
+}
+
+fn Context::parse_struct_or_union_decl(
+  self: Context,
+  tokens: ArrayView[Token]
+) -> (CTypeDataKind, ArrayView[Token]) raise ParseError {
+  guard tokens is [{ kind: Keyword(Struct|Union as kw), ..}, ..tokens] else {
+    println("Compile ICE: Expected 'struct' or 'union' keyword")
+    panic()
+  }
+  let (name, tokens) = if tokens is [{ kind:Identifier(name), ..}, ..tokens] {
+    (name, tokens)
+  } else {
+    ("", tokens)
+  }
+  guard tokens is [{ kind: Bracket('{'), ..}, ..tokens] else {
+    if !name.is_empty() && (self.get_tag_ctype(name) is Some(datakind)) {
+      return (datakind, tokens[1:])
+    }
+    let dataKind = match kw {
+      Struct => CTypeDataKind::Struct(name, Array::new())
+      _ => CTypeDataKind::Union(name, Array::new())
+    }
+    self.add_tag(name, dataKind)
+    return (dataKind, tokens[1:])
+  }
+
+  let (members, rest) = self.parse_struct_union_members(tokens)
+  guard rest is [{ kind: Bracket('}'), ..}, ..rest] else {
+    println("Compile ICE: Expected '}' to close struct/union declaration")
+    panic()
+  }
+  let dataKind = match kw {
+    Struct => CTypeDataKind::Struct(name, members)
+    _ => CTypeDataKind::Union(name, members)
+  }
+  if name != "" {
+    self.add_tag(name, dataKind)
+  }
+  (dataKind, rest)
+}
+
+fn Context::parse_struct_union_members(
+  self: Context,
+  tokens: ArrayView[Token]
+) -> (Array[StructField], ArrayView[Token]) raise ParseError {
+  let members: Array[StructField] = Array::new()
+  self.push_scope()
+
+  let mut tokens = tokens
+  while !(tokens is [{ kind: Bracket('}'), ..}, ..]) {
+    let this_init_tokens = tokens
+    let (base_ty, storage, rest) = self.parse_decl_spec(tokens)
+    while !(tokens is [{ kind: Semi, ..}, ..]) {
+      let (member_ty, member_name, rest) = self.parse_declarator(
+        base_ty, storage, rest, this_init_tokens,
+      )
+      let (bit_width, rest) = if rest is [{ kind: Colon, ..}, ..rest] {
+        let (const_expr, rest) = self.parse_constant_expr(rest)
+        let bit_width = const_expr.eval_as_int()
+        (Some(bit_width), rest)
+      } else {
+        (None, rest)
+      }
+      let field = StructField::{ name: member_name, ctype: member_ty, bit_width }
+      members.push(field)
+      let rest = if rest is [{ kind: Comma, ..}, ..rest] {
+        rest
+      } else {
+        rest
+      }
+      tokens = rest
+    }
+  }
+  self.pop_scope()
+  (members, tokens)
 }
 
 ///|
@@ -1180,20 +1244,6 @@ test "Enum Type Parsing Test" {
 
 ///|
 test "Enum Type Parsing Error Test" {
-  // Error test: enum name already defined as typedef
-  let code_err1 = "typedef int MyType; enum MyType { A, B }"
-  let ctx_err1 = Context::new(code=code_err1)
-  let (_, rest) = ctx_err1.parse_declaration(ctx_err1.tokens)
-  let r = try? ctx_err1.parse_type_name(rest)
-  assert_true(r is Err(_))
-
-  // Error test: enum name already defined as variable
-  let code_err2 = "int x; enum x { A, B }"
-  let ctx_err2 = Context::new(code=code_err2)
-  let (_, rest) = ctx_err2.parse_declaration(ctx_err2.tokens)
-  let r = try? ctx_err2.parse_type_name(rest)
-  assert_true(r is Err(_))
-
   // Error test: enum variant name already defined as enum member
   let code_err3 = "enum { A, B, A }"
   let ctx_err3 = Context::new(code=code_err3)
