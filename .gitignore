@@ -4,6 +4,8 @@ target/
 .moonagent
 *.ll
 IR.mbti
+*.h
+*.c
 llvm_*
 tmp/
 smith_test/
