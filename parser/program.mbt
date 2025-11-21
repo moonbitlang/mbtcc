@@ -5,7 +5,7 @@ pub struct Program {
 
 ///|
 pub fn Program::to_string(self : Program, color? : Bool = true) -> String {
-  self.externals.map(e => e.to_string(color~)).join("\n\n")
+  self.externals.map(e => e.to_string(color~)).join("\n")
 }
 
 ///|

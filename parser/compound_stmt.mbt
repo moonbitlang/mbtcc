@@ -15,10 +15,7 @@ pub impl Show for CompoundStmt with output(self, logger) {
 }
 
 ///|
-pub fn CompoundStmt::to_string(
-  self : Self,
-  color? : Bool = true,
-) -> String {
+pub fn CompoundStmt::to_string(self : Self, color? : Bool = true) -> String {
   let prefix = if color {
     @color.taint("compound_statement", Magenta)
   } else {

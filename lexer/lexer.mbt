@@ -1,5 +1,5 @@
 ///|
-pub struct Context {
+pub(all) struct Context {
   code : String
   source_file : String
   tokens : Array[Token]

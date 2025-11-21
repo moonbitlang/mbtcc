@@ -1,7 +1,12 @@
 ///|
 fn main {
   let code = "int"
-  let ctx = @parser.Context::new(code~, source_file="demo")
+  let ctx = @parser.Context::new(code~, source_file="demo") catch {
+    _ => {
+      println("Error Happened")
+      return
+    }
+  }
   let (ty, rest) = ctx.parse_type_name(ctx.tokens) catch {
     _ => {
       println("Error Happened")

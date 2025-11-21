@@ -1,6 +1,7 @@
 {
   "import" : [
     "Kaida-Amethyst/mbtcc/lexer",
+    "Kaida-Amethyst/mbtcc/preprocess",
     "Kaida-Amethyst/mbtcc/color",
     "Kaida-Amethyst/mbtcc/env",
     "Kaida-Amethyst/either"

@@ -64,8 +64,7 @@ pub fn Declaration::to_string(self : Self, color? : Bool = true) -> String {
       let params_str = params_strs.join(", ")
       if color {
         @color.taint("\{storage_str}function declaration: ", Magenta) +
-        @color.taint("\{ret_ty} \{name}(\{params_str})", Green) +
-        " \{name}"
+        @color.taint("\{ret_ty} \{name}(\{params_str})", Green)
       } else {
         "\{storage_str}function declaration: \{ret_ty} \{name}(\{params_str})"
       }

@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+///|
 suberror ArgError {
   NoInputFiles(String)
   InValidOption(String)
 }
 
+///|
 fn main_err() -> Unit raise {
   let usage =
     #|Usage: mbtcc [options] <input files>
@@ -25,7 +27,7 @@ fn main_err() -> Unit raise {
     #|  --print-tokens, -toks      Stop after lexing phase and print tokens.
     #|  --print-ast, -ast          Stop after parsing phase and print AST.
   let other_options : Array[String] = Array::new()
-  let output: Ref[String] = @ref.new("")
+  let output : Ref[String] = @ref.new("")
   let print_tokens : Ref[Bool] = @ref.new(false)
   let print_ast : Ref[Bool] = @ref.new(false)
   let spec : Array[(String, String, @ArgParser.Spec, String)] = [
@@ -58,7 +60,6 @@ fn main_err() -> Unit raise {
   if files.length() == 0 {
     raise NoInputFiles("No input files specified.")
   }
-  
   for source_file in files {
     let code = @fs.read_file_to_string(source_file)
     let ctx = @parser.Context::new(code~, source_file~)
@@ -71,11 +72,18 @@ fn main_err() -> Unit raise {
   }
 }
 
+///|
 fn main {
-  try main_err() catch {
+  main_err() catch {
     @ArgParser.ErrorMsg(msg) => println(msg)
-    NoInputFiles(msg) => { println(msg); panic() }
-    InValidOption(msg) => { println(msg); panic() }
+    NoInputFiles(msg) => {
+      println(msg)
+      panic()
+    }
+    InValidOption(msg) => {
+      println(msg)
+      panic()
+    }
     err => {
       println("Compilation error: \{err}")
       panic()
