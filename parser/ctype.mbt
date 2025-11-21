@@ -172,7 +172,7 @@ pub(all) enum CTypeDataKind {
   LongDouble
   Struct(String, Array[(String, CType)])
   Union(String, Array[(String, CType)])
-  Enum(String, Array[String])
+  Enum(String, Array[(String, Int)])
   Ptr(CType)
   Array(CType, Int)
   Function(Array[(CType, String)], CType, is_variadic~ : Bool)
@@ -227,7 +227,8 @@ pub impl Show for CTypeDataKind with output(self, logger) {
       let sb = StringBuilder::new()
       sb.write_string("enum { ")
       for variant in variants {
-        sb.write_string(variant)
+        let (variant, i) = variant
+        sb.write_string("\{variant} = \{i}")
         sb.write_string(", ")
       }
       sb.write_string("}")

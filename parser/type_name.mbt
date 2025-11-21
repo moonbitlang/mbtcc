@@ -565,8 +565,9 @@ fn Context::parse_decl_spec(
       raise ParseError(tok, "struct type specifier not implemented yet")
     [{ kind: Keyword(Union), .. } as tok, ..] =>
       raise ParseError(tok, "union type specifier not implemented yet")
-    [{ kind: Keyword(Enum), .. } as tok, ..] =>
-      raise ParseError(tok, "enum type specifier not implemented yet")
+    [{ kind: Keyword(Enum), .. }, ..] as tokens => {
+      return self.parse_enum_specifier(tokens)
+    }
     tokens => break tokens
   }
   let base_kind = match data_ty {
@@ -609,6 +610,103 @@ fn Context::parse_decl_spec(
     tokens,
   }
   (ctype, storage_class, rest)
+}
+
+pub fn Context::parse_enum_specifier(
+  self:Context,
+  tokens: ArrayView[Token]
+) -> (CType, StorageClass, ArrayView[Token]) raise ParseError {
+  guard tokens is [{ kind: Keyword(Enum), .. } as enum_kw_tok, .. tokens] else {
+    println("Compile ICE: Expected 'enum' keyword in enum specifier")
+    panic()
+  }
+  let enum_name = if tokens is [{ kind: Identifier(name), .. }, ..tokens] {
+    guard !self.is_name_has_been_defined(name) else {
+      raise ParseError(
+        tokens[0],
+        "Enum name '\{name}' has already been defined",
+      )
+    }
+    name
+  } else {
+    ""
+  }
+
+  let variants: Array[(String, Int)] = Array::new()
+
+  let dataKind = CTypeDataKind::Enum(enum_name, variants)
+  let ctype = CType::{
+    dataKind,
+    is_const: false,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    tokens: Array::new(),
+  }
+
+  let default_storage = StorageClass::{
+    is_static: false,
+    is_extern: false,
+    is_thread_local: false,
+    is_register: false,
+  }
+
+  guard tokens is [{ kind: Bracket('{'), ..}, ..tokens] else {
+    return (ctype, default_storage, tokens)
+  }
+
+  let mut value = 0;
+  let rest = loop tokens {
+    [{ kind: Identifier(vari), ..}, ..rest] if !self.is_name_has_been_defined(vari) => {
+      let rest = if rest is [{ kind: AssignOp("="), ..}, ..rest] {
+        let (const_expr, rest) = self.parse_constant_expr(rest)
+        value = const_expr.eval_as_int()
+        rest
+      } else {
+        rest
+      }
+      variants.push((vari, value))
+      self.add_enum_member(vari, ctype, value)
+      value = value + 1
+      continue rest
+    }
+    [{ kind: Identifier(vari), ..} as tok, ..] => {
+      let msg = match self.defined.get(vari).unwrap() {
+        EnumMember(ty, i) => {
+          "Enum variant name '\{vari}' has already been defined as enum member '\{ty}' with value \{i}"
+        }
+        TypeDef(_) => {
+          "Enum variant name '\{vari}' has already been defined as typedef"
+        }
+        Variable(_) => {
+          "Enum variant name '\{vari}' has already been defined as variable"
+        }
+        Label => {
+          "Enum variant name '\{vari}' has already been defined as label"
+        }
+      }
+      raise ParseError(tok, msg)
+    }
+    [{ kind: Comma, ..}, { kind: Identifier(_) | Bracket('}'), ..},  ..] as tokens => {
+      continue tokens[1:]
+    }
+    [{ kind: Comma, ..}, tok,  ..] => {
+      let msg = "Unexpected token '\{tok}' in enum variant list"
+      raise ParseError(tok, msg)
+    }
+    [{ kind: Bracket('}'), ..}, ..rest] => {
+      break rest
+    }
+    [] => {
+      let msg = "Unexpected end of tokens in enum variant list"
+      raise ParseError(enum_kw_tok, msg)
+    }
+    [tok, ..] => {
+      let msg = "Unexpected token '\{tok}' in enum variant list"
+      raise ParseError(tok, msg)
+    }
+  }
+  (ctype, default_storage, rest)
 }
 
 ///|

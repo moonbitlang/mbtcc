@@ -13,7 +13,7 @@ enum SymbolKind {
   Variable(CType)
   TypeDef(CType)
   Label
-  // EnumMember(CType, Int)
+  EnumMember(CType, Int)
 }
 
 ///|
@@ -54,6 +54,15 @@ pub fn Context::add_var(self : Context, name : String, ctype : CType) -> Unit {
 ///|
 pub fn Context::add_label(self : Context, name : String) -> Unit {
   self.defined.set(name, Label)
+}
+
+pub fn Context::add_enum_member(
+  self : Context,
+  vari : String,
+  enum_type : CType,
+  value : Int,
+) -> Unit {
+  self.defined.set(vari, EnumMember(enum_type, value))
 }
 
 ///|
@@ -111,6 +120,13 @@ pub fn Context::is_label(self : Context, name : String) -> Bool {
 pub fn Context::is_var_name(self : Context, name : String) -> Bool {
   match self.defined.get(name) {
     Some(Variable(_)) => true
+    _ => false
+  }
+}
+
+pub fn Context::is_enum_member(self : Context, name : String) -> Bool {
+  match self.defined.get(name) {
+    Some(EnumMember(_, _)) => true
     _ => false
   }
 }
