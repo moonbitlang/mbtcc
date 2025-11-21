@@ -178,10 +178,11 @@ pub(all) enum CTypeDataKind {
   Function(Array[(CType, String)], CType, is_variadic~ : Bool)
 } derive(Eq)
 
+///|
 pub struct StructField {
-  name: String
-  ctype: CType
-  bit_width: Int?
+  name : String
+  ctype : CType
+  bit_width : Int?
 } derive(Eq)
 
 ///|
@@ -190,7 +191,7 @@ pub impl Show for CTypeDataKind with output(self, logger) {
     let sb = StringBuilder::new()
     sb.write_string("{ ")
     for field in fields {
-      let {name, ctype, bit_width } = field
+      let { name, ctype, bit_width } = field
       sb.write_object(ctype)
       sb.write_string(" ")
       sb.write_string(name)
@@ -416,10 +417,7 @@ pub fn CType::ptr_to(self : CType) -> CType {
 }
 
 ///|
-pub fn CType::struct_type(
-  name : String,
-  fields : Array[StructField],
-) -> CType {
+pub fn CType::struct_type(name : String, fields : Array[StructField]) -> CType {
   CType::default_with(Struct(name, fields))
 }
 
@@ -521,7 +519,7 @@ pub fn CType::get_field_ctype_by_dot_acc(
     _ => return None
   }
   for field in fields {
-    let {name, ctype, ..} = field
+    let { name, ctype, .. } = field
     if name == field_name {
       return Some(ctype)
     }

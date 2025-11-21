@@ -6,7 +6,7 @@ pub struct Context {
   // Symbol table
   mut defined : Env[String, SymbolKind]
   // enum, struct, union  type tags
-  mut tags: Env[String, CTypeDataKind]
+  mut tags : Env[String, CTypeDataKind]
   errs : Array[ParseError]
 }
 
@@ -160,14 +160,21 @@ pub fn Context::get_typename_ctype(self : Context, name : String) -> CType? {
   }
 }
 
+///|
 pub fn Context::get_tag_ctype(self : Context, name : String) -> CTypeDataKind? {
   self.tags.get(name)
 }
 
-pub fn Context::add_tag(self : Context, name : String, dataKind : CTypeDataKind) -> Unit {
+///|
+pub fn Context::add_tag(
+  self : Context,
+  name : String,
+  dataKind : CTypeDataKind,
+) -> Unit {
   self.tags.set(name, dataKind)
 }
 
+///|
 pub fn Context::is_name_a_tag(self : Context, name : String) -> Bool {
   match self.tags.get(name) {
     Some(_) => true
@@ -175,6 +182,7 @@ pub fn Context::is_name_a_tag(self : Context, name : String) -> Bool {
   }
 }
 
+///|
 pub fn Context::push_scope(self : Context) -> Unit {
   let new_defined = Env::new(parent=Some(self.defined))
   self.defined = new_defined
@@ -182,8 +190,9 @@ pub fn Context::push_scope(self : Context) -> Unit {
   self.tags = new_tags
 }
 
+///|
 #callsite(autofill(loc))
-pub fn Context::pop_scope(self : Context, loc~: SourceLoc) -> Unit {
+pub fn Context::pop_scope(self : Context, loc~ : SourceLoc) -> Unit {
   match self.defined.parent {
     Some(parent) => self.defined = parent
     None => {
