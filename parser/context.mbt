@@ -56,6 +56,7 @@ pub fn Context::add_label(self : Context, name : String) -> Unit {
   self.defined.set(name, Label)
 }
 
+///|
 pub fn Context::add_enum_member(
   self : Context,
   vari : String,
@@ -124,6 +125,7 @@ pub fn Context::is_var_name(self : Context, name : String) -> Bool {
   }
 }
 
+///|
 pub fn Context::is_enum_member(self : Context, name : String) -> Bool {
   match self.defined.get(name) {
     Some(EnumMember(_, _)) => true

@@ -142,7 +142,7 @@ pub(all) enum CTypeDataKind {
   LongDouble
   Struct(String, Array[(String, CType)])
   Union(String, Array[(String, CType)])
-  Enum(String, Array[String])
+  Enum(String, Array[(String, Int)])
   Ptr(CType)
   Array(CType, Int)
   Function(Array[(CType, String)], CType, is_variadic~ : Bool)
@@ -202,6 +202,7 @@ pub struct Context {
   defined : @env.Env[String, SymbolKind]
   errs : Array[ParseError]
 }
+fn Context::add_enum_member(Self, String, CType, Int) -> Unit
 fn Context::add_label(Self, String) -> Unit
 fn Context::add_typedef(Self, String, CType) -> Unit
 fn Context::add_var(Self, String, CType) -> Unit
@@ -209,6 +210,7 @@ fn Context::catch_err(Self, ParseError) -> Unit
 fn Context::from_lexer(@lexer.Context) -> Self
 fn Context::get_typename_ctype(Self, String) -> CType?
 fn Context::get_var_ctype(Self, String) -> CType?
+fn Context::is_enum_member(Self, String) -> Bool
 fn Context::is_keyword_or_type_name(Self, @lexer.Token) -> Bool
 fn Context::is_label(Self, String) -> Bool
 fn Context::is_name_has_been_defined(Self, String) -> Bool
@@ -216,6 +218,7 @@ fn Context::is_type_name(Self, String) -> Bool
 fn Context::is_type_tok(Self, @lexer.Token) -> Bool
 fn Context::is_var_name(Self, String) -> Bool
 fn Context::new(code~ : String, source_file? : String) -> Self
+fn Context::parse(Self) -> Program raise ParseError
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_assign_expr(Self, ArrayView[@lexer.Token]) -> (AssignExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -228,6 +231,7 @@ fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lex
 fn Context::parse_declaration(Self, ArrayView[@lexer.Token], skip_semi? : Bool) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_designator(Self, ArrayView[@lexer.Token]) -> (Designator, ArrayView[@lexer.Token]) raise ParseError
+fn Context::parse_enum_specifier(Self, ArrayView[@lexer.Token]) -> (CType, StorageClass, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_expr(Self, ArrayView[@lexer.Token]) -> (Expr, ArrayView[@lexer.Token]) raise ParseError
@@ -509,6 +513,13 @@ pub enum PrimExprKind {
 }
 impl Eq for PrimExprKind
 impl Show for PrimExprKind
+
+pub struct Program {
+  externals : Array[ExternalDeclaration]
+}
+fn Program::to_string(Self, color? : Bool) -> String
+impl Eq for Program
+impl Show for Program
 
 pub struct RelationalExpr {
   kind : RelationalExprKind

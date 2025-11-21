@@ -566,7 +566,14 @@ fn Context::parse_decl_spec(
     [{ kind: Keyword(Union), .. } as tok, ..] =>
       raise ParseError(tok, "union type specifier not implemented yet")
     [{ kind: Keyword(Enum), .. }, ..] as tokens => {
-      return self.parse_enum_specifier(tokens)
+      let (ty, rest) = self.parse_enum_specifier(tokens)
+      let storage_class = StorageClass::{
+        is_static,
+        is_extern,
+        is_thread_local,
+        is_register,
+      }
+      return (ty, storage_class, rest)
     }
     tokens => break tokens
   }
@@ -612,28 +619,25 @@ fn Context::parse_decl_spec(
   (ctype, storage_class, rest)
 }
 
+///|
 pub fn Context::parse_enum_specifier(
-  self:Context,
-  tokens: ArrayView[Token]
-) -> (CType, StorageClass, ArrayView[Token]) raise ParseError {
+  self : Context,
+  tokens : ArrayView[Token],
+) -> (CType, ArrayView[Token]) raise ParseError {
   guard tokens is [{ kind: Keyword(Enum), .. } as enum_kw_tok, .. tokens] else {
     println("Compile ICE: Expected 'enum' keyword in enum specifier")
     panic()
   }
-  let enum_name = if tokens is [{ kind: Identifier(name), .. }, ..tokens] {
+  let (enum_name, tokens) = if tokens
+    is [{ kind: Identifier(name), .. }, .. rest] {
     guard !self.is_name_has_been_defined(name) else {
-      raise ParseError(
-        tokens[0],
-        "Enum name '\{name}' has already been defined",
-      )
+      raise ParseError(rest[0], "Enum name '\{name}' has already been defined")
     }
-    name
+    (name, rest)
   } else {
-    ""
+    ("", tokens)
   }
-
-  let variants: Array[(String, Int)] = Array::new()
-
+  let variants : Array[(String, Int)] = Array::new()
   let dataKind = CTypeDataKind::Enum(enum_name, variants)
   let ctype = CType::{
     dataKind,
@@ -643,22 +647,15 @@ pub fn Context::parse_enum_specifier(
     is_atomic: false,
     tokens: Array::new(),
   }
-
-  let default_storage = StorageClass::{
-    is_static: false,
-    is_extern: false,
-    is_thread_local: false,
-    is_register: false,
+  guard tokens is [{ kind: Bracket('{'), .. }, .. tokens] else {
+    return (ctype, tokens)
   }
-
-  guard tokens is [{ kind: Bracket('{'), ..}, ..tokens] else {
-    return (ctype, default_storage, tokens)
-  }
-
-  let mut value = 0;
+  let mut value = 0
   let rest = loop tokens {
-    [{ kind: Identifier(vari), ..}, ..rest] if !self.is_name_has_been_defined(vari) => {
-      let rest = if rest is [{ kind: AssignOp("="), ..}, ..rest] {
+    [{ kind: Identifier(vari), .. }, .. rest] if !self.is_name_has_been_defined(
+        vari,
+      ) => {
+      let rest = if rest is [{ kind: AssignOp("="), .. }, .. rest] {
         let (const_expr, rest) = self.parse_constant_expr(rest)
         value = const_expr.eval_as_int()
         rest
@@ -670,33 +667,25 @@ pub fn Context::parse_enum_specifier(
       value = value + 1
       continue rest
     }
-    [{ kind: Identifier(vari), ..} as tok, ..] => {
+    [{ kind: Identifier(vari), .. } as tok, ..] => {
       let msg = match self.defined.get(vari).unwrap() {
-        EnumMember(ty, i) => {
+        EnumMember(ty, i) =>
           "Enum variant name '\{vari}' has already been defined as enum member '\{ty}' with value \{i}"
-        }
-        TypeDef(_) => {
+        TypeDef(_) =>
           "Enum variant name '\{vari}' has already been defined as typedef"
-        }
-        Variable(_) => {
+        Variable(_) =>
           "Enum variant name '\{vari}' has already been defined as variable"
-        }
-        Label => {
-          "Enum variant name '\{vari}' has already been defined as label"
-        }
+        Label => "Enum variant name '\{vari}' has already been defined as label"
       }
       raise ParseError(tok, msg)
     }
-    [{ kind: Comma, ..}, { kind: Identifier(_) | Bracket('}'), ..},  ..] as tokens => {
+    [{ kind: Comma, .. }, { kind: Identifier(_) | Bracket('}'), .. }, ..] as tokens =>
       continue tokens[1:]
-    }
-    [{ kind: Comma, ..}, tok,  ..] => {
+    [{ kind: Comma, .. }, tok, ..] => {
       let msg = "Unexpected token '\{tok}' in enum variant list"
       raise ParseError(tok, msg)
     }
-    [{ kind: Bracket('}'), ..}, ..rest] => {
-      break rest
-    }
+    [{ kind: Bracket('}'), .. }, .. rest] => break rest
     [] => {
       let msg = "Unexpected end of tokens in enum variant list"
       raise ParseError(enum_kw_tok, msg)
@@ -706,7 +695,7 @@ pub fn Context::parse_enum_specifier(
       raise ParseError(tok, msg)
     }
   }
-  (ctype, default_storage, rest)
+  (ctype, rest)
 }
 
 ///|
@@ -1092,4 +1081,173 @@ test "Function Pointer Type TypeName Parse Test" {
   // rest must be `[EOF]`
   let rest = next_check_point(rest)
   assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
+test "Enum Type Parsing Test" {
+  let code =
+    #|enum Color { Red, Green, Blue } ;
+    #|enum { A, B, C } ;
+    #|enum Status { OK = 0, ERROR = -1, PENDING } ;
+    #|enum Values { X = 10, Y, Z = 20, W } ;
+    #|enum Direction ;
+    #|enum { First = 1, Second, Third, Fourth = 100, Fifth } ;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // Parse `enum Color { Red, Green, Blue }`
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="enum Color")
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="Color")
+  inspect(variants.length(), content="3")
+  inspect(variants[0], content="(\"Red\", 0)")
+  inspect(variants[1], content="(\"Green\", 1)")
+  inspect(variants[2], content="(\"Blue\", 2)")
+  assert_true(ctx.is_enum_member("Red"))
+  assert_true(ctx.is_enum_member("Green"))
+  assert_true(ctx.is_enum_member("Blue"))
+
+  // Parse `enum { A, B, C }` - anonymous enum
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="enum { A = 0, B = 1, C = 2, }")
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="")
+  inspect(variants.length(), content="3")
+  inspect(variants[0], content="(\"A\", 0)")
+  inspect(variants[1], content="(\"B\", 1)")
+  inspect(variants[2], content="(\"C\", 2)")
+  assert_true(ctx.is_enum_member("A"))
+  assert_true(ctx.is_enum_member("B"))
+  assert_true(ctx.is_enum_member("C"))
+
+  // Parse `enum Status { OK = 0, ERROR = -1, PENDING }` - with explicit values
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="enum Status")
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="Status")
+  inspect(variants.length(), content="3")
+  inspect(variants[0], content="(\"OK\", 0)")
+  inspect(variants[1], content="(\"ERROR\", -1)")
+  // PENDING should be ERROR + 1 = -1 + 1 = 0
+  inspect(variants[2], content="(\"PENDING\", 0)")
+  assert_true(ctx.is_enum_member("OK"))
+  assert_true(ctx.is_enum_member("ERROR"))
+  assert_true(ctx.is_enum_member("PENDING"))
+
+  // Parse `enum Values { X = 10, Y, Z = 20, W }` - mixed explicit and implicit
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="enum Values")
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="Values")
+  inspect(variants.length(), content="4")
+  inspect(variants[0], content="(\"X\", 10)")
+  inspect(variants[1], content="(\"Y\", 11)")
+  inspect(variants[2], content="(\"Z\", 20)")
+  inspect(variants[3], content="(\"W\", 21)")
+
+  // Parse `enum Direction` - forward declaration without body
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="enum Direction")
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="Direction")
+  inspect(variants.length(), content="0")
+
+  // Parse `enum { First = 1, Second, Third, Fourth = 100, Fifth }`
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(
+    ty,
+    content="enum { First = 1, Second = 2, Third = 3, Fourth = 100, Fifth = 101, }",
+  )
+  assert_true(ty.dataKind is Enum("", _))
+  guard ty.dataKind is Enum(name, variants) else { fail("Expected Enum type") }
+  inspect(name, content="")
+  inspect(variants.length(), content="5")
+  inspect(variants[0], content="(\"First\", 1)")
+  inspect(variants[1], content="(\"Second\", 2)")
+  inspect(variants[2], content="(\"Third\", 3)")
+  inspect(variants[3], content="(\"Fourth\", 100)")
+  inspect(variants[4], content="(\"Fifth\", 101)")
+
+  // rest must be `[EOF]`
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
+test "Enum Type Parsing Error Test" {
+  // Error test: enum name already defined as typedef
+  let code_err1 = "typedef int MyType; enum MyType { A, B }"
+  let ctx_err1 = Context::new(code=code_err1)
+  let (_, rest) = ctx_err1.parse_declaration(ctx_err1.tokens)
+  let r = try? ctx_err1.parse_type_name(rest)
+  assert_true(r is Err(_))
+
+  // Error test: enum name already defined as variable
+  let code_err2 = "int x; enum x { A, B }"
+  let ctx_err2 = Context::new(code=code_err2)
+  let (_, rest) = ctx_err2.parse_declaration(ctx_err2.tokens)
+  let r = try? ctx_err2.parse_type_name(rest)
+  assert_true(r is Err(_))
+
+  // Error test: enum variant name already defined as enum member
+  let code_err3 = "enum { A, B, A }"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: enum variant name already defined as typedef
+  let code_err4 = "typedef int MyInt; enum { MyInt, B }"
+  let ctx_err4 = Context::new(code=code_err4)
+  let (_, rest) = ctx_err4.parse_declaration(ctx_err4.tokens)
+  let r = try? ctx_err4.parse_type_name(rest)
+  assert_true(r is Err(_))
+
+  // Error test: enum variant name already defined as variable
+  let code_err5 = "int var; enum { var, B }"
+  let ctx_err5 = Context::new(code=code_err5)
+  let (_, rest) = ctx_err5.parse_declaration(ctx_err5.tokens)
+  let r = try? ctx_err5.parse_type_name(rest)
+  assert_true(r is Err(_))
+
+  // Error test: unexpected end of tokens in enum variant list
+  let code_err6 = "enum { A, B"
+  let ctx_err6 = Context::new(code=code_err6)
+  let r = try? ctx_err6.parse_type_name(ctx_err6.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: unexpected token in enum variant list
+  let code_err7 = "enum { A, ?, B }"
+  let ctx_err7 = Context::new(code=code_err7)
+  let r = try? ctx_err7.parse_type_name(ctx_err7.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: unexpected token after comma in enum variant list
+  let code_err8 = "enum { A, , B }"
+  let ctx_err8 = Context::new(code=code_err8)
+  let r = try? ctx_err8.parse_type_name(ctx_err8.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: enum with only commas
+  let code_err9 = "enum { , , }"
+  let ctx_err9 = Context::new(code=code_err9)
+  let r = try? ctx_err9.parse_type_name(ctx_err9.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: enum variant with invalid assignment expression
+  let code_err10 = "enum { A = x, B }"
+  let ctx_err10 = Context::new(code=code_err10)
+  let r = try? ctx_err10.parse_type_name(ctx_err10.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: trailing comma with unexpected token
+  let code_err11 = "enum { A, B, }"
+  let ctx_err11 = Context::new(code=code_err11)
+  let r = try? ctx_err11.parse_type_name(ctx_err11.tokens)
+  // Trailing comma should be allowed and skip to closing brace
+  assert_true(r is Ok(_))
 }

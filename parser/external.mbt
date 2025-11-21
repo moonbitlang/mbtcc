@@ -287,14 +287,11 @@ pub fn Context::parse_external_declaration(
       tokens: init_tokens[0:rest.start_offset() - start_offset],
     }
     return ([ext_decl], rest)
-  } else if rest is [{ kind: Semi, .. }, ..rest] {
+  } else if rest is [{ kind: Semi, .. }, .. rest] {
     // This is a normal declaration, consume the semicolon
     let ext_decls = decls.map(fn(decl) {
       let decl_tokens = decl.tokens
-      ExternalDeclaration::{
-        kind: Declaration(decl),
-        tokens: decl_tokens,
-      }
+      ExternalDeclaration::{ kind: Declaration(decl), tokens: decl_tokens }
     })
     return (ext_decls, rest)
   } else {
