@@ -12,90 +12,73 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-///|
-fn main {
-  let args = @env.args()
-  let help_info =
-    #|Usgae: mbtcc [options]
+suberror ArgError {
+  NoInputFiles(String)
+  InValidOption(String)
+}
+
+fn main_err() -> Unit raise {
+  let usage =
+    #|Usage: mbtcc [options] <input files>
     #|
-    #|  -code <code>    : Compile the given code string.
-    #|  -file <file>    : Compile the code from the specified file.
-    #|  --print-toks    : Print the tokens after lexing.
-    #|  --stop-after=lex : Stop after lexing phase.
-    #|  --stop-after=parse : Stop after parsing phase.
-    #|  --help         : Show this help message.
-  if args.length() == 1 {
-    println(help_info)
-    return
-  }
-  if args.contains("--help") {
-    println(help_info)
-    return
-  }
-  let ctx = match args.search_by(a => a is "-file" || a is "--file") {
-    Some(idx) if idx + 1 < args.length() =>
-      @parser.ParserContext::create_by_file(args[idx + 1])
-    Some(_) => {
-      println("Error: No file specified after -file option")
-      return
+    #|Options:
+    #|  --print-tokens, -toks      Stop after lexing phase and print tokens.
+    #|  --print-ast, -ast          Stop after parsing phase and print AST.
+  let other_options : Array[String] = Array::new()
+  let output: Ref[String] = @ref.new("")
+  let print_tokens : Ref[Bool] = @ref.new(false)
+  let print_ast : Ref[Bool] = @ref.new(false)
+  let spec : Array[(String, String, @ArgParser.Spec, String)] = [
+    (
+      "--print-tokens",
+      "-toks",
+      Set(print_tokens),
+      "Stop after lexing phase and print tokens.",
+    ),
+    (
+      "--print-ast",
+      "-ast",
+      Set(print_ast),
+      "Stop after parsing phase and print AST.",
+    ),
+    ("--output", "-o", Set_string(output), "Specify output file name."),
+  ]
+  let args = @env.args()[1:].to_array()
+  @ArgParser.parse(spec, opt => other_options.push(opt), usage, args)
+  let files : Array[String] = Array::new()
+  let print_tokens = print_tokens.val
+  // let print_ast = print_ast.val
+  for opt in other_options {
+    if opt.has_suffix(".c") {
+      files.push(opt)
+    } else {
+      raise InValidOption("Invalid option `\{opt}`.")
     }
-    None =>
-      match args.search_by(a => a is "-code" || a is "--code") {
-        Some(idx) if idx + 1 < args.length() =>
-          @parser.ParserContext::create_by_code(args[idx + 1])
-        Some(_) => {
-          println("Error: No code specified after -code option")
-          return
-        }
-        None => {
-          println(help_info)
-          return
-        }
-      }
   }
-  ctx.tokenize() catch {
+  if files.length() == 0 {
+    raise NoInputFiles("No input files specified.")
+  }
+  
+  for source_file in files {
+    let code = @fs.read_file_to_string(source_file)
+    let ctx = @parser.Context::new(code~, source_file~)
+    if print_tokens {
+      println(ctx.tokens)
+    } else {
+      let prog = ctx.parse()
+      println(prog)
+    }
+  }
+}
+
+fn main {
+  try main_err() catch {
+    @ArgParser.ErrorMsg(msg) => println(msg)
+    NoInputFiles(msg) => { println(msg); panic() }
+    InValidOption(msg) => { println(msg); panic() }
     err => {
-      println("Tokenization error: \{err}")
-      return
+      println("Compilation error: \{err}")
+      panic()
     }
-  }
-  ctx.preprocess() catch {
-    err => {
-      println("Preprocessing error: \{err}")
-      return
-    }
-  }
-  if args.contains("--print-toks") {
-    ctx.print_toks()
-  }
-  if args.contains("--stop-after=lex") {
-    return
-  }
-  ctx.parse() catch {
-    @parser.ParseError((idx, msg)) => {
-      let msg = ctx.get_error_msg(idx, msg)
-      println("Parse error: " + msg)
-      return
-    }
-    _ => ()
-  }
-  if args.contains("--print-ast") {
-    ctx.print_ast()
-  }
-  if args.contains("--stop-after=parse") {
-    return
-  }
-  let codegen = @codegen.CodeGenContext::from_parser(ctx)
-  codegen.run() catch {
-    err => {
-      println("Code generation error: \{err}")
-      return
-    }
-  }
-  //if args.contains("--print-llvm") {
-  //  codegen.dump()
-  //}
-  if !args.contains("--no-print-llvm") { // temporary
-    codegen.dump()
   }
 }

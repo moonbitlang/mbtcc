@@ -141,7 +141,7 @@ run_test() {
     echo "Expected output (from GCC): $expected_output"
     
     # Compile with mbtcc and clang
-    if ! moon run main --warn-list -1-2-3-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll" 2>/dev/null; then
+    if ! moon run oldmain --warn-list -1-2-3-6-28 -- -file "$c_file" > "$TMP_DIR/$base_name.ll" 2>/dev/null; then
         echo -e "${RED}FAILED: mbtcc compilation failed${NC}"
         failed_tests+=("$category/$test_name (mbtcc compilation)")
         return

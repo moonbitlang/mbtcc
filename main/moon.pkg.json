@@ -1,11 +1,10 @@
 {
   "is-main": true,
   "import": [
-    {
-      "path" : "Kaida-Amethyst/mbtcc/oldparser",
-      "alias" : "parser"
-    },
-    "Kaida-Amethyst/mbtcc/codegen"
+    "Yoorkin/ArgParser",
+    "Kaida-Amethyst/mbtcc/parser",
+    "Kaida-Amethyst/mbtcc/lexer",
+    "moonbitlang/x/fs"
   ],
   "link" : {
     "native" : {

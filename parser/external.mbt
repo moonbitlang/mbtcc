@@ -140,8 +140,8 @@ pub fn FunctionDefinition::to_string(
   let body_lines = body_str.split("\n")
   let body_formatted = format_lines(
     body_lines,
-    head_with="└-body: ",
-    continue_with="        ",
+    head_with="└-",
+    continue_with="  ",
   )
   "\{prefix} \{signature}\n\{body_formatted}"
 }
