@@ -49,7 +49,7 @@ fn main_err() -> Unit raise {
   let print_tokens = print_tokens.val
   // let print_ast = print_ast.val
   for opt in other_options {
-    if opt.has_suffix(".c") {
+    if opt.has_suffix(".c") || opt.has_suffix(".h") {
       files.push(opt)
     } else {
       raise InValidOption("Invalid option `\{opt}`.")
