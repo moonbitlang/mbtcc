@@ -191,8 +191,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
           current_arg_tokens.push(tok)
           continue rest
         }
-        [{ kind: Comma, .. } as comma_tok, .. rest] if
-          (paren_count | brace_count | bracket_count) == 0 => {
+        [{ kind: Comma, .. } as comma_tok, .. rest] if (
+            paren_count | brace_count | bracket_count
+          ) ==
+          0 => {
           if param_idx < params.length() {
             args.set(params[param_idx], current_arg_tokens)
             param_idx += 1
