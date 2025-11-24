@@ -41,7 +41,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       .. rest,
     ] => {
       let fpath = dir.join(f).to_string()
-      let include_code = @fs.read_file_to_string(fpath) catch {
+      let include_code = try @fs.read_file_to_string(fpath) catch {
         _ => raise InvalidIncludePath(fpath)
       }
       let include_ctx = @lexer.Context::new(
@@ -70,12 +70,11 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
-      { kind: Identifier(def_name), .. } as def_tok,
+      { kind: Identifier(def_name), line, .. },
       { kind: Bracket('('), .. },
       .. rest,
     ] => {
       let params : Array[String] = Array::new()
-      let rep_tokens : Array[Token] = Array::new()
       let mut va_arg_name : String? = None
       let rest = loop rest {
         [
@@ -106,15 +105,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
             "Invalid function-like macro parameter list",
           )
       }
-      let line = def_tok.line
-      let rest = loop rest {
-        [tok, ..] as rest if tok.line != line => break rest
-        [tok, .. rest] => {
-          rep_tokens.push(tok)
-          continue rest
-        }
-        [] as rest => break rest
-      }
+      let (rep_tokens, rest) = collect_tokens_until_new_line(line, rest)
       let macro_def = Macro::FuncLike(params, va_arg_name, rep_tokens)
       macros.set(def_name, macro_def)
       continue rest
@@ -123,19 +114,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
-      { kind: Identifier(defname), .. } as idtok,
+      { kind: Identifier(defname), line, .. },
       .. rest,
     ] => {
-      let def_tokens : Array[Token] = Array::new()
-      let line = idtok.line
-      let rest = loop rest {
-        [tok, ..] as rest if tok.line != line => break rest
-        [tok, .. rest] => {
-          def_tokens.push(tok)
-          continue rest
-        }
-        [] as rest => break rest
-      }
+      let (def_tokens, rest) = collect_tokens_until_new_line(line, rest)
       let macro_def = Macro::ObjLike(def_tokens)
       macros.set(defname, macro_def)
       continue rest
@@ -159,6 +141,21 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     err_toks,
   }
   new_ctx
+}
+
+fn collect_tokens_until_new_line(
+  line: Int,
+  tokens: ArrayView[Token]
+) -> (Array[Token], ArrayView[Token]) {
+  let new_tokens : Array[Token] = Array::new()
+  let rest = loop tokens {
+    [tok, .. rest] if tok.line == line => {
+      new_tokens.push(tok)
+      continue rest
+    }
+    tokens => break tokens
+  }
+  (new_tokens, rest)
 }
 
 ///|

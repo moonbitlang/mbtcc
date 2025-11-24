@@ -4,4 +4,5 @@ pub suberror PreprecessError {
   Unimplemented(String)
   InvalidMacroDefinition(String)
   InvalidMacorInvocation(String)
+  InvalidConstExprToken(Token, String)
 }
