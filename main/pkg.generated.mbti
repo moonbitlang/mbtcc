@@ -4,6 +4,7 @@ package "Kaida-Amethyst/mbtcc/main"
 // Values
 
 // Errors
+type ArgError
 
 // Types and methods
 

@@ -1,0 +1,23 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/preprocess"
+
+import(
+  "Kaida-Amethyst/mbtcc/lexer"
+)
+
+// Values
+fn preprocess(@lexer.Context) -> @lexer.Context raise PreprecessError
+
+// Errors
+pub suberror PreprecessError {
+  InvalidIncludePath(String)
+  Unimplemented(String)
+  InvalidMacroDefinition(String)
+}
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+
