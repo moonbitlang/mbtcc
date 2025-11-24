@@ -1,11 +1,4 @@
 ///|
-pub suberror PreprecessError {
-  InvalidIncludePath(String)
-  Unimplemented(String)
-  InvalidMacroDefinition(String)
-}
-
-///|
 using @lexer {type Token}
 
 ///|
@@ -62,7 +55,18 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       new_tokens.append(include_tokens)
       continue rest
     }
-    // Func-like macro
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("undef"), .. },
+      { kind: Identifier(name), .. },
+      .. rest,
+    ] => {
+      macros.remove(name)
+      continue rest
+    }
+    [{ kind: Hash, .. }, { kind: Identifier("undef"), .. }, tok, ..] =>
+      raise InvalidMacroDefinition("Invalid macro name in undef: \{tok}")
+    // define Func-like macro
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
@@ -115,7 +119,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       macros.set(def_name, macro_def)
       continue rest
     }
-    // Obj-like macro
+    // define Obj-like macro
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
@@ -136,95 +140,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       macros.set(defname, macro_def)
       continue rest
     }
-    [{ kind: Identifier(name), .. }, .. rest] if macros.get(name)
-      is Some(ObjLike(toks)) => {
-      new_tokens.append(toks)
-      continue rest
-    }
-    [{ kind: Identifier(name), .. }, { kind: Bracket('('), .. }, .. rest] if macros.get(
-        name,
-      )
-      is Some(FuncLike(params, va_args, rep_toks)) => {
-      let mut paren_count = 0
-      let mut brace_count = 0
-      let mut bracket_count = 0
-      let mut param_idx = 0
-      let args : Map[String, Array[Token]] = Map::new()
-      let mut current_arg_tokens : Array[Token] = Array::new()
-      let va_args_tokens : Array[Token] = Array::new()
-      let rest = loop rest {
-        [{ kind: Bracket('('), .. } as tok, .. rest] => {
-          paren_count += 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Bracket(')'), .. } as tok, .. rest] if paren_count > 0 => {
-          paren_count -= 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Bracket(')'), .. }, .. rest] => {
-          if param_idx < params.length() {
-            args.set(params[param_idx], current_arg_tokens)
-          } else if va_args is Some(_) {
-            va_args_tokens.append(current_arg_tokens)
-          }
-          break rest
-        }
-        [{ kind: Bracket('{'), .. } as tok, .. rest] => {
-          brace_count += 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Bracket('}'), .. } as tok, .. rest] => {
-          brace_count -= 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Bracket('['), .. } as tok, .. rest] => {
-          bracket_count += 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Bracket(']'), .. } as tok, .. rest] => {
-          bracket_count -= 1
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [{ kind: Comma, .. } as comma_tok, .. rest] if (
-            paren_count | brace_count | bracket_count
-          ) ==
-          0 => {
-          if param_idx < params.length() {
-            args.set(params[param_idx], current_arg_tokens)
-            param_idx += 1
-            current_arg_tokens = Array::new()
-          } else {
-            va_args_tokens.append(current_arg_tokens)
-            va_args_tokens.push(comma_tok)
-            current_arg_tokens = Array::new()
-          }
-          continue rest
-        }
-        [tok, .. rest] => {
-          current_arg_tokens.push(tok)
-          continue rest
-        }
-        [] as rest => break rest
-      }
-      // 如果有可变参数，将其加入到args中
-      if va_args is Some(va_name) {
-        args.set(va_name, va_args_tokens)
-      }
-      // 展开替换
-      for rep_tok in rep_toks {
-        if rep_tok.kind is Identifier(var_name) &&
-          args.get(var_name) is Some(arg_tokens) {
-          new_tokens.append(arg_tokens)
-          continue
-        }
-        new_tokens.push(rep_tok)
-      }
+    // Expand object-like macro
+    [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
+      let (new_toks, rest) = replace_identifier(name, rest)
+      new_tokens.append(new_toks)
       continue rest
     }
     [tok, .. rest] => {
@@ -240,6 +159,105 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     err_toks,
   }
   new_ctx
+}
+
+///|
+fn replace_identifier(
+  id : String,
+  rest_tokens : ArrayView[Token],
+) -> (Array[Token], ArrayView[Token]) raise PreprecessError {
+  let cmacro = macros.get(id).unwrap()
+  if cmacro is ObjLike(toks) {
+    return (toks, rest_tokens)
+  }
+  guard cmacro is FuncLike(params, va_args, rep_toks)
+  guard rest_tokens is [{ kind: Bracket('('), .. }, .. rest] else {
+    raise InvalidMacorInvocation(
+      "Macro \{id} requires arguments but none provided",
+    )
+  }
+  let new_tokens : Array[Token] = Array::new()
+  let mut paren_count = 0
+  let mut brace_count = 0
+  let mut bracket_count = 0
+  let mut param_idx = 0
+  let args : Map[String, Array[Token]] = Map::new()
+  let mut current_arg_tokens : Array[Token] = Array::new()
+  let va_args_tokens : Array[Token] = Array::new()
+  let rest = loop rest {
+    [{ kind: Bracket('('), .. } as tok, .. rest] => {
+      paren_count += 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Bracket(')'), .. } as tok, .. rest] if paren_count > 0 => {
+      paren_count -= 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Bracket(')'), .. }, .. rest] => {
+      if param_idx < params.length() {
+        args.set(params[param_idx], current_arg_tokens)
+      } else if va_args is Some(_) {
+        va_args_tokens.append(current_arg_tokens)
+      }
+      break rest
+    }
+    [{ kind: Bracket('{'), .. } as tok, .. rest] => {
+      brace_count += 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Bracket('}'), .. } as tok, .. rest] => {
+      brace_count -= 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Bracket('['), .. } as tok, .. rest] => {
+      bracket_count += 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Bracket(']'), .. } as tok, .. rest] => {
+      bracket_count -= 1
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [{ kind: Comma, .. } as comma_tok, .. rest] if (
+        paren_count | brace_count | bracket_count
+      ) ==
+      0 => {
+      if param_idx < params.length() {
+        args.set(params[param_idx], current_arg_tokens)
+        param_idx += 1
+        current_arg_tokens = Array::new()
+      } else {
+        va_args_tokens.append(current_arg_tokens)
+        va_args_tokens.push(comma_tok)
+        current_arg_tokens = Array::new()
+      }
+      continue rest
+    }
+    [tok, .. rest] => {
+      current_arg_tokens.push(tok)
+      continue rest
+    }
+    [] as rest => break rest
+  }
+  // 如果有可变参数，将其加入到args中
+  if va_args is Some(va_name) {
+    args.set(va_name, va_args_tokens)
+  }
+  // 展开替换
+  for rep_tok in rep_toks {
+    if rep_tok.kind is Identifier(var_name) &&
+      args.get(var_name) is Some(arg_tokens) {
+      new_tokens.append(arg_tokens)
+      continue
+    }
+    new_tokens.push(rep_tok)
+  }
+  (new_tokens, rest)
 }
 
 ///|
