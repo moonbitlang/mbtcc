@@ -390,7 +390,7 @@ test "For Statement Parse Test" {
       #|├-init: (none)
       #|├-cond: (none)
       #|├-update: (none)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        └-[0]: if statement
       #|               ├-cond: variable done (int)
       #|               └-then: break statement
@@ -416,7 +416,7 @@ test "For Statement Parse Test" {
       #|│       ├-variable i (int)
       #|│       └-variable n (int)
       #|├-update: (none)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        └-[0]: expr statement
       #|               └-assignment expr: = (int)
       #|                 ├-lvalue: variable i (int)
@@ -444,7 +444,7 @@ test "For Statement Parse Test" {
       #|│       └-int literal 10 (int)
       #|├-update: unary operator ++ (int)
       #|│         └-variable i (int)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        └-[0]: expr statement
       #|               └-assignment expr: = (int)
       #|                 ├-lvalue: variable sum (int)

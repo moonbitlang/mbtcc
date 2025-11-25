@@ -311,7 +311,7 @@ test "While Statement Parse Test" {
     content=(
       #|while statement
       #|├-cond: int literal 1 (int)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        └-[0]: if statement
       #|               ├-cond: variable done (int)
       #|               └-then: break statement
@@ -333,7 +333,7 @@ test "While Statement Parse Test" {
       #|├-cond: relational expr: > (int)
       #|│       ├-variable x (int)
       #|│       └-int literal 0 (int)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        └-[0]: expr statement
       #|               └-assignment expr: = (int)
       #|                 ├-lvalue: variable x (int)
@@ -376,7 +376,7 @@ test "While Statement Parse Test" {
     while_stmt.to_string(color~),
     content=(
       #|do-while statement
-      #|├-body: compound statement
+      #|├-body: compound_statement
       #|│       ├-[0]: expr statement
       #|│       |      └-assignment expr: = (int)
       #|│       |        ├-lvalue: variable sum (int)

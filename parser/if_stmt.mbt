@@ -296,12 +296,12 @@ test "If Statement Parse Test" {
     content=(
       #|if statement
       #|├-cond: variable flag (int)
-      #|├-then: compound statement
+      #|├-then: compound_statement
       #|│       └-[0]: expr statement
       #|│              └-assignment expr: = (int)
       #|│                ├-lvalue: variable x (int)
       #|│                └-rvalue: int literal 1 (int)
-      #|└-else: compound statement
+      #|└-else: compound_statement
       #|        └-[0]: expr statement
       #|               └-assignment expr: = (int)
       #|                 ├-lvalue: variable x (int)

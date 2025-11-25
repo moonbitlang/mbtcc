@@ -172,12 +172,14 @@ pub fn FunctionDefinition::to_string(
 /// inspect(
 ///   ext_decls[0].to_string(color=false),
 ///   content=(
-///     #|function definition: add (int a, int b) -> int
-///     #|└-body: compound statement
-///     #|        └-[0]: return statement
-///     #|               └-additive expr: + (int)
-///     #|                 ├-variable a (int)
-///     #|                 └-variable b (int)
+///     
+///   #|function definition: add (int a, int b) -> int
+/// #|└-compound_statement
+/// #|  └-[0]: return statement
+/// #|         └-additive expr: + (int)
+/// #|           ├-variable a (int)
+/// #|           └-variable b (int)
+/// 
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
@@ -316,11 +318,11 @@ test "External Declaration Parse Test" {
     ext_decls[0].to_string(color~),
     content=(
       #|function definition: add (int a, int b) -> int
-      #|└-body: compound statement
-      #|        └-[0]: return statement
-      #|               └-additive expr: + (int)
-      #|                 ├-variable a (int)
-      #|                 └-variable b (int)
+      #|└-compound_statement
+      #|  └-[0]: return statement
+      #|         └-additive expr: + (int)
+      #|           ├-variable a (int)
+      #|           └-variable b (int)
     ),
   )
 
@@ -350,8 +352,8 @@ test "External Declaration Parse Test" {
     ext_decls[0].to_string(color~),
     content=(
       #|static function definition: helper () -> void
-      #|└-body: compound statement
-      #|        └-[0]: return statement (void)
+      #|└-compound_statement
+      #|  └-[0]: return statement (void)
     ),
   )
 }

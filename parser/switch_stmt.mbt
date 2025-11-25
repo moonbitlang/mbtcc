@@ -118,9 +118,10 @@ pub fn SwitchStmt::to_string(self : Self, color? : Bool = true) -> String {
 ///     
 ///   
 ///   
+///   
 ///   #|switch statement
 /// #|├-expr: variable x (int)
-/// #|└-body: compound statement
+/// #|└-body: compound_statement
 /// #|        ├-[0]: case statement
 /// #|        |      ├-value: int literal 1 (int)
 /// #|        |      └-stmt: return statement
@@ -128,6 +129,7 @@ pub fn SwitchStmt::to_string(self : Self, color? : Bool = true) -> String {
 /// #|        └-[1]: default case statement
 /// #|               └-stmt: return statement
 /// #|                       └-int literal 0 (int)
+/// 
 /// 
 /// 
 /// 
@@ -224,7 +226,7 @@ test "Switch Statement Parse Test" {
     content=(
       #|switch statement
       #|├-expr: variable x (int)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        ├-[0]: case statement
       #|        |      ├-value: int literal 1 (int)
       #|        |      └-stmt: return statement
@@ -252,7 +254,7 @@ test "Switch Statement Parse Test" {
     content=(
       #|switch statement
       #|├-expr: variable ch (char)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        ├-[0]: case statement
       #|        |      ├-value: char literal 'a' (char)
       #|        |      └-stmt: case statement
@@ -279,7 +281,7 @@ test "Switch Statement Parse Test" {
     content=(
       #|switch statement
       #|├-expr: variable n (int)
-      #|└-body: compound statement
+      #|└-body: compound_statement
       #|        ├-[0]: case statement
       #|        |      ├-value: int literal 0 (int)
       #|        |      └-stmt: expr statement
