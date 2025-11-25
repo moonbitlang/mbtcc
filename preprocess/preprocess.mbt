@@ -44,6 +44,11 @@ priv struct CondInclState {
 let cond_incl_stack : Array[CondInclState] = Array::new()
 
 ///|
+///
+/// `Path -> Tokens`
+let pragma_once : Set[String] = Set::new()
+
+///|
 pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError {
   let { code, source_file, err_toks, .. } = ctx
   let path : @path.Path = source_file
@@ -55,10 +60,13 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     [
       { kind: Hash, .. },
       { kind: Identifier("include"), .. },
-      { kind: String(f), .. },
+      { kind: String(f), line, .. },
       .. rest,
     ] => {
       let fpath = dir.join(f).to_string()
+      if pragma_once.contains(fpath) {
+        continue skip_line(line, rest)
+      }
       let include_code = try @fs.read_file_to_string(fpath) catch {
         _ => raise InvalidIncludePath(fpath)
       }
@@ -71,7 +79,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       let include_tokens = include_ctx.tokens
       let _ = include_tokens.pop() // remove EOF
       new_tokens.append(include_tokens)
-      continue rest
+      continue skip_line(line, rest)
     }
     // handle undef directive
     // e.g: `#undef MACRO_NAME`
@@ -189,7 +197,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       .. rest,
     ] => {
       let prev_state = cond_incl_stack.last().unwrap()
-      guard !(prev_state.kind is Else) else {
+      guard prev_state.kind is (Then | Elif) else {
         raise StrayElse(hash_tok, "elif after else")
       }
       prev_state.kind = Elif
@@ -227,6 +235,15 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     [{ kind: Hash, .. }, { kind: Identifier("endif"), .. }, .. rest] => {
       let _ = cond_incl_stack.pop()
       continue rest
+    }
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("pragma"), .. },
+      { kind: Identifier("once"), line, .. },
+      .. rest,
+    ] => {
+      pragma_once.add(source_file)
+      continue skip_line(line, rest)
     }
     // Expand object-like macro
     [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
@@ -367,6 +384,16 @@ fn skip_cond_incl2(tokens : ArrayView[Token]) -> ArrayView[Token] {
       break rest
     [_, .. rest] => continue rest
     [] as tokens => break tokens
+  }
+}
+
+///|
+///
+/// some macro may follow extra tokens like `#pragma once abcd` (`abcd` is extra, but not error, just ignore them)
+fn skip_line(line : Int, tokens : ArrayView[Token]) -> ArrayView[Token] {
+  loop tokens {
+    [tok, .. rest] if tok.line == line => continue rest
+    tokens => break tokens
   }
 }
 
