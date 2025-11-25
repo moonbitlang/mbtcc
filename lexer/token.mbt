@@ -200,6 +200,10 @@ pub impl Show for Token with output(self, logger) {
   logger.write_object(self.kind)
 }
 
+pub fn Token::detail(self: Self) -> String {
+  "Token::{ kind: \{self.kind}, line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\", err_msg: \"\{self.err_msg}\" }"
+}
+
 ///|
 fn Token::new(
   kind : TokenKind,

@@ -26,11 +26,19 @@ fn main_err() -> Unit raise {
     #|Options:
     #|  --print-tokens, -toks      Stop after lexing phase and print tokens.
     #|  --print-ast, -ast          Stop after parsing phase and print AST.
+    #|  --Expand, -E               Run the preprocessor only.
   let other_options : Array[String] = Array::new()
   let output : Ref[String] = @ref.new("")
   let print_tokens : Ref[Bool] = @ref.new(false)
   let print_ast : Ref[Bool] = @ref.new(false)
+  let expand_only : Ref[Bool] = @ref.new(false)
   let spec : Array[(String, String, @ArgParser.Spec, String)] = [
+    (
+      "--Expand",
+      "-E",
+      Set(expand_only),
+      "Run the preprocessor only.",
+    ),
     (
       "--print-tokens",
       "-toks",
@@ -51,7 +59,7 @@ fn main_err() -> Unit raise {
   let print_tokens = print_tokens.val
   // let print_ast = print_ast.val
   for opt in other_options {
-    if opt.has_suffix(".c") || opt.has_suffix(".h") {
+    if opt.has_suffix(".c") {
       files.push(opt)
     } else {
       raise InValidOption("Invalid option `\{opt}`.")
@@ -62,7 +70,15 @@ fn main_err() -> Unit raise {
   }
   for source_file in files {
     let code = @fs.read_file_to_string(source_file)
-    let ctx = @parser.Context::new(code~, source_file~)
+    let lexer_ctx = @lexer.Context::new(code~, source_file~)
+    let _ = lexer_ctx.tokenize()
+    let lexer_ctx = @preprocess.preprocess(lexer_ctx)
+    if expand_only.val {
+      let expanded_code = @lexer.restore_code_from_tokens(lexer_ctx.tokens)
+      println(expanded_code)
+      continue
+    }
+    let ctx = @parser.Context::from_lexer(lexer_ctx)
     if print_tokens {
       println(ctx.tokens)
     } else {

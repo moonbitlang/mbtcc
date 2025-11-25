@@ -19,8 +19,7 @@ enum SymbolKind {
 }
 
 ///|
-pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context raise {
-  let lexer_ctx = @preprocess.preprocess(lexer_ctx)
+pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
   let { code, source_file, tokens, err_toks } = lexer_ctx
   // TODO: Add error handling
   ignore(err_toks)
@@ -38,9 +37,15 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context raise {
 pub fn Context::new(
   code~ : String,
   source_file? : String = "demo",
+  preprocess~ : Bool = true,
 ) -> Context raise {
   let lexer_ctx = @lexer.Context::new(code~, source_file~)
   let _ = lexer_ctx.tokenize()
+  let lexer_ctx = if preprocess {
+    @preprocess.preprocess(lexer_ctx)
+  } else {
+    lexer_ctx
+  }
   Context::from_lexer(lexer_ctx)
 }
 

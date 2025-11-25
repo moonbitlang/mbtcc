@@ -4,6 +4,7 @@
     "Yoorkin/ArgParser",
     "Kaida-Amethyst/mbtcc/parser",
     "Kaida-Amethyst/mbtcc/lexer",
+    "Kaida-Amethyst/mbtcc/preprocess",
     "moonbitlang/x/fs"
   ],
   "link" : {
