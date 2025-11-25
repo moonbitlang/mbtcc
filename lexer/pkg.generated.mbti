@@ -4,6 +4,10 @@ package "Kaida-Amethyst/mbtcc/lexer"
 // Values
 fn dummy_eof() -> Token
 
+fn dummy_long(Int64, raw? : String) -> Token
+
+fn restore_code_from_tokens(Array[Token]) -> String
+
 // Errors
 
 // Types and methods
@@ -71,12 +75,14 @@ impl Show for Keyword
 
 pub struct Token {
   kind : TokenKind
+  source_file : String
   line : Int
   col : Int
   idx : Int
   raw : String
   err_msg : String
 }
+fn Token::detail(Self) -> String
 impl Show for Token
 
 pub enum TokenKind {
@@ -107,6 +113,7 @@ pub enum TokenKind {
   Hash2
   EOF
 }
+fn TokenKind::detail(Self) -> String
 impl Eq for TokenKind
 impl Show for TokenKind
 

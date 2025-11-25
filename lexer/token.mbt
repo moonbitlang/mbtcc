@@ -175,7 +175,8 @@ pub impl Show for TokenKind with output(self, logger) {
   }
 }
 
-pub fn TokenKind::detail(self: Self) -> String {
+///|
+pub fn TokenKind::detail(self : Self) -> String {
   match self {
     Keyword(k) => "Keyword(\{k})"
     Bracket(c) => "Bracket('\{c}')"
@@ -232,14 +233,16 @@ pub impl Show for Token with output(self, logger) {
   logger.write_string(self.detail())
 }
 //
-pub fn Token::detail(self: Self) -> String {
+
+///|
+pub fn Token::detail(self : Self) -> String {
   "Token::{ kind: \{self.kind.detail()}, src: \"\{self.source_file}\", line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\" }"
 }
 
 ///|
 fn Token::new(
   kind : TokenKind,
-  source_file: String,
+  source_file : String,
   line : Int,
   col : Int,
   idx : Int,

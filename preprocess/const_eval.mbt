@@ -2,6 +2,358 @@
 using @lexer {type TokenKind}
 
 ///|
+priv enum ConstantValue {
+  Int(Int)
+  UInt(UInt)
+  Long(Int64)
+  LongLong(Int64)
+  ULong(UInt64)
+  ULongLong(UInt64)
+}
+
+///|
+fn ConstantValue::to_int64(self : ConstantValue) -> Int64 {
+  match self {
+    Int(v) => v.to_int64()
+    UInt(v) => v.to_int64()
+    Long(v) => v
+    LongLong(v) => v
+    ULong(v) => v.reinterpret_as_int64()
+    ULongLong(v) => v.reinterpret_as_int64()
+  }
+}
+
+///|
+fn ConstantValue::negate(self : ConstantValue) -> ConstantValue {
+  match self {
+    Int(v) => Int(-v)
+    UInt(v) => UInt(0U - v)
+    Long(v) => Long(-v)
+    LongLong(v) => LongLong(-v)
+    ULong(v) => ULong(0UL - v)
+    ULongLong(v) => ULongLong(0UL - v)
+  }
+}
+
+///|
+fn ConstantValue::bit_not(self : ConstantValue) -> ConstantValue {
+  match self {
+    Int(v) => Int(v.lnot())
+    UInt(v) => UInt(v.lnot())
+    Long(v) => Long(v.lnot())
+    LongLong(v) => LongLong(v.lnot())
+    ULong(v) => ULong(v.lnot())
+    ULongLong(v) => ULongLong(v.lnot())
+  }
+}
+
+///|
+fn ConstantValue::logical_not(self : ConstantValue) -> ConstantValue {
+  let is_zero = match self {
+    Int(v) => v == 0
+    UInt(v) => v == 0U
+    Long(v) => v == 0L
+    LongLong(v) => v == 0L
+    ULong(v) => v == 0UL
+    ULongLong(v) => v == 0UL
+  }
+  Int(if is_zero { 1 } else { 0 })
+}
+
+///|
+// 类型提升：根据C语言的整数提升规则
+// 如果任一操作数是无符号类型，则提升为无符号类型
+fn promote_types(
+  left : ConstantValue,
+  right : ConstantValue,
+) -> (UInt64, UInt64, Bool) {
+  let left_is_unsigned = match left {
+    UInt(_) | ULong(_) | ULongLong(_) => true
+    _ => false
+  }
+  let right_is_unsigned = match right {
+    UInt(_) | ULong(_) | ULongLong(_) => true
+    _ => false
+  }
+  let is_unsigned = left_is_unsigned || right_is_unsigned
+  let left_val = match left {
+    Int(v) => v.to_int64().reinterpret_as_uint64()
+    UInt(v) => v.to_uint64()
+    Long(v) => v.reinterpret_as_uint64()
+    LongLong(v) => v.reinterpret_as_uint64()
+    ULong(v) => v
+    ULongLong(v) => v
+  }
+  let right_val = match right {
+    Int(v) => v.to_int64().reinterpret_as_uint64()
+    UInt(v) => v.to_uint64()
+    Long(v) => v.reinterpret_as_uint64()
+    LongLong(v) => v.reinterpret_as_uint64()
+    ULong(v) => v
+    ULongLong(v) => v
+  }
+  (left_val, right_val, is_unsigned)
+}
+
+///|
+fn ConstantValue::add(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left + right)
+  } else {
+    LongLong(left.reinterpret_as_int64() + right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::sub(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left - right)
+  } else {
+    LongLong(left.reinterpret_as_int64() - right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::mul(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left * right)
+  } else {
+    LongLong(left.reinterpret_as_int64() * right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::div(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left / right)
+  } else {
+    LongLong(left.reinterpret_as_int64() / right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::mod(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left % right)
+  } else {
+    LongLong(left.reinterpret_as_int64() % right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::shift_left(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let shift_amount = other.to_int64().to_int()
+  match self {
+    Int(v) => Int(v << shift_amount)
+    UInt(v) => UInt(v << shift_amount)
+    Long(v) => Long(v << shift_amount)
+    LongLong(v) => LongLong(v << shift_amount)
+    ULong(v) => ULong(v << shift_amount)
+    ULongLong(v) => ULongLong(v << shift_amount)
+  }
+}
+
+///|
+fn ConstantValue::shift_right(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let shift_amount = other.to_int64().to_int()
+  match self {
+    Int(v) => Int(v >> shift_amount)
+    UInt(v) => UInt(v >> shift_amount)
+    Long(v) => Long(v >> shift_amount)
+    LongLong(v) => LongLong(v >> shift_amount)
+    ULong(v) => ULong(v >> shift_amount)
+    ULongLong(v) => ULongLong(v >> shift_amount)
+  }
+}
+
+///|
+fn ConstantValue::lt(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  let result = if is_unsigned {
+    left < right
+  } else {
+    left.reinterpret_as_int64() < right.reinterpret_as_int64()
+  }
+  Int(if result { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::gt(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  let result = if is_unsigned {
+    left > right
+  } else {
+    left.reinterpret_as_int64() > right.reinterpret_as_int64()
+  }
+  Int(if result { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::le(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  let result = if is_unsigned {
+    left <= right
+  } else {
+    left.reinterpret_as_int64() <= right.reinterpret_as_int64()
+  }
+  Int(if result { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::ge(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  let result = if is_unsigned {
+    left >= right
+  } else {
+    left.reinterpret_as_int64() >= right.reinterpret_as_int64()
+  }
+  Int(if result { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::eq(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, _) = promote_types(self, other)
+  Int(if left == right { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::ne(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, _) = promote_types(self, other)
+  Int(if left != right { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::bit_and(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left & right)
+  } else {
+    LongLong(left.reinterpret_as_int64() & right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::bit_xor(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left ^ right)
+  } else {
+    LongLong(left.reinterpret_as_int64() ^ right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::bit_or(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let (left, right, is_unsigned) = promote_types(self, other)
+  if is_unsigned {
+    ULongLong(left | right)
+  } else {
+    LongLong(left.reinterpret_as_int64() | right.reinterpret_as_int64())
+  }
+}
+
+///|
+fn ConstantValue::logical_and(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let left_is_nonzero = match self {
+    Int(v) => v != 0
+    UInt(v) => v != 0U
+    Long(v) => v != 0L
+    LongLong(v) => v != 0L
+    ULong(v) => v != 0UL
+    ULongLong(v) => v != 0UL
+  }
+  let right_is_nonzero = match other {
+    Int(v) => v != 0
+    UInt(v) => v != 0U
+    Long(v) => v != 0L
+    LongLong(v) => v != 0L
+    ULong(v) => v != 0UL
+    ULongLong(v) => v != 0UL
+  }
+  Int(if left_is_nonzero && right_is_nonzero { 1 } else { 0 })
+}
+
+///|
+fn ConstantValue::logical_or(
+  self : ConstantValue,
+  other : ConstantValue,
+) -> ConstantValue {
+  let left_is_nonzero = match self {
+    Int(v) => v != 0
+    UInt(v) => v != 0U
+    Long(v) => v != 0L
+    LongLong(v) => v != 0L
+    ULong(v) => v != 0UL
+    ULongLong(v) => v != 0UL
+  }
+  let right_is_nonzero = match other {
+    Int(v) => v != 0
+    UInt(v) => v != 0U
+    Long(v) => v != 0L
+    LongLong(v) => v != 0L
+    ULong(v) => v != 0UL
+    ULongLong(v) => v != 0UL
+  }
+  Int(if left_is_nonzero || right_is_nonzero { 1 } else { 0 })
+}
+
+///|
 priv enum PrimExpr {
   Int(Int)
   UInt(UInt)
@@ -51,14 +403,14 @@ fn parse_prim_expr(
 }
 
 ///|
-fn PrimExpr::eval(self : PrimExpr) -> Int64 {
+fn PrimExpr::eval(self : PrimExpr) -> ConstantValue {
   match self {
-    Int(value) => value.to_int64()
-    UInt(value) => value.to_int64()
-    Long(value) => value
-    LongLong(value) => value
-    ULong(value) => value.reinterpret_as_int64()
-    ULongLong(value) => value.reinterpret_as_int64()
+    Int(value) => ConstantValue::Int(value)
+    UInt(value) => ConstantValue::UInt(value)
+    Long(value) => ConstantValue::Long(value)
+    LongLong(value) => ConstantValue::LongLong(value)
+    ULong(value) => ConstantValue::ULong(value)
+    ULongLong(value) => ConstantValue::ULongLong(value)
     Paren(expr) => expr.eval()
   }
 }
@@ -99,12 +451,12 @@ fn parse_unary_expr(
 }
 
 ///|
-fn UnaryExpr::eval(self : UnaryExpr) -> Int64 {
+fn UnaryExpr::eval(self : UnaryExpr) -> ConstantValue {
   match self {
     Prim(expr) => expr.eval()
-    Negate(expr) => -expr.eval()
-    BitNot(expr) => expr.eval().lnot()
-    LogicalNot(expr) => (expr.eval() == 0).to_int64()
+    Negate(expr) => expr.eval().negate()
+    BitNot(expr) => expr.eval().bit_not()
+    LogicalNot(expr) => expr.eval().logical_not()
   }
 }
 
@@ -144,12 +496,12 @@ fn parse_multi_expr(
 }
 
 ///|
-fn MultiExpr::eval(self : MultiExpr) -> Int64 {
+fn MultiExpr::eval(self : MultiExpr) -> ConstantValue {
   match self {
     Unary(expr) => expr.eval()
-    Mul(left, right) => left.eval() * right.eval()
-    Div(left, right) => left.eval() / right.eval()
-    Mod(left, right) => left.eval() % right.eval()
+    Mul(left, right) => left.eval().mul(right.eval())
+    Div(left, right) => left.eval().div(right.eval())
+    Mod(left, right) => left.eval().mod(right.eval())
   }
 }
 
@@ -183,11 +535,11 @@ fn parse_addi_expr(
 }
 
 ///|
-fn AddiExpr::eval(self : AddiExpr) -> Int64 {
+fn AddiExpr::eval(self : AddiExpr) -> ConstantValue {
   match self {
     Multi(expr) => expr.eval()
-    Add(left, right) => left.eval() + right.eval()
-    Sub(left, right) => left.eval() - right.eval()
+    Add(left, right) => left.eval().add(right.eval())
+    Sub(left, right) => left.eval().sub(right.eval())
   }
 }
 
@@ -221,11 +573,11 @@ fn parse_shift_expr(
 }
 
 ///|
-fn ShiftExpr::eval(self : ShiftExpr) -> Int64 {
+fn ShiftExpr::eval(self : ShiftExpr) -> ConstantValue {
   match self {
     Addi(expr) => expr.eval()
-    ShlExpr(left, right) => left.eval() << right.eval().to_int()
-    ShrExpr(left, right) => left.eval() >> right.eval().to_int()
+    ShlExpr(left, right) => left.eval().shift_left(right.eval())
+    ShrExpr(left, right) => left.eval().shift_right(right.eval())
   }
 }
 
@@ -271,13 +623,13 @@ fn parse_relational_expr(
 }
 
 ///|
-fn RelationalExpr::eval(self : RelationalExpr) -> Int64 {
+fn RelationalExpr::eval(self : RelationalExpr) -> ConstantValue {
   match self {
     Shift(expr) => expr.eval()
-    LTExpr(left, right) => (left.eval() < right.eval()).to_int64()
-    GTExpr(left, right) => (left.eval() > right.eval()).to_int64()
-    LEExpr(left, right) => (left.eval() <= right.eval()).to_int64()
-    GEExpr(left, right) => (left.eval() >= right.eval()).to_int64()
+    LTExpr(left, right) => left.eval().lt(right.eval())
+    GTExpr(left, right) => left.eval().gt(right.eval())
+    LEExpr(left, right) => left.eval().le(right.eval())
+    GEExpr(left, right) => left.eval().ge(right.eval())
   }
 }
 
@@ -311,11 +663,11 @@ fn parse_equality_expr(
 }
 
 ///|
-fn EqualityExpr::eval(self : EqualityExpr) -> Int64 {
+fn EqualityExpr::eval(self : EqualityExpr) -> ConstantValue {
   match self {
     Relational(expr) => expr.eval()
-    EQExpr(left, right) => (left.eval() == right.eval()).to_int64()
-    NEExpr(left, right) => (left.eval() != right.eval()).to_int64()
+    EQExpr(left, right) => left.eval().eq(right.eval())
+    NEExpr(left, right) => left.eval().ne(right.eval())
   }
 }
 
@@ -343,10 +695,10 @@ fn parse_and_expr(
 }
 
 ///|
-fn AndExpr::eval(self : AndExpr) -> Int64 {
+fn AndExpr::eval(self : AndExpr) -> ConstantValue {
   match self {
     Equality(expr) => expr.eval()
-    AndExpr(left, right) => left.eval() & right.eval()
+    AndExpr(left, right) => left.eval().bit_and(right.eval())
   }
 }
 
@@ -374,10 +726,10 @@ fn parse_exclusive_or_expr(
 }
 
 ///|
-fn ExclusiveOrExpr::eval(self : ExclusiveOrExpr) -> Int64 {
+fn ExclusiveOrExpr::eval(self : ExclusiveOrExpr) -> ConstantValue {
   match self {
     And(expr) => expr.eval()
-    XorExpr(left, right) => left.eval() ^ right.eval()
+    XorExpr(left, right) => left.eval().bit_xor(right.eval())
   }
 }
 
@@ -405,10 +757,10 @@ fn parse_inclusive_or_expr(
 }
 
 ///|
-fn InclusiveOrExpr::eval(self : InclusiveOrExpr) -> Int64 {
+fn InclusiveOrExpr::eval(self : InclusiveOrExpr) -> ConstantValue {
   match self {
     ExclusiveOr(expr) => expr.eval()
-    OrExpr(left, right) => left.eval() | right.eval()
+    OrExpr(left, right) => left.eval().bit_or(right.eval())
   }
 }
 
@@ -436,11 +788,10 @@ fn parse_logical_and_expr(
 }
 
 ///|
-fn LogicalAndExpr::eval(self : LogicalAndExpr) -> Int64 {
+fn LogicalAndExpr::eval(self : LogicalAndExpr) -> ConstantValue {
   match self {
     InclusiveOr(expr) => expr.eval()
-    LogicalAndExpr(left, right) =>
-      (left.eval() != 0 && right.eval() != 0).to_int64()
+    LogicalAndExpr(left, right) => left.eval().logical_and(right.eval())
   }
 }
 
@@ -468,11 +819,10 @@ fn parse_logical_or_expr(
 }
 
 ///|
-fn LogicalOrExpr::eval(self : LogicalOrExpr) -> Int64 {
+fn LogicalOrExpr::eval(self : LogicalOrExpr) -> ConstantValue {
   match self {
     LogicalAnd(expr) => expr.eval()
-    LogicalOrExpr(left, right) =>
-      (left.eval() != 0 || right.eval() != 0).to_int64()
+    LogicalOrExpr(left, right) => left.eval().logical_or(right.eval())
   }
 }
 
@@ -512,15 +862,25 @@ fn parse_constant_expr(
 }
 
 ///|
-fn ConstantExpr::eval(self : ConstantExpr) -> Int64 {
+fn ConstantExpr::eval(self : ConstantExpr) -> ConstantValue {
   match self {
     LogicalOr(expr) => expr.eval()
-    ConstantExpr(cond, then_expr, else_expr) =>
-      if cond.eval() != 0 {
+    ConstantExpr(cond, then_expr, else_expr) => {
+      let cond_val = cond.eval()
+      let is_nonzero = match cond_val {
+        Int(v) => v != 0
+        UInt(v) => v != 0U
+        Long(v) => v != 0L
+        LongLong(v) => v != 0L
+        ULong(v) => v != 0UL
+        ULongLong(v) => v != 0UL
+      }
+      if is_nonzero {
         then_expr.eval()
       } else {
         else_expr.eval()
       }
+    }
   }
 }
 
@@ -544,110 +904,110 @@ test "const_eval" {
 
   // Parse and eval `42`
   let (expr, rest) = parse_constant_expr(ctx.tokens[:])
-  inspect(expr.eval(), content="42")
+  inspect(expr.eval().to_int64(), content="42")
 
   // Parse and eval `-5`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="-5")
+  inspect(expr.eval().to_int64(), content="-5")
 
   // Parse and eval `~0`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="-1")
+  inspect(expr.eval().to_int64(), content="-1")
 
   // Parse and eval `!0`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="1")
+  inspect(expr.eval().to_int64(), content="1")
 
   // Parse and eval `1 + 2`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="3")
+  inspect(expr.eval().to_int64(), content="3")
 
   // Parse and eval `3 * 4`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="12")
+  inspect(expr.eval().to_int64(), content="12")
 
   // Parse and eval `2 + 3 * 4`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="14")
+  inspect(expr.eval().to_int64(), content="14")
 
   // Parse and eval `(2 + 3) * 4`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="20")
+  inspect(expr.eval().to_int64(), content="20")
 
   // Parse and eval `5 > 3`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="1")
+  inspect(expr.eval().to_int64(), content="1")
 
   // Parse and eval `5 == 5`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="1")
+  inspect(expr.eval().to_int64(), content="1")
 
   // Parse and eval `1 && 0`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="0")
+  inspect(expr.eval().to_int64(), content="0")
 
   // Parse and eval `1 || 0`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="1")
+  inspect(expr.eval().to_int64(), content="1")
 
   // Parse and eval `12 & 10`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="8")
+  inspect(expr.eval().to_int64(), content="8")
 
   // Parse and eval `12 | 10`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="14")
+  inspect(expr.eval().to_int64(), content="14")
 
   // Parse and eval `12 ^ 10`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="6")
+  inspect(expr.eval().to_int64(), content="6")
 
   // Parse and eval `1 << 3`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="8")
+  inspect(expr.eval().to_int64(), content="8")
 
   // Parse and eval `8 >> 2`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="2")
+  inspect(expr.eval().to_int64(), content="2")
 
   // Parse and eval `1 ? 10 : 20`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="10")
+  inspect(expr.eval().to_int64(), content="10")
 
   // Parse and eval `0 ? 10 : 20`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="20")
+  inspect(expr.eval().to_int64(), content="20")
 
   // Parse and eval `1 ? (2 ? 3 : 4) : 5`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="3")
+  inspect(expr.eval().to_int64(), content="3")
 
   // Parse and eval `20 / 4`
   let rest = skip_semi(rest)
   let (expr, rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="5")
+  inspect(expr.eval().to_int64(), content="5")
 
   // Parse and eval `17 % 5`
   let rest = skip_semi(rest)
   let (expr, _rest) = parse_constant_expr(rest)
-  inspect(expr.eval(), content="2")
+  inspect(expr.eval().to_int64(), content="2")
 }

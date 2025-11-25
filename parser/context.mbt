@@ -37,7 +37,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
 pub fn Context::new(
   code~ : String,
   source_file? : String = "demo",
-  preprocess~ : Bool = true,
+  preprocess? : Bool = true,
 ) -> Context raise {
   let lexer_ctx = @lexer.Context::new(code~, source_file~)
   let _ = lexer_ctx.tokenize()

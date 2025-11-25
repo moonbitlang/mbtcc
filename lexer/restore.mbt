@@ -1,5 +1,5 @@
-
-pub fn restore_code_from_tokens(tokens: Array[Token]) -> String {
+///|
+pub fn restore_code_from_tokens(tokens : Array[Token]) -> String {
   // tokens.each(tok => println(tok))
   if tokens.is_empty() {
     return ""
@@ -30,5 +30,5 @@ pub fn restore_code_from_tokens(tokens: Array[Token]) -> String {
     tok_col = col + raw.length()
     sb.write_object(kind)
   }
-  sb.to_string();
+  sb.to_string()
 }

@@ -277,7 +277,7 @@ fn eval_const_expr(
   let const_expr_tokens = expand_macro_for_tokens(const_expr_tokens)
   const_expr_tokens.push(@lexer.dummy_eof())
   let (const_expr, _) = parse_constant_expr(const_expr_tokens)
-  let val = const_expr.eval()
+  let val = const_expr.eval().to_int64()
   (val, rest)
 }
 

@@ -2,7 +2,7 @@
 fn Context::lex_number_literal(
   self : Self,
   code : StringView,
-  source_file: String,
+  source_file : String,
   line : Int,
   col : Int,
   idx : Int,
@@ -54,7 +54,7 @@ fn Context::lex_number_literal(
         "f" | "F" => TokenKind::Float(number.to_float())
         _ => TokenKind::Double(number)
       }
-      let token = Token::new(token_kind, source_file,  line, col, idx, raw_str)
+      let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
         self.err_toks.push(token)
       }
@@ -106,7 +106,7 @@ fn Context::lex_number_literal(
         "l" | "L" => TokenKind::Long(number.to_int64())
         _ => TokenKind::Int(number.reinterpret_as_int())
       }
-      let token = Token::new(token_kind, source_file,  line, col, idx, raw_str)
+      let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
         self.err_toks.push(token)
       }
@@ -137,7 +137,7 @@ fn Context::lex_number_literal(
         "l" | "L" => TokenKind::Long(number.to_int64())
         _ => TokenKind::Int(number.reinterpret_as_int())
       }
-      let token = Token::new(token_kind, source_file,  line, col, idx, raw_str)
+      let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
         self.err_toks.push(token)
       }
@@ -197,7 +197,7 @@ fn Context::lex_number_literal(
         "l" | "L" => TokenKind::Long(number.to_int64())
         _ => TokenKind::Int(number.reinterpret_as_int())
       }
-      let token = Token::new(token_kind, source_file,  line, col, idx, raw_str)
+      let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
         self.err_toks.push(token)
       }

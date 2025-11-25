@@ -209,7 +209,7 @@ fn Context::add_tag(Self, String, CTypeDataKind) -> Unit
 fn Context::add_typedef(Self, String, CType) -> Unit
 fn Context::add_var(Self, String, CType) -> Unit
 fn Context::catch_err(Self, ParseError) -> Unit
-fn Context::from_lexer(@lexer.Context) -> Self raise
+fn Context::from_lexer(@lexer.Context) -> Self
 fn Context::get_tag_ctype(Self, String) -> CTypeDataKind?
 fn Context::get_typename_ctype(Self, String) -> CType?
 fn Context::get_var_ctype(Self, String) -> CType?
@@ -221,7 +221,7 @@ fn Context::is_name_has_been_defined(Self, String) -> Bool
 fn Context::is_type_name(Self, String) -> Bool
 fn Context::is_type_tok(Self, @lexer.Token) -> Bool
 fn Context::is_var_name(Self, String) -> Bool
-fn Context::new(code~ : String, source_file? : String) -> Self raise
+fn Context::new(code~ : String, source_file? : String, preprocess? : Bool) -> Self raise
 fn Context::parse(Self) -> Program raise ParseError
 fn Context::parse_addi_expr(Self, ArrayView[@lexer.Token]) -> (AddiExpr, ArrayView[@lexer.Token]) raise ParseError
 fn Context::parse_and_expr(Self, ArrayView[@lexer.Token]) -> (AndExpr, ArrayView[@lexer.Token]) raise ParseError

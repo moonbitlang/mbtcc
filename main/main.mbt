@@ -33,12 +33,7 @@ fn main_err() -> Unit raise {
   let print_ast : Ref[Bool] = @ref.new(false)
   let expand_only : Ref[Bool] = @ref.new(false)
   let spec : Array[(String, String, @ArgParser.Spec, String)] = [
-    (
-      "--Expand",
-      "-E",
-      Set(expand_only),
-      "Run the preprocessor only.",
-    ),
+    ("--Expand", "-E", Set(expand_only), "Run the preprocessor only."),
     (
       "--print-tokens",
       "-toks",

@@ -85,25 +85,33 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
         [] => break
       }
     [.. "<<=", .. rest] => {
-      tokens.push(Token::new(AssignOp("<<="), source_file, line, col, idx, "<<="))
+      tokens.push(
+        Token::new(AssignOp("<<="), source_file, line, col, idx, "<<="),
+      )
       idx += 3
       col += 3
       continue rest
     }
     [.. ">>=", .. rest] => {
-      tokens.push(Token::new(AssignOp(">>="), source_file, line, col, idx, ">>="))
+      tokens.push(
+        Token::new(AssignOp(">>="), source_file, line, col, idx, ">>="),
+      )
       idx += 3
       col += 3
       continue rest
     }
     [.. "&&=", .. rest] => {
-      tokens.push(Token::new(AssignOp("&&="), source_file, line, col, idx, "&&="))
+      tokens.push(
+        Token::new(AssignOp("&&="), source_file, line, col, idx, "&&="),
+      )
       idx += 3
       col += 3
       continue rest
     }
     [.. "||=", .. rest] => {
-      tokens.push(Token::new(AssignOp("||="), source_file, line, col, idx, "||="))
+      tokens.push(
+        Token::new(AssignOp("||="), source_file, line, col, idx, "||="),
+      )
       idx += 3
       col += 3
       continue rest
@@ -373,7 +381,9 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['"', ..] as code => {
-      let (token, rest) = self.lex_string_literal(code, source_file, line, col, idx)
+      let (token, rest) = self.lex_string_literal(
+        code, source_file, line, col, idx,
+      )
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -381,7 +391,9 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['\'', ..] as code => {
-      let (token, rest) = self.lex_char_literal(code, source_file, line, col, idx)
+      let (token, rest) = self.lex_char_literal(
+        code, source_file, line, col, idx,
+      )
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -389,7 +401,9 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['0'..='9', ..] as code => {
-      let (token, rest) = self.lex_number_literal(code, source_file, line, col, idx)
+      let (token, rest) = self.lex_number_literal(
+        code, source_file, line, col, idx,
+      )
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -397,7 +411,9 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['a'..='z' | 'A'..='Z' | '_' | '$', ..] as code => {
-      let (token, rest) = self.lex_identifier_or_keyword(code, source_file, line, col, idx)
+      let (token, rest) = self.lex_identifier_or_keyword(
+        code, source_file, line, col, idx,
+      )
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -407,7 +423,15 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
     [c, .. rest] => {
       let token_kind = ErrorChar(c)
       let err_msg = "Invalid character literal \{c}"
-      let token = Token::new(token_kind, source_file, line, col, idx, "\{c}", err_msg~)
+      let token = Token::new(
+        token_kind,
+        source_file,
+        line,
+        col,
+        idx,
+        "\{c}",
+        err_msg~,
+      )
       tokens.push(token)
       self.err_toks.push(token)
       idx += 1
@@ -422,7 +446,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
 fn Context::lex_identifier_or_keyword(
   self : Self,
   code : StringView,
-  source_file: String,
+  source_file : String,
   line : Int,
   col : Int,
   idx : Int,
