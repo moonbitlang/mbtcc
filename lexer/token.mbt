@@ -186,6 +186,11 @@ pub struct Token {
 }
 
 ///|
+pub fn dummy_eof() -> Token {
+  Token::new(EOF, 0, 0, 0, "")
+}
+
+///|
 pub impl Show for Token with output(self, logger) {
   logger.write_object(self.kind)
 }

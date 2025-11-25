@@ -5,4 +5,5 @@ pub suberror PreprecessError {
   InvalidMacroDefinition(String)
   InvalidMacorInvocation(String)
   InvalidConstExprToken(Token, String)
+  StrayElse(Token, String)
 }

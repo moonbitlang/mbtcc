@@ -28,12 +28,24 @@ priv enum Macro {
 let macros : Map[String, Macro] = Map::new()
 
 ///|
+priv enum CondInclState {
+  Then
+  Elif
+  Else
+}
+
+///|
+let cond_incl_stack : Array[CondInclState] = Array::new()
+
+///|
 pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError {
   let { code, source_file, err_toks, .. } = ctx
   let path : @path.Path = source_file
   let dir = path.dirname()
   let new_tokens : Array[@lexer.Token] = Array::new()
   loop ctx.tokens[:] {
+    // handle include directive
+    // e.g: `#include "file.h"`
     [
       { kind: Hash, .. },
       { kind: Identifier("include"), .. },
@@ -55,6 +67,8 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       new_tokens.append(include_tokens)
       continue rest
     }
+    // handle undef directive
+    // e.g: `#undef MACRO_NAME`
     [
       { kind: Hash, .. },
       { kind: Identifier("undef"), .. },
@@ -64,9 +78,11 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       macros.remove(name)
       continue rest
     }
+    // invalid undef usage
     [{ kind: Hash, .. }, { kind: Identifier("undef"), .. }, tok, ..] =>
       raise InvalidMacroDefinition("Invalid macro name in undef: \{tok}")
     // define Func-like macro
+    // e.g: `#define MAX(a, b) ((a) > (b) ? (a) : (b))`
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
@@ -111,6 +127,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       continue rest
     }
     // define Obj-like macro
+    // e.g: `#define PI 3.14`
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
@@ -120,6 +137,80 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       let (def_tokens, rest) = collect_tokens_until_new_line(line, rest)
       let macro_def = Macro::ObjLike(def_tokens)
       macros.set(defname, macro_def)
+      continue rest
+    }
+    // Handle conditional inclusion - if
+    // e.g. `#if expr`
+    [{ kind: Hash, .. }, { kind: Keyword(If), line, .. }, .. rest] => {
+      let (val, rest) = eval_const_expr(line, rest)
+      cond_incl_stack.push(Then)
+      let rest = if val != 0 { rest } else { skip_cond_incl(rest) }
+      continue rest
+    }
+    // Handle conditional inclusion - ifdef
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("ifdef"), .. },
+      { kind: Identifier(name), .. },
+      .. rest,
+    ] => {
+      cond_incl_stack.push(Then)
+      let rest = if macros.get(name) is Some(_) {
+        rest
+      } else {
+        skip_cond_incl(rest)
+      }
+      continue rest
+    }
+    // Handle conditional inclusion - ifndef
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("ifndef"), .. },
+      { kind: Identifier(name), .. },
+      .. rest,
+    ] => {
+      cond_incl_stack.push(Then)
+      let rest = if macros.get(name) is None {
+        rest
+      } else {
+        skip_cond_incl(rest)
+      }
+      continue rest
+    }
+    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("elif"), .. }, ..] if cond_incl_stack.is_empty() =>
+      raise StrayElse(hash_tok, "elif without matching if")
+    [
+      { kind: Hash, .. } as hash_tok,
+      { kind: Identifier("elif"), line, .. },
+      .. rest,
+    ] => {
+      let prev_state = cond_incl_stack.pop().unwrap()
+      guard !(prev_state is Else) else {
+        raise StrayElse(hash_tok, "elif after else")
+      }
+      cond_incl_stack.push(Elif)
+      let (val, rest) = eval_const_expr(line, rest)
+      let rest = if val != 0 { rest } else { skip_cond_incl(rest) }
+      continue rest
+    }
+    // Handle conditional inclusion - else
+    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, ..] if cond_incl_stack.is_empty() =>
+      raise StrayElse(hash_tok, "else without matching if")
+    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, .. rest] => {
+      let prev_state = cond_incl_stack.pop().unwrap()
+      guard !(prev_state is Else) else {
+        raise StrayElse(hash_tok, "multiple else in the same if block")
+      }
+      cond_incl_stack.push(Else)
+      let rest = skip_cond_incl(rest)
+      continue rest
+    }
+    // Handle conditional inclusion - endif
+    // e.g. `#endif`
+    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("endif"), .. }, ..] if cond_incl_stack.is_empty() =>
+      raise StrayElse(hash_tok, "endif without matching if")
+    [{ kind: Hash, .. }, { kind: Identifier("endif"), .. }, .. rest] => {
+      let _ = cond_incl_stack.pop()
       continue rest
     }
     // Expand object-like macro
@@ -143,9 +234,43 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
   new_ctx
 }
 
+///|
+fn eval_const_expr(
+  line : Int,
+  tokens : ArrayView[Token],
+) -> (Int64, ArrayView[Token]) raise PreprecessError {
+  if tokens is [{ kind: Identifier("defined"), .. }, .. tokens] {
+    let (has_paren, tokens) = if tokens
+      is [{ kind: Bracket('('), .. }, .. tokens] {
+      (true, tokens)
+    } else {
+      (false, tokens)
+    }
+    guard tokens is [{ kind: Identifier(name), .. }, .. tokens] else {
+      raise InvalidConstExprToken(tokens[0], "macro name must be an identifier")
+    }
+    let tokens = if has_paren {
+      guard tokens is [{ kind: Bracket(')'), .. }, .. tokens] else {
+        raise InvalidConstExprToken(tokens[0], "expected closing parenthesis")
+      }
+      tokens
+    } else {
+      tokens
+    }
+    let val = (macros.get(name) is Some(_)).to_int64()
+    return (val, tokens)
+  }
+  let (const_expr_tokens, rest) = collect_tokens_until_new_line(line, tokens)
+  const_expr_tokens.push(@lexer.dummy_eof())
+  let (const_expr, _) = parse_constant_expr(const_expr_tokens)
+  let val = const_expr.eval()
+  (val, rest)
+}
+
+///|
 fn collect_tokens_until_new_line(
-  line: Int,
-  tokens: ArrayView[Token]
+  line : Int,
+  tokens : ArrayView[Token],
 ) -> (Array[Token], ArrayView[Token]) {
   let new_tokens : Array[Token] = Array::new()
   let rest = loop tokens {
@@ -156,6 +281,39 @@ fn collect_tokens_until_new_line(
     tokens => break tokens
   }
   (new_tokens, rest)
+}
+
+///|
+fn skip_cond_incl(tokens : ArrayView[Token]) -> ArrayView[Token] {
+  loop tokens {
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("if" | "ifdef" | "ifndef"), .. },
+      .. rest,
+    ] => break skip_cond_incl2(rest)
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("elif" | "else" | "endif"), .. },
+      .. rest,
+    ] => break rest
+    [_, .. rest] => continue rest
+    [] as tokens => break tokens
+  }
+}
+
+///|
+fn skip_cond_incl2(tokens : ArrayView[Token]) -> ArrayView[Token] {
+  loop tokens {
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("if" | "ifdef" | "ifndef"), .. },
+      .. rest,
+    ] => break skip_cond_incl2(rest)
+    [{ kind: Hash, .. }, { kind: Identifier("endif"), .. }, .. rest] =>
+      break rest
+    [_, .. rest] => continue rest
+    [] as tokens => break tokens
+  }
 }
 
 ///|
@@ -241,11 +399,9 @@ fn replace_identifier(
     }
     [] as rest => break rest
   }
-  // 如果有可变参数，将其加入到args中
   if va_args is Some(va_name) {
     args.set(va_name, va_args_tokens)
   }
-  // 展开替换
   for rep_tok in rep_toks {
     if rep_tok.kind is Identifier(var_name) &&
       args.get(var_name) is Some(arg_tokens) {
