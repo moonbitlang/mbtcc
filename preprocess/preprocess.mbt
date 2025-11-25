@@ -28,10 +28,16 @@ priv enum Macro {
 let macros : Map[String, Macro] = Map::new()
 
 ///|
-priv enum CondInclState {
+priv enum CondInclStateKind {
   Then
   Elif
   Else
+}
+
+///|
+priv struct CondInclState {
+  mut kind : CondInclStateKind
+  mut included : Bool
 }
 
 ///|
@@ -143,8 +149,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     // e.g. `#if expr`
     [{ kind: Hash, .. }, { kind: Keyword(If), line, .. }, .. rest] => {
       let (val, rest) = eval_const_expr(line, rest)
-      cond_incl_stack.push(Then)
-      let rest = if val != 0 { rest } else { skip_cond_incl(rest) }
+      let included = val != 0
+      let cond_incl = CondInclState::{ kind: Then, included }
+      cond_incl_stack.push(cond_incl)
+      let rest = if included { rest } else { skip_cond_incl(rest) }
       continue rest
     }
     // Handle conditional inclusion - ifdef
@@ -154,12 +162,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: Identifier(name), .. },
       .. rest,
     ] => {
-      cond_incl_stack.push(Then)
-      let rest = if macros.get(name) is Some(_) {
-        rest
-      } else {
-        skip_cond_incl(rest)
-      }
+      let included = macros.get(name) is Some(_)
+      let cond_incl = CondInclState::{ kind: Then, included }
+      cond_incl_stack.push(cond_incl)
+      let rest = if included { rest } else { skip_cond_incl(rest) }
       continue rest
     }
     // Handle conditional inclusion - ifndef
@@ -169,12 +175,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: Identifier(name), .. },
       .. rest,
     ] => {
-      cond_incl_stack.push(Then)
-      let rest = if macros.get(name) is None {
-        rest
-      } else {
-        skip_cond_incl(rest)
-      }
+      let included = macros.get(name) is None
+      let cond_incl = CondInclState::{ kind: Then, included }
+      cond_incl_stack.push(cond_incl)
+      let rest = if included { rest } else { skip_cond_incl(rest) }
       continue rest
     }
     [{ kind: Hash, .. } as hash_tok, { kind: Identifier("elif"), .. }, ..] if cond_incl_stack.is_empty() =>
@@ -184,25 +188,36 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: Identifier("elif"), line, .. },
       .. rest,
     ] => {
-      let prev_state = cond_incl_stack.pop().unwrap()
-      guard !(prev_state is Else) else {
+      let prev_state = cond_incl_stack.last().unwrap()
+      guard !(prev_state.kind is Else) else {
         raise StrayElse(hash_tok, "elif after else")
       }
-      cond_incl_stack.push(Elif)
+      prev_state.kind = Elif
+      if prev_state.included {
+        let rest = skip_cond_incl(rest)
+        continue rest
+      }
       let (val, rest) = eval_const_expr(line, rest)
-      let rest = if val != 0 { rest } else { skip_cond_incl(rest) }
+      let included = val != 0
+      prev_state.included = included
+      let rest = if included { rest } else { skip_cond_incl(rest) }
       continue rest
     }
     // Handle conditional inclusion - else
     [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, ..] if cond_incl_stack.is_empty() =>
       raise StrayElse(hash_tok, "else without matching if")
     [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, .. rest] => {
-      let prev_state = cond_incl_stack.pop().unwrap()
-      guard !(prev_state is Else) else {
+      let prev_state = cond_incl_stack.last().unwrap()
+      guard !(prev_state.kind is Else) else {
         raise StrayElse(hash_tok, "multiple else in the same if block")
       }
-      cond_incl_stack.push(Else)
-      let rest = skip_cond_incl(rest)
+      prev_state.kind = Else
+      let rest = if prev_state.included {
+        skip_cond_incl(rest)
+      } else {
+        prev_state.included = true
+        rest
+      }
       continue rest
     }
     // Handle conditional inclusion - endif

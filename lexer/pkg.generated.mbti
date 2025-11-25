@@ -2,6 +2,7 @@
 package "Kaida-Amethyst/mbtcc/lexer"
 
 // Values
+fn dummy_eof() -> Token
 
 // Errors
 
