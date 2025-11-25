@@ -87,7 +87,8 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: Operator("<"), .. },
       ..,
     ] => {
-      raise Unimplemented("Angle bracket include is not implemented yet")
+      println("Compiler ICE: Angle bracket include is not implemented yet")
+      panic()
     }
     // handle undef directive
     // e.g: `#undef MACRO_NAME`

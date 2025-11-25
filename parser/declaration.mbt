@@ -157,7 +157,7 @@ pub impl Show for Declaration with output(self, logger) {
 
 ///|
 pub enum DeclarationKind {
-  // e.h. `struct Point { int x, y; };`
+  // e.g. `struct Point { int x, y; };`
   TypeDeclaration(CType)
   // e.g. `typedef int MyInt;`
   TypeDef(CType, String)

@@ -1,0 +1,6 @@
+{
+  "import": [
+    "Kaida-Amethyst/mbtcc/parser",
+    "Kaida-Amethyst/MoonLLVM/IR",
+  ]
+}

@@ -14,6 +14,14 @@ pub struct Program {
   externals : Array[ExternalDeclaration]
 } derive(Eq)
 
+pub fn Program::new() -> Program {
+  Program::{ externals:Array::new() }
+}
+
+pub fn Program::is_empty(self: Self) -> Bool {
+  self.externals.is_empty()
+}
+
 ///|
 pub fn Program::to_string(self : Program, color? : Bool = true) -> String {
   self.externals.map(e => e.to_string(color~)).join("\n")
@@ -27,7 +35,7 @@ pub impl Show for Program with output(self, logger) {
 ///|
 pub fn Context::parse(self : Context) -> Program raise ParseError {
   let tokens = self.tokens[:]
-  let externals = Array::new()
+  let externals = self.prog.externals
   loop tokens {
     [{ kind: EOF, .. }] => break
     [] => {
@@ -40,5 +48,5 @@ pub fn Context::parse(self : Context) -> Program raise ParseError {
       continue rest
     }
   }
-  Program::{ externals, }
+  self.prog
 }

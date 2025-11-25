@@ -8,6 +8,7 @@ pub struct Context {
   // enum, struct, union  type tags
   mut tags : Env[String, CTypeDataKind]
   errs : Array[ParseError]
+  prog: Program
 }
 
 ///|
@@ -30,6 +31,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
     defined: Env::new(),
     tags: Env::new(),
     errs: Array::new(),
+    prog: Program::new(),
   }
 }
 
