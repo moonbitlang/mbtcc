@@ -5,7 +5,10 @@
       "path" : "Kaida-Amethyst/mbtcc/oldparser",
       "alias" : "parser"
     },
-    "Kaida-Amethyst/mbtcc/codegen"
+    {
+      "path": "Kaida-Amethyst/mbtcc/oldcodegen",
+      "alias" : "codegen"
+    }
   ],
   "link" : {
     "native" : {

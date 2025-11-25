@@ -81,6 +81,14 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       new_tokens.append(include_tokens)
       continue skip_line(line, rest)
     }
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("include"), .. },
+      { kind: Operator("<"), .. },
+      ..,
+    ] => {
+      raise Unimplemented("Angle bracket include is not implemented yet")
+    }
     // handle undef directive
     // e.g: `#undef MACRO_NAME`
     [
