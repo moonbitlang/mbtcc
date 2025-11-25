@@ -2,6 +2,7 @@
 fn Context::lex_string_literal(
   self : Self,
   code : StringView,
+  source_file: String,
   line : Int,
   col : Int,
   idx : Int,
@@ -68,7 +69,7 @@ fn Context::lex_string_literal(
   raw_str_builder.write_string(str) // exclude surrounding quotes
   let toeken_kind = TokenKind::String(str) // remove surrounding quotes
   let raw_str = raw_str_builder.to_string()
-  let token = Token::new(toeken_kind, line, col, idx, raw_str, err_msg~)
+  let token = Token::new(toeken_kind, source_file, line, col, idx, raw_str, err_msg~)
   if !err_msg.is_empty() {
     self.err_toks.push(token)
   }
@@ -79,6 +80,7 @@ fn Context::lex_string_literal(
 fn Context::lex_char_literal(
   self : Self,
   code : StringView,
+  source_file: String,
   line : Int,
   col : Int,
   idx : Int,
@@ -133,7 +135,7 @@ fn Context::lex_char_literal(
     }
   }
   let raw_str = raw_str_builder.to_string()
-  let token = Token::new(token_kind, line, col, idx, raw_str, err_msg~)
+  let token = Token::new(token_kind, source_file, line, col, idx, raw_str, err_msg~)
   if !err_msg.is_empty() {
     self.err_toks.push(token)
   }

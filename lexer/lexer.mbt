@@ -15,22 +15,23 @@ pub fn Context::new(code~ : String, source_file~ : String) -> Context {
 pub fn Context::tokenize(self : Self) -> Array[Token] {
   let code = self.code[:]
   let tokens : Array[Token] = self.tokens
+  let source_file = self.source_file
   let mut line = 1
   let mut col = 1
   let mut idx = 0
   loop code {
     [] => {
-      tokens.push(Token::new(EOF, line, col, idx, ""))
+      tokens.push(Token::new(EOF, source_file, line, col, idx, ""))
       break
     }
     [.. "##", .. rest] => {
-      tokens.push(Token::new(Hash2, line, col, idx, "##"))
+      tokens.push(Token::new(Hash2, source_file, line, col, idx, "##"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "#", .. rest] => {
-      tokens.push(Token::new(Hash, line, col, idx, "#"))
+      tokens.push(Token::new(Hash, source_file, line, col, idx, "#"))
       idx += 1
       col += 1
       continue rest
@@ -84,295 +85,295 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
         [] => break
       }
     [.. "<<=", .. rest] => {
-      tokens.push(Token::new(AssignOp("<<="), line, col, idx, "<<="))
+      tokens.push(Token::new(AssignOp("<<="), source_file, line, col, idx, "<<="))
       idx += 3
       col += 3
       continue rest
     }
     [.. ">>=", .. rest] => {
-      tokens.push(Token::new(AssignOp(">>="), line, col, idx, ">>="))
+      tokens.push(Token::new(AssignOp(">>="), source_file, line, col, idx, ">>="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "&&=", .. rest] => {
-      tokens.push(Token::new(AssignOp("&&="), line, col, idx, "&&="))
+      tokens.push(Token::new(AssignOp("&&="), source_file, line, col, idx, "&&="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "||=", .. rest] => {
-      tokens.push(Token::new(AssignOp("||="), line, col, idx, "||="))
+      tokens.push(Token::new(AssignOp("||="), source_file, line, col, idx, "||="))
       idx += 3
       col += 3
       continue rest
     }
     [.. "...", .. rest] => {
-      tokens.push(Token::new(Ellipsis, line, col, idx, "..."))
+      tokens.push(Token::new(Ellipsis, source_file, line, col, idx, "..."))
       idx += 3
       col += 3
       continue rest
     }
     [.. "&&", .. rest] => {
-      tokens.push(Token::new(Operator("&&"), line, col, idx, "&&"))
+      tokens.push(Token::new(Operator("&&"), source_file, line, col, idx, "&&"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "||", .. rest] => {
-      tokens.push(Token::new(Operator("||"), line, col, idx, "||"))
+      tokens.push(Token::new(Operator("||"), source_file, line, col, idx, "||"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "<<", .. rest] => {
-      tokens.push(Token::new(Operator("<<"), line, col, idx, "<<"))
+      tokens.push(Token::new(Operator("<<"), source_file, line, col, idx, "<<"))
       idx += 2
       col += 2
       continue rest
     }
     [.. ">>", .. rest] => {
-      tokens.push(Token::new(Operator(">>"), line, col, idx, ">>"))
+      tokens.push(Token::new(Operator(">>"), source_file, line, col, idx, ">>"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "++", .. rest] => {
-      tokens.push(Token::new(Operator("++"), line, col, idx, "++"))
+      tokens.push(Token::new(Operator("++"), source_file, line, col, idx, "++"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "--", .. rest] => {
-      tokens.push(Token::new(Operator("--"), line, col, idx, "--"))
+      tokens.push(Token::new(Operator("--"), source_file, line, col, idx, "--"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "->", .. rest] => {
-      tokens.push(Token::new(Arrow, line, col, idx, "->"))
+      tokens.push(Token::new(Arrow, source_file, line, col, idx, "->"))
       idx += 2
       col += 2
       continue rest
     }
     [.. "+=", .. rest] => {
-      tokens.push(Token::new(AssignOp("+="), line, col, idx, "+="))
+      tokens.push(Token::new(AssignOp("+="), source_file, line, col, idx, "+="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "-=", .. rest] => {
-      tokens.push(Token::new(AssignOp("-="), line, col, idx, "-="))
+      tokens.push(Token::new(AssignOp("-="), source_file, line, col, idx, "-="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "*=", .. rest] => {
-      tokens.push(Token::new(AssignOp("*="), line, col, idx, "*="))
+      tokens.push(Token::new(AssignOp("*="), source_file, line, col, idx, "*="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "/=", .. rest] => {
-      tokens.push(Token::new(AssignOp("/="), line, col, idx, "/="))
+      tokens.push(Token::new(AssignOp("/="), source_file, line, col, idx, "/="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "%=", .. rest] => {
-      tokens.push(Token::new(AssignOp("%="), line, col, idx, "%="))
+      tokens.push(Token::new(AssignOp("%="), source_file, line, col, idx, "%="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "&=", .. rest] => {
-      tokens.push(Token::new(AssignOp("&="), line, col, idx, "&="))
+      tokens.push(Token::new(AssignOp("&="), source_file, line, col, idx, "&="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "|=", .. rest] => {
-      tokens.push(Token::new(AssignOp("|="), line, col, idx, "|="))
+      tokens.push(Token::new(AssignOp("|="), source_file, line, col, idx, "|="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "^=", .. rest] => {
-      tokens.push(Token::new(AssignOp("^="), line, col, idx, "^="))
+      tokens.push(Token::new(AssignOp("^="), source_file, line, col, idx, "^="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "==", .. rest] => {
-      tokens.push(Token::new(Operator("=="), line, col, idx, "=="))
+      tokens.push(Token::new(Operator("=="), source_file, line, col, idx, "=="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "!=", .. rest] => {
-      tokens.push(Token::new(Operator("!="), line, col, idx, "!="))
+      tokens.push(Token::new(Operator("!="), source_file, line, col, idx, "!="))
       idx += 2
       col += 2
       continue rest
     }
     [.. ">=", .. rest] => {
-      tokens.push(Token::new(Operator(">="), line, col, idx, ">="))
+      tokens.push(Token::new(Operator(">="), source_file, line, col, idx, ">="))
       idx += 2
       col += 2
       continue rest
     }
     [.. "<=", .. rest] => {
-      tokens.push(Token::new(Operator("<="), line, col, idx, "<="))
+      tokens.push(Token::new(Operator("<="), source_file, line, col, idx, "<="))
       idx += 2
       col += 2
       continue rest
     }
     ['(', .. rest] => {
-      tokens.push(Token::new(Bracket('('), line, col, idx, "("))
+      tokens.push(Token::new(Bracket('('), source_file, line, col, idx, "("))
       idx += 1
       col += 1
       continue rest
     }
     [')', .. rest] => {
-      tokens.push(Token::new(Bracket(')'), line, col, idx, ")"))
+      tokens.push(Token::new(Bracket(')'), source_file, line, col, idx, ")"))
       idx += 1
       col += 1
       continue rest
     }
     ['[', .. rest] => {
-      tokens.push(Token::new(Bracket('['), line, col, idx, "["))
+      tokens.push(Token::new(Bracket('['), source_file, line, col, idx, "["))
       idx += 1
       col += 1
       continue rest
     }
     [']', .. rest] => {
-      tokens.push(Token::new(Bracket(']'), line, col, idx, "]"))
+      tokens.push(Token::new(Bracket(']'), source_file, line, col, idx, "]"))
       idx += 1
       col += 1
       continue rest
     }
     ['{', .. rest] => {
-      tokens.push(Token::new(Bracket('{'), line, col, idx, "{"))
+      tokens.push(Token::new(Bracket('{'), source_file, line, col, idx, "{"))
       idx += 1
       col += 1
       continue rest
     }
     ['}', .. rest] => {
-      tokens.push(Token::new(Bracket('}'), line, col, idx, "}"))
+      tokens.push(Token::new(Bracket('}'), source_file, line, col, idx, "}"))
       idx += 1
       col += 1
       continue rest
     }
     [';', .. rest] => {
-      tokens.push(Token::new(Semi, line, col, idx, ";"))
+      tokens.push(Token::new(Semi, source_file, line, col, idx, ";"))
       idx += 1
       col += 1
       continue rest
     }
     [',', .. rest] => {
-      tokens.push(Token::new(Comma, line, col, idx, ","))
+      tokens.push(Token::new(Comma, source_file, line, col, idx, ","))
       idx += 1
       col += 1
       continue rest
     }
     ['.', .. rest] => {
-      tokens.push(Token::new(Dot, line, col, idx, "."))
+      tokens.push(Token::new(Dot, source_file, line, col, idx, "."))
       idx += 1
       col += 1
       continue rest
     }
     ['?', .. rest] => {
-      tokens.push(Token::new(Question, line, col, idx, "?"))
+      tokens.push(Token::new(Question, source_file, line, col, idx, "?"))
       idx += 1
       col += 1
       continue rest
     }
     [':', .. rest] => {
-      tokens.push(Token::new(Colon, line, col, idx, ":"))
+      tokens.push(Token::new(Colon, source_file, line, col, idx, ":"))
       idx += 1
       col += 1
       continue rest
     }
     ['+', .. rest] => {
-      tokens.push(Token::new(Operator("+"), line, col, idx, "+"))
+      tokens.push(Token::new(Operator("+"), source_file, line, col, idx, "+"))
       idx += 1
       col += 1
       continue rest
     }
     ['-', .. rest] => {
-      tokens.push(Token::new(Operator("-"), line, col, idx, "-"))
+      tokens.push(Token::new(Operator("-"), source_file, line, col, idx, "-"))
       idx += 1
       col += 1
       continue rest
     }
     ['*', .. rest] => {
-      tokens.push(Token::new(Operator("*"), line, col, idx, "*"))
+      tokens.push(Token::new(Operator("*"), source_file, line, col, idx, "*"))
       idx += 1
       col += 1
       continue rest
     }
     ['/', .. rest] => {
-      tokens.push(Token::new(Operator("/"), line, col, idx, "/"))
+      tokens.push(Token::new(Operator("/"), source_file, line, col, idx, "/"))
       idx += 1
       col += 1
       continue rest
     }
     ['%', .. rest] => {
-      tokens.push(Token::new(Operator("%"), line, col, idx, "%"))
+      tokens.push(Token::new(Operator("%"), source_file, line, col, idx, "%"))
       idx += 1
       col += 1
       continue rest
     }
     ['|', .. rest] => {
-      tokens.push(Token::new(Operator("|"), line, col, idx, "|"))
+      tokens.push(Token::new(Operator("|"), source_file, line, col, idx, "|"))
       idx += 1
       col += 1
       continue rest
     }
     ['&', .. rest] => {
-      tokens.push(Token::new(Operator("&"), line, col, idx, "&"))
+      tokens.push(Token::new(Operator("&"), source_file, line, col, idx, "&"))
       idx += 1
       col += 1
       continue rest
     }
     ['^', .. rest] => {
-      tokens.push(Token::new(Operator("^"), line, col, idx, "^"))
+      tokens.push(Token::new(Operator("^"), source_file, line, col, idx, "^"))
       idx += 1
       col += 1
       continue rest
     }
     ['~', .. rest] => {
-      tokens.push(Token::new(Operator("~"), line, col, idx, "~"))
+      tokens.push(Token::new(Operator("~"), source_file, line, col, idx, "~"))
       idx += 1
       col += 1
       continue rest
     }
     ['=', .. rest] => {
-      tokens.push(Token::new(AssignOp("="), line, col, idx, "="))
+      tokens.push(Token::new(AssignOp("="), source_file, line, col, idx, "="))
       idx += 1
       col += 1
       continue rest
     }
     ['<', .. rest] => {
-      tokens.push(Token::new(Operator("<"), line, col, idx, "<"))
+      tokens.push(Token::new(Operator("<"), source_file, line, col, idx, "<"))
       idx += 1
       col += 1
       continue rest
     }
     ['>', .. rest] => {
-      tokens.push(Token::new(Operator(">"), line, col, idx, ">"))
+      tokens.push(Token::new(Operator(">"), source_file, line, col, idx, ">"))
       idx += 1
       col += 1
       continue rest
     }
     ['!', .. rest] => {
-      tokens.push(Token::new(Operator("!"), line, col, idx, "!"))
+      tokens.push(Token::new(Operator("!"), source_file, line, col, idx, "!"))
       idx += 1
       col += 1
       continue rest
     }
     ['"', ..] as code => {
-      let (token, rest) = self.lex_string_literal(code, line, col, idx)
+      let (token, rest) = self.lex_string_literal(code, source_file, line, col, idx)
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -380,7 +381,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['\'', ..] as code => {
-      let (token, rest) = self.lex_char_literal(code, line, col, idx)
+      let (token, rest) = self.lex_char_literal(code, source_file, line, col, idx)
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -388,7 +389,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['0'..='9', ..] as code => {
-      let (token, rest) = self.lex_number_literal(code, line, col, idx)
+      let (token, rest) = self.lex_number_literal(code, source_file, line, col, idx)
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -396,7 +397,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       continue rest
     }
     ['a'..='z' | 'A'..='Z' | '_' | '$', ..] as code => {
-      let (token, rest) = self.lex_identifier_or_keyword(code, line, col, idx)
+      let (token, rest) = self.lex_identifier_or_keyword(code, source_file, line, col, idx)
       tokens.push(token)
       let token_len = token.raw.length()
       idx += token_len
@@ -406,7 +407,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
     [c, .. rest] => {
       let token_kind = ErrorChar(c)
       let err_msg = "Invalid character literal \{c}"
-      let token = Token::new(token_kind, line, col, idx, "\{c}", err_msg~)
+      let token = Token::new(token_kind, source_file, line, col, idx, "\{c}", err_msg~)
       tokens.push(token)
       self.err_toks.push(token)
       idx += 1
@@ -421,6 +422,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
 fn Context::lex_identifier_or_keyword(
   self : Self,
   code : StringView,
+  source_file: String,
   line : Int,
   col : Int,
   idx : Int,
@@ -433,7 +435,7 @@ fn Context::lex_identifier_or_keyword(
         Some(kw) => Keyword(kw)
         None => Identifier(ident.to_string())
       }
-      let token = Token::new(token_kind, line, col, idx, raw_str)
+      let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       (token, rest)
     }
     _ => abort("")

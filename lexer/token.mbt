@@ -209,6 +209,7 @@ pub fn TokenKind::detail(self: Self) -> String {
 ///|
 pub struct Token {
   kind : TokenKind
+  source_file : String
   line : Int
   col : Int
   idx : Int
@@ -218,12 +219,12 @@ pub struct Token {
 
 ///|
 pub fn dummy_eof() -> Token {
-  Token::new(EOF, 0, 0, 0, "")
+  Token::new(EOF, "", 0, 0, 0, "")
 }
 
 ///|
 pub fn dummy_long(val : Int64, raw? : String = "") -> Token {
-  Token::new(Long(val), 0, 0, 0, raw)
+  Token::new(Long(val), "", 0, 0, 0, raw)
 }
 
 ///|
@@ -232,19 +233,20 @@ pub impl Show for Token with output(self, logger) {
 }
 //
 pub fn Token::detail(self: Self) -> String {
-  "Token::{ kind: \{self.kind.detail()}, line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\", err_msg: \"\{self.err_msg}\" }"
+  "Token::{ kind: \{self.kind.detail()}, src: \"\{self.source_file}\", line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\" }"
 }
 
 ///|
 fn Token::new(
   kind : TokenKind,
+  source_file: String,
   line : Int,
   col : Int,
   idx : Int,
   raw : String,
   err_msg? : String = "",
 ) -> Token {
-  Token::{ kind, line, col, idx, raw, err_msg }
+  Token::{ kind, source_file, line, col, idx, raw, err_msg }
 }
 
 ///|
