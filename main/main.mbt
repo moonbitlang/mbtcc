@@ -74,13 +74,17 @@ fn main_err() -> Unit raise {
     let _ = lexer_ctx.tokenize()
     let lexer_ctx = @preprocess.preprocess(lexer_ctx)
     if expand_only.val {
+      if print_tokens {
+        lexer_ctx.tokens.each(t => println(t))
+        continue
+      }
       let expanded_code = @lexer.restore_code_from_tokens(lexer_ctx.tokens)
       println(expanded_code)
       continue
     }
     let ctx = @parser.Context::from_lexer(lexer_ctx)
     if print_tokens {
-      println(ctx.tokens)
+      ctx.tokens.each(t => println(t))
     } else {
       let prog = ctx.parse()
       println(prog)

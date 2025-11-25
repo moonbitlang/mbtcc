@@ -175,6 +175,37 @@ pub impl Show for TokenKind with output(self, logger) {
   }
 }
 
+pub fn TokenKind::detail(self: Self) -> String {
+  match self {
+    Keyword(k) => "Keyword(\{k})"
+    Bracket(c) => "Bracket('\{c}')"
+    Operator(op) => "Operator(\"\{op}\")"
+    AssignOp(op) => "AssignOp(\"\{op}\")"
+    Comma => "Comma"
+    Dot => "Dot"
+    Arrow => "Arrow"
+    Colon => "Colon"
+    Semi => "Semi"
+    Ellipsis => "Ellipsis"
+    Question => "Question"
+    Identifier(name) => "Identifier(\"\{name}\")"
+    Int(val) => "Int(\{val})"
+    Long(val) => "Long(\{val})"
+    LongLong(val) => "LongLong(\{val})"
+    UInt(val) => "UInt(\{val})"
+    ULong(val) => "ULong(\{val})"
+    ULongLong(val) => "ULongLong(\{val})"
+    Float(val) => "Float(\{val})"
+    Double(val) => "Double(\{val})"
+    Char(c) => "Char('\{c}')"
+    String(s) => "String(\"\{s}\")"
+    ErrorChar(c) => "ErrorChar('\{c}')"
+    Hash => "Hash"
+    Hash2 => "Hash2"
+    EOF => "EOF"
+  }
+}
+
 ///|
 pub struct Token {
   kind : TokenKind
@@ -197,11 +228,11 @@ pub fn dummy_long(val : Int64, raw? : String = "") -> Token {
 
 ///|
 pub impl Show for Token with output(self, logger) {
-  logger.write_object(self.kind)
+  logger.write_string(self.detail())
 }
-
+//
 pub fn Token::detail(self: Self) -> String {
-  "Token::{ kind: \{self.kind}, line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\", err_msg: \"\{self.err_msg}\" }"
+  "Token::{ kind: \{self.kind.detail()}, line: \{self.line}, col: \{self.col}, idx: \{self.idx}, raw: \"\{self.raw}\", err_msg: \"\{self.err_msg}\" }"
 }
 
 ///|

@@ -1,6 +1,6 @@
 
 pub fn restore_code_from_tokens(tokens: Array[Token]) -> String {
-  // tokens.each(tok => println(tok.detail()))
+  // tokens.each(tok => println(tok))
   if tokens.is_empty() {
     return ""
   }
@@ -22,12 +22,4 @@ pub fn restore_code_from_tokens(tokens: Array[Token]) -> String {
     sb.write_object(kind)
   }
   sb.to_string();
-}
-
-fn max(a: Int, b: Int) -> Int {
-  if a > b {
-    a
-  } else {
-    b
-  }
 }
