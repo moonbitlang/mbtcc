@@ -301,16 +301,14 @@ fn collect_tokens_until_new_line(
 ///|
 fn skip_cond_incl(tokens : ArrayView[Token]) -> ArrayView[Token] {
   loop tokens {
-    [
-      { kind: Hash, .. },
-      { kind: Identifier("if" | "ifdef" | "ifndef"), .. },
-      .. rest,
-    ] => break skip_cond_incl2(rest)
-    [
-      { kind: Hash, .. },
-      { kind: Identifier("elif" | "else" | "endif"), .. },
-      .. rest,
-    ] => break rest
+    [{ kind: Hash, .. }, { kind: Keyword(If), .. }, .. rest] =>
+      break skip_cond_incl2(rest)
+    [{ kind: Hash, .. }, { kind: Identifier("ifdef" | "ifndef"), .. }, .. rest] =>
+      break skip_cond_incl2(rest)
+    [{ kind: Hash, .. }, { kind: Identifier("elif" | "endif"), .. }, ..] as tokens =>
+      break tokens
+    [{ kind: Hash, .. }, { kind: Keyword(Else), .. }, ..] as tokens =>
+      break tokens
     [_, .. rest] => continue rest
     [] as tokens => break tokens
   }
@@ -319,11 +317,10 @@ fn skip_cond_incl(tokens : ArrayView[Token]) -> ArrayView[Token] {
 ///|
 fn skip_cond_incl2(tokens : ArrayView[Token]) -> ArrayView[Token] {
   loop tokens {
-    [
-      { kind: Hash, .. },
-      { kind: Identifier("if" | "ifdef" | "ifndef"), .. },
-      .. rest,
-    ] => break skip_cond_incl2(rest)
+    [{ kind: Hash, .. }, { kind: Keyword(If), .. }, .. rest] =>
+      break skip_cond_incl2(rest)
+    [{ kind: Hash, .. }, { kind: Identifier("ifdef" | "ifndef"), .. }, .. rest] =>
+      break skip_cond_incl2(rest)
     [{ kind: Hash, .. }, { kind: Identifier("endif"), .. }, .. rest] =>
       break rest
     [_, .. rest] => continue rest
@@ -595,4 +592,686 @@ test "VA_ARGS Test - 4: Multiple fixed + variadic args" {
   inspect(tokens[5].kind, content=",")
   inspect(tokens[6].kind, content="30")
   inspect(tokens[7].kind, content=")")
+}
+
+///|
+test "Conditional Inclusion - #if with true condition" {
+  let code =
+    #|#if 1
+    #|int x = 42;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int x = 42;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="42")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #if with false condition" {
+  let code =
+    #|#if 0
+    #|int x = 42;
+    #|#endif
+    #|int y = 99;
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should skip x and only include: int y = 99;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="y")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="99")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #ifdef with defined macro" {
+  let code =
+    #|#define DEBUG
+    #|#ifdef DEBUG
+    #|int x = 1;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int x = 1;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #ifdef with undefined macro" {
+  let code =
+    #|#ifdef UNDEFINED
+    #|int x = 1;
+    #|#endif
+    #|int y = 2;
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should skip x and only include: int y = 2;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="y")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #ifndef with undefined macro" {
+  let code =
+    #|#ifndef UNDEFINED
+    #|int x = 1;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int x = 1;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #ifndef with defined macro" {
+  let code =
+    #|#define DEBUG
+    #|#ifndef DEBUG
+    #|int x = 1;
+    #|#endif
+    #|int y = 2;
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should skip x and only include: int y = 2;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="y")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #if #else with true condition" {
+  let code =
+    #|#if 1
+    #|int x = 1;
+    #|#else
+    #|int x = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 1
+  inspect(tokens.length(), content="13")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #if #else with false condition" {
+  let code =
+    #|#if 0
+    #|int x = 1;
+    #|#else
+    #|int x = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 2
+  inspect(tokens.length(), content="8")
+  inspect(tokens[1].kind, content="else")
+  inspect(tokens[2].kind, content="int")
+  inspect(tokens[3].kind, content="x")
+  inspect(tokens[4].kind, content="=")
+}
+
+///|
+test "Conditional Inclusion - #if #elif with first true" {
+  let code =
+    #|#if 1
+    #|int x = 1;
+    #|#elif 1
+    #|int x = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 1
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #if #elif with elif true" {
+  let code =
+    #|#if 0
+    #|int x = 1;
+    #|#elif 1
+    #|int x = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 2
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - #if #elif #else chain" {
+  let code =
+    #|#if 0
+    #|int x = 1;
+    #|#elif 0
+    #|int x = 2;
+    #|#else
+    #|int x = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 3
+  inspect(tokens.length(), content="8")
+  inspect(tokens[0].kind, content="#")
+  inspect(tokens[1].kind, content="else")
+  inspect(tokens[2].kind, content="int")
+  inspect(tokens[3].kind, content="x")
+  inspect(tokens[4].kind, content="=")
+}
+
+///|
+test "Conditional Inclusion - Multiple #elif" {
+  let code =
+    #|#if 0
+    #|int x = 1;
+    #|#elif 0
+    #|int x = 2;
+    #|#elif 1
+    #|int x = 3;
+    #|#elif 1
+    #|int x = 4;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 3 (first true elif)
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="3")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - defined operator with parentheses" {
+  let code =
+    #|#define FOO
+    #|#if defined(FOO)
+    #|int x = 1;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int x = 1;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - defined operator without parentheses" {
+  let code =
+    #|#define BAR
+    #|#if defined BAR
+    #|int y = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int y = 2;
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="y")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - defined operator for undefined macro" {
+  let code =
+    #|#if defined(UNDEFINED)
+    #|int x = 1;
+    #|#else
+    #|int x = 2;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include: int x = 2;
+  inspect(tokens.length(), content="8")
+  inspect(tokens[0].kind, content="#")
+  inspect(tokens[1].kind, content="else")
+  inspect(tokens[2].kind, content="int")
+  inspect(tokens[3].kind, content="x")
+  inspect(tokens[4].kind, content="=")
+}
+
+///|
+test "Conditional Inclusion - nested conditions outer true" {
+  let code =
+    #|#if 1
+    #|int a = 1;
+    #|#if 1
+    #|int b = 2;
+    #|#endif
+    #|int c = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include all three
+  inspect(tokens.length(), content="16")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="b")
+  inspect(tokens[10].kind, content="int")
+  inspect(tokens[11].kind, content="c")
+}
+
+///|
+test "Conditional Inclusion - nested conditions outer false" {
+  let code =
+    #|#if 0
+    #|int a = 1;
+    #|#if 1
+    #|int b = 2;
+    #|#endif
+    #|int c = 3;
+    #|#endif
+    #|int d = 4;
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should only include: int d = 4;
+  inspect(tokens.length(), content="11")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="c")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="3")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - nested conditions inner false" {
+  let code =
+    #|#if 1
+    #|int a = 1;
+    #|#if 0
+    #|int b = 2;
+    #|#endif
+    #|int c = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include a and c, skip b
+  inspect(tokens.length(), content="11")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="c")
+}
+
+///|
+test "Conditional Inclusion - expression evaluation" {
+  let code =
+    #|#if 2 + 3 > 4
+    #|int x = 1;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // 2 + 3 = 5 > 4 is true
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+}
+
+///|
+test "Conditional Inclusion - complex expression" {
+  let code =
+    #|#if (10 - 5) * 2 == 10
+    #|int result = 1;
+    #|#else
+    #|int result = 0;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // (10 - 5) * 2 = 10, so condition is true
+  inspect(tokens.length(), content="13")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="result")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - macro expansion within conditional block" {
+  let code =
+    #|#define VALUE 42
+    #|#if 1
+    #|int x = VALUE;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should expand VALUE to 42
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="42")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - undef and ifdef interaction" {
+  let code =
+    #|#define FOO
+    #|#ifdef FOO
+    #|int a = 1;
+    #|#endif
+    #|#undef FOO
+    #|#ifdef FOO
+    #|int b = 2;
+    #|#else
+    #|int c = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include a = 1 and c = 3, but not b = 2
+  inspect(tokens.length(), content="13")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  // Check for c = 3
+  inspect(tokens[6].kind, content="else")
+  inspect(tokens[7].kind, content="int")
+  inspect(tokens[8].kind, content="c")
+  inspect(tokens[9].kind, content="=")
+  inspect(tokens[10].kind, content="3")
+  inspect(tokens[11].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - logical operators in expressions" {
+  let code =
+    #|#if 1 && 1
+    #|int a = 1;
+    #|#endif
+    #|#if 1 && 0
+    #|int b = 2;
+    #|#endif
+    #|#if 0 || 1
+    #|int c = 3;
+    #|#endif
+    #|#if 0 || 0
+    #|int d = 4;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include a = 1 and c = 3, but not b = 2 or d = 4
+  inspect(tokens.length(), content="11")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="c")
+}
+
+///|
+test "Conditional Inclusion - bitwise operators in expressions" {
+  let code =
+    #|#if (5 & 3) == 1
+    #|int a = 1;
+    #|#endif
+    #|#if (5 | 3) == 7
+    #|int b = 2;
+    #|#endif
+    #|#if (5 ^ 3) == 6
+    #|int c = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // 5 & 3 = 1, 5 | 3 = 7, 5 ^ 3 = 6, all true
+  inspect(tokens.length(), content="16")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="b")
+  inspect(tokens[10].kind, content="int")
+  inspect(tokens[11].kind, content="c")
+}
+
+///|
+test "Conditional Inclusion - comparison operators" {
+  let code =
+    #|#if 5 > 3
+    #|int a = 1;
+    #|#endif
+    #|#if 3 < 5
+    #|int b = 2;
+    #|#endif
+    #|#if 5 >= 5
+    #|int c = 3;
+    #|#endif
+    #|#if 3 <= 5
+    #|int d = 4;
+    #|#endif
+    #|#if 5 != 3
+    #|int e = 5;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // All conditions are true
+  inspect(tokens.length(), content="26")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="b")
+  inspect(tokens[10].kind, content="int")
+  inspect(tokens[11].kind, content="c")
+  inspect(tokens[15].kind, content="int")
+  inspect(tokens[16].kind, content="d")
+  inspect(tokens[20].kind, content="int")
+  inspect(tokens[21].kind, content="e")
+}
+
+///|
+test "Conditional Inclusion - empty blocks" {
+  let code =
+    #|#if 1
+    #|#endif
+    #|int x = 1;
+    #|#if 0
+    #|#else
+    #|#endif
+    #|int y = 2;
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include x = 1 and y = 2, with empty blocks properly handled
+  inspect(tokens.length(), content="13")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[6].kind, content="else")
+  inspect(tokens[7].kind, content="int")
+  inspect(tokens[8].kind, content="y")
+  inspect(tokens[9].kind, content="=")
+}
+
+///|
+test "Conditional Inclusion - complex nested with elif" {
+  let code =
+    #|#if 1
+    #|  #if 0
+    #|    int a = 1;
+    #|  #elif 1
+    #|    int b = 2;
+    #|  #endif
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include b = 2
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="b")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
+}
+
+///|
+test "Conditional Inclusion - negation operator" {
+  let code =
+    #|#if !0
+    #|int a = 1;
+    #|#endif
+    #|#if !1
+    #|int b = 2;
+    #|#endif
+    #|#if !(5 == 3)
+    #|int c = 3;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // Should include a = 1 and c = 3 but not b = 2
+  inspect(tokens.length(), content="11")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="a")
+  inspect(tokens[5].kind, content="int")
+  inspect(tokens[6].kind, content="c")
+}
+
+///|
+test "Conditional Inclusion - mixed defined and expressions" {
+  let code =
+    #|#define FOO 5
+    #|#define BAR 3
+    #|#if defined(FOO) && defined(BAR) && (FOO > BAR)
+    #|int result = 1;
+    #|#else
+    #|int result = 0;
+    #|#endif
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+
+  // All conditions are true
+  inspect(tokens.length(), content="24")
+  inspect(tokens[0].kind, content="&&")
+  inspect(tokens[1].kind, content="defined")
+  inspect(tokens[2].kind, content="(")
+  inspect(tokens[3].kind, content="3")
+  inspect(tokens[4].kind, content=")")
 }
