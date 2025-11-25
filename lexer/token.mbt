@@ -191,6 +191,11 @@ pub fn dummy_eof() -> Token {
 }
 
 ///|
+pub fn dummy_long(val : Int64, raw? : String = "") -> Token {
+  Token::new(Long(val), 0, 0, 0, raw)
+}
+
+///|
 pub impl Show for Token with output(self, logger) {
   logger.write_object(self.kind)
 }

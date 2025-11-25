@@ -204,9 +204,9 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       continue rest
     }
     // Handle conditional inclusion - else
-    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, ..] if cond_incl_stack.is_empty() =>
+    [{ kind: Hash, .. } as hash_tok, { kind: Keyword(Else), .. }, ..] if cond_incl_stack.is_empty() =>
       raise StrayElse(hash_tok, "else without matching if")
-    [{ kind: Hash, .. } as hash_tok, { kind: Identifier("else"), .. }, .. rest] => {
+    [{ kind: Hash, .. } as hash_tok, { kind: Keyword(Else), .. }, .. rest] => {
       let prev_state = cond_incl_stack.last().unwrap()
       guard !(prev_state.kind is Else) else {
         raise StrayElse(hash_tok, "multiple else in the same if block")
@@ -254,28 +254,10 @@ fn eval_const_expr(
   line : Int,
   tokens : ArrayView[Token],
 ) -> (Int64, ArrayView[Token]) raise PreprecessError {
-  if tokens is [{ kind: Identifier("defined"), .. }, .. tokens] {
-    let (has_paren, tokens) = if tokens
-      is [{ kind: Bracket('('), .. }, .. tokens] {
-      (true, tokens)
-    } else {
-      (false, tokens)
-    }
-    guard tokens is [{ kind: Identifier(name), .. }, .. tokens] else {
-      raise InvalidConstExprToken(tokens[0], "macro name must be an identifier")
-    }
-    let tokens = if has_paren {
-      guard tokens is [{ kind: Bracket(')'), .. }, .. tokens] else {
-        raise InvalidConstExprToken(tokens[0], "expected closing parenthesis")
-      }
-      tokens
-    } else {
-      tokens
-    }
-    let val = (macros.get(name) is Some(_)).to_int64()
-    return (val, tokens)
-  }
-  let (const_expr_tokens, rest) = collect_tokens_until_new_line(line, tokens)
+  let (const_expr_tokens, rest) = collect_num_tokens_until_new_line(
+    line, tokens,
+  )
+  let const_expr_tokens = expand_macro_for_tokens(const_expr_tokens)
   const_expr_tokens.push(@lexer.dummy_eof())
   let (const_expr, _) = parse_constant_expr(const_expr_tokens)
   let val = const_expr.eval()
@@ -289,6 +271,66 @@ fn collect_tokens_until_new_line(
 ) -> (Array[Token], ArrayView[Token]) {
   let new_tokens : Array[Token] = Array::new()
   let rest = loop tokens {
+    [tok, .. rest] if tok.line == line => {
+      new_tokens.push(tok)
+      continue rest
+    }
+    tokens => break tokens
+  }
+  (new_tokens, rest)
+}
+
+///|
+fn expand_macro_for_tokens(
+  tokens : Array[Token],
+) -> Array[Token] raise PreprecessError {
+  let new_tokens : Array[Token] = Array::new()
+  loop tokens[:] {
+    [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
+      let (expanded_toks, rest) = replace_identifier(name, rest)
+      new_tokens.append(expanded_toks)
+      continue rest
+    }
+    [tok, .. rest] => {
+      new_tokens.push(tok)
+      continue rest
+    }
+    [] => break
+  }
+  new_tokens
+}
+
+// If met `defined(M)` or `defined M`, handle it here, replace it with 1 or 0
+
+///|
+fn collect_num_tokens_until_new_line(
+  line : Int,
+  tokens : ArrayView[Token],
+) -> (Array[Token], ArrayView[Token]) {
+  let new_tokens : Array[Token] = Array::new()
+  let rest = loop tokens {
+    [
+      { kind: Identifier("defined"), .. },
+      { kind: Bracket('('), .. },
+      { kind: Identifier(macro_name), .. },
+      { kind: Bracket(')'), .. },
+      .. rest,
+    ] => {
+      let val = (macros.get(macro_name) is Some(_)).to_int64()
+      let tok = @lexer.dummy_long(val, raw="defined(\{macro_name})")
+      new_tokens.push(tok)
+      continue rest
+    }
+    [
+      { kind: Identifier("defined"), .. },
+      { kind: Identifier(macro_name), .. },
+      .. rest,
+    ] => {
+      let val = (macros.get(macro_name) is Some(_)).to_int64()
+      let tok = @lexer.dummy_long(val, raw="defined \{macro_name}")
+      new_tokens.push(tok)
+      continue rest
+    }
     [tok, .. rest] if tok.line == line => {
       new_tokens.push(tok)
       continue rest
@@ -733,7 +775,7 @@ test "Conditional Inclusion - #if #else with true condition" {
   let tokens = pre_ctx.tokens
 
   // Should include x = 1
-  inspect(tokens.length(), content="13")
+  inspect(tokens.length(), content="6")
   inspect(tokens[0].kind, content="int")
   inspect(tokens[1].kind, content="x")
   inspect(tokens[2].kind, content="=")
@@ -755,11 +797,12 @@ test "Conditional Inclusion - #if #else with false condition" {
   let tokens = pre_ctx.tokens
 
   // Should include x = 2
-  inspect(tokens.length(), content="8")
-  inspect(tokens[1].kind, content="else")
-  inspect(tokens[2].kind, content="int")
-  inspect(tokens[3].kind, content="x")
-  inspect(tokens[4].kind, content="=")
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
 }
 
 ///|
@@ -822,12 +865,12 @@ test "Conditional Inclusion - #if #elif #else chain" {
   let tokens = pre_ctx.tokens
 
   // Should include x = 3
-  inspect(tokens.length(), content="8")
-  inspect(tokens[0].kind, content="#")
-  inspect(tokens[1].kind, content="else")
-  inspect(tokens[2].kind, content="int")
-  inspect(tokens[3].kind, content="x")
-  inspect(tokens[4].kind, content="=")
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="3")
+  inspect(tokens[4].kind, content=";")
 }
 
 ///|
@@ -912,12 +955,12 @@ test "Conditional Inclusion - defined operator for undefined macro" {
   let tokens = pre_ctx.tokens
 
   // Should include: int x = 2;
-  inspect(tokens.length(), content="8")
-  inspect(tokens[0].kind, content="#")
-  inspect(tokens[1].kind, content="else")
-  inspect(tokens[2].kind, content="int")
-  inspect(tokens[3].kind, content="x")
-  inspect(tokens[4].kind, content="=")
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="x")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="2")
+  inspect(tokens[4].kind, content=";")
 }
 
 ///|
@@ -1024,7 +1067,7 @@ test "Conditional Inclusion - complex expression" {
   let tokens = pre_ctx.tokens
 
   // (10 - 5) * 2 = 10, so condition is true
-  inspect(tokens.length(), content="13")
+  inspect(tokens.length(), content="6")
   inspect(tokens[0].kind, content="int")
   inspect(tokens[1].kind, content="result")
   inspect(tokens[2].kind, content="=")
@@ -1072,18 +1115,16 @@ test "Conditional Inclusion - undef and ifdef interaction" {
   let tokens = pre_ctx.tokens
 
   // Should include a = 1 and c = 3, but not b = 2
-  inspect(tokens.length(), content="13")
+  inspect(tokens.length(), content="11")
   inspect(tokens[0].kind, content="int")
   inspect(tokens[1].kind, content="a")
   inspect(tokens[2].kind, content="=")
   inspect(tokens[3].kind, content="1")
   // Check for c = 3
-  inspect(tokens[6].kind, content="else")
-  inspect(tokens[7].kind, content="int")
-  inspect(tokens[8].kind, content="c")
-  inspect(tokens[9].kind, content="=")
-  inspect(tokens[10].kind, content="3")
-  inspect(tokens[11].kind, content=";")
+  inspect(tokens[6].kind, content="c")
+  inspect(tokens[7].kind, content="=")
+  inspect(tokens[8].kind, content="3")
+  inspect(tokens[9].kind, content=";")
 }
 
 ///|
@@ -1194,13 +1235,13 @@ test "Conditional Inclusion - empty blocks" {
   let tokens = pre_ctx.tokens
 
   // Should include x = 1 and y = 2, with empty blocks properly handled
-  inspect(tokens.length(), content="13")
+  inspect(tokens.length(), content="11")
   inspect(tokens[0].kind, content="int")
   inspect(tokens[1].kind, content="x")
-  inspect(tokens[6].kind, content="else")
-  inspect(tokens[7].kind, content="int")
-  inspect(tokens[8].kind, content="y")
-  inspect(tokens[9].kind, content="=")
+  inspect(tokens[6].kind, content="y")
+  inspect(tokens[7].kind, content="=")
+  inspect(tokens[8].kind, content="2")
+  inspect(tokens[9].kind, content=";")
 }
 
 ///|
@@ -1268,10 +1309,10 @@ test "Conditional Inclusion - mixed defined and expressions" {
   let tokens = pre_ctx.tokens
 
   // All conditions are true
-  inspect(tokens.length(), content="24")
-  inspect(tokens[0].kind, content="&&")
-  inspect(tokens[1].kind, content="defined")
-  inspect(tokens[2].kind, content="(")
-  inspect(tokens[3].kind, content="3")
-  inspect(tokens[4].kind, content=")")
+  inspect(tokens.length(), content="6")
+  inspect(tokens[0].kind, content="int")
+  inspect(tokens[1].kind, content="result")
+  inspect(tokens[2].kind, content="=")
+  inspect(tokens[3].kind, content="1")
+  inspect(tokens[4].kind, content=";")
 }

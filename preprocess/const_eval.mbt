@@ -35,11 +35,13 @@ fn parse_prim_expr(
       }
       (Paren(expr), rest)
     }
-    [tok, ..] =>
+    [tok, ..] => {
+      println(tok)
       raise InvalidConstExprToken(
         tok,
         "Expected constant expression, got \{tok.kind}",
       )
+    }
     [] =>
       raise InvalidConstExprToken(
         tokens[0],
