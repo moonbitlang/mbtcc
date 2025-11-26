@@ -316,7 +316,7 @@ pub fn Context::parse_declaration(
     return ([decl], rest)
   }
   let (base_ty, storage, tokens) = self.parse_decl_spec(tokens)
-  if tokens is [{ kind: Semi, .. }, ..tokens2] {
+  if tokens is [{ kind: Semi, .. }, .. tokens2] {
     // TODO, check base_ty is `struct`, `enum`, or `union`
     let decl_tokens = init_tokens[0:tokens.start_offset() - start_offset]
     let decl_kind = DeclarationKind::TypeDeclaration(base_ty)

@@ -485,6 +485,8 @@ impl Show for PostfixExpr
 
 pub enum PostfixExprKind {
   PrimExpr(PrimExpr)
+  ArrayAccess(PostfixExpr, Expr)
+  FuncCall(PostfixExpr, Array[AssignExpr])
   MemberAccess(PostfixExpr, String)
   PtrMemberAccess(PostfixExpr, String)
   PostInc(PostfixExpr)
