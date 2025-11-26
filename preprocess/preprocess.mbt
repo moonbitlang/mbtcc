@@ -67,7 +67,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       if pragma_once.contains(fpath) {
         continue skip_line(line, rest)
       }
-      let include_code = try @fs.read_file_to_string(fpath) catch {
+      let include_code = @fs.read_file_to_string(fpath) catch {
         _ => raise InvalidIncludePath(fpath)
       }
       let include_ctx = @lexer.Context::new(

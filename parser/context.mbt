@@ -8,7 +8,7 @@ pub struct Context {
   // enum, struct, union  type tags
   mut tags : Env[String, CTypeDataKind]
   errs : Array[ParseError]
-  prog: Program
+  prog : Program
 }
 
 ///|

@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Kaida-Amethyst/mbtcc/codegen"
+package "Kaida-Amethyst/mbtcc/oldcodegen"
 
 import(
   "Kaida-Amethyst/MoonLLVM/IR"

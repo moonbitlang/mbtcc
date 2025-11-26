@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Kaida-Amethyst/mbtcc/codegen"
+
+import(
+  "Kaida-Amethyst/MoonLLVM/IR"
+  "Kaida-Amethyst/mbtcc/parser"
+)
+
+// Values
+
+// Errors
+pub suberror CodeGenError String
+impl Show for CodeGenError
+
+// Types and methods
+pub struct Context {
+  llvm_ctx : @IR.Context
+  llvm_mod : @IR.Module
+  func_decls : Map[String, @parser.CType]
+  func_defs : Map[String, @IR.Function]
+  prog : @parser.Program
+}
+fn Context::emit(Self) -> Unit raise CodeGenError
+fn Context::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise CodeGenError
+fn Context::emit_function_def(Self, @parser.FunctionDefinition) -> Unit raise CodeGenError
+fn Context::emit_global_decl(Self, @parser.Declaration) -> Unit raise CodeGenError
+fn Context::emit_global_variable_decl(Self) -> Unit raise CodeGenError
+fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
+fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
+fn Context::init_from_parse_program(@parser.Context) -> Self
+
+// Type aliases
+
+// Traits
+

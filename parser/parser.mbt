@@ -14,11 +14,13 @@ pub struct Program {
   externals : Array[ExternalDeclaration]
 } derive(Eq)
 
+///|
 pub fn Program::new() -> Program {
-  Program::{ externals:Array::new() }
+  Program::{ externals: Array::new() }
 }
 
-pub fn Program::is_empty(self: Self) -> Bool {
+///|
+pub fn Program::is_empty(self : Self) -> Bool {
   self.externals.is_empty()
 }
 

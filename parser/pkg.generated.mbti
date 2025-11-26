@@ -202,6 +202,7 @@ pub struct Context {
   mut defined : @env.Env[String, SymbolKind]
   mut tags : @env.Env[String, CTypeDataKind]
   errs : Array[ParseError]
+  prog : Program
 }
 fn Context::add_enum_member(Self, String, CTypeDataKind, Int) -> Unit
 fn Context::add_label(Self, String) -> Unit
@@ -524,6 +525,8 @@ impl Show for PrimExprKind
 pub struct Program {
   externals : Array[ExternalDeclaration]
 }
+fn Program::is_empty(Self) -> Bool
+fn Program::new() -> Self
 fn Program::to_string(Self, color? : Bool) -> String
 impl Eq for Program
 impl Show for Program
