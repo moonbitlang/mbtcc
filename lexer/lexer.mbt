@@ -47,29 +47,31 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       col += 1
       continue rest
     }
-    [.. "//", .. rest] =>
+    [.. "//", .. rest] => {
       // Single line comment
-      loop rest {
+      let rest = loop rest {
         ['\n', .. rest2] => {
           line += 1
           col = 1
           idx += 1
-          continue rest2
+          break rest2
         }
         [_, .. rest2] => {
           idx += 1
           col += 1
           continue rest2
         }
-        [] => break
+        [] as rest => break rest
       }
-    [.. "/*", .. rest] =>
+      continue rest
+    }
+    [.. "/*", .. rest] => {
       // Multi-line comment
-      loop rest {
+      let rest = loop rest {
         [.. "*/", .. rest2] => {
           idx += 2
           col += 2
-          continue rest2
+          break rest2
         }
         ['\n', .. rest2] => {
           line += 1
@@ -82,8 +84,10 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
           col += 1
           continue rest2
         }
-        [] => break
+        [] as rest => break rest
       }
+      continue rest
+    }
     [.. "<<=", .. rest] => {
       tokens.push(
         Token::new(AssignOp("<<="), source_file, line, col, idx, "<<="),
