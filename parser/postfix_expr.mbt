@@ -22,8 +22,8 @@
 ///
 /// postfix_expression
 /// 	: primary_expression
-/// 	| postfix_expression '[' expression ']'  (TODO)
-/// 	| postfix_expression '('assign_expr_list? ')'  (TODO)
+/// 	| postfix_expression '[' expression ']'
+/// 	| postfix_expression '('assign_expr_list? ')'
 /// 	| postfix_expression '.' IDENTIFIER
 /// 	| postfix_expression "->" IDENTIFIER
 /// 	| postfix_expression "++"

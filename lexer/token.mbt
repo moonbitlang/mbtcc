@@ -167,7 +167,13 @@ pub impl Show for TokenKind with output(self, logger) {
     Float(val) => logger.write_string("\{val}f")
     Double(val) => logger.write_string("\{val}")
     Char(c) => logger.write_char(c)
-    String(s) => logger.write_string(s)
+    String(s) => {
+      let s = "\"\{s}\""
+      .replace_all(old="\\", new="\\\\")
+      .replace_all(old="\n", new="\\n")
+      .replace_all(old="\t", new="\\t")
+      logger.write_string(s)
+    }
     ErrorChar(c) => logger.write_char(c)
     Hash => logger.write_string("#")
     Hash2 => logger.write_string("##")
