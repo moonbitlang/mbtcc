@@ -2,7 +2,7 @@
 pub fn Context::emit_compound_stmt(
   self : Context,
   comp_stmt : @parser.CompoundStmt,
-) -> Unit raise CodeGenError {
+) -> Unit raise {
   let _ = self.enter_scope()
   let { items, .. } = comp_stmt
   for item in items {

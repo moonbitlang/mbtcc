@@ -37,7 +37,7 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
 }
 
 ///|
-pub fn Context::emit(self : Context) -> Unit raise CodeGenError {
+pub fn Context::emit(self : Context) -> Unit raise {
   let externals = self.prog.externals
   for ext_decl in externals {
     self.emit_external_decl(ext_decl)
@@ -66,7 +66,7 @@ fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
 pub fn Context::emit_external_decl(
   self : Context,
   ext_decl : @parser.ExternalDeclaration,
-) -> Unit raise CodeGenError {
+) -> Unit raise {
   match ext_decl.kind {
     Declaration(decl) => self.emit_global_decl(decl)
     FunctionDefinition(func_def) => self.emit_function_def(func_def)
