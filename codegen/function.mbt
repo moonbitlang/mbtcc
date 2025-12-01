@@ -2,7 +2,7 @@
 pub fn Context::emit_function_def(
   self : Context,
   func_def : @parser.FunctionDefinition,
-) -> Unit raise CodeGenError {
+) -> Unit raise {
   let { name, params, ret_ty, is_static, is_variadic, body } = func_def
   // if `static` set, we just ignore it for now
   ignore(is_static)
@@ -21,12 +21,7 @@ pub fn Context::emit_function_def(
   let func_type = self.llvm_ctx.getFunctionType(llvm_ret_ty, param_types) catch {
     err => raise IllegalLLVMUsage("\{err}")
   }
-  let llvm_func = self.llvm_mod.addFunction(func_type, name) catch {
-    err =>
-      raise IllegalLLVMUsage(
-        "Failed to add function '\{name}' to LLVM module: \{err}",
-      )
-  }
+  let llvm_func = self.llvm_mod.addFunction(func_type, name)
   let env = self.enter_scope()
   for i in 0..<param_names.length() {
     let parem_name = param_names[i]
@@ -41,5 +36,4 @@ pub fn Context::emit_function_def(
   }
   self.emit_compound_stmt(body)
   let _ = self.exit_scope()
-
 }

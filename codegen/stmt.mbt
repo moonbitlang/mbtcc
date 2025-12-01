@@ -2,7 +2,7 @@
 pub fn Context::emit_local_decl(
   self : Context,
   decl : @parser.Declaration,
-) -> Unit raise CodeGenError {
+) -> Unit raise {
   // emit local variable declaration
   ignore(self)
   ignore(decl)
@@ -13,14 +13,10 @@ pub fn Context::emit_local_decl(
 pub fn Context::emit_statement(
   self : Context,
   stmt : @parser.Statement,
-) -> Unit raise CodeGenError {
+) -> Unit raise {
   match stmt.kind {
     ReturnVoid => {
-      let _ = self.builder.createRetVoid() catch {
-        err =>
-          raise IllegalLLVMUsage("Failed to emit return void statement: \{err}")
-      }
-
+      self.builder.createRetVoid() |> ignore
     }
     _ => raise Unimplemented("Statement emission not implemented yet")
   }

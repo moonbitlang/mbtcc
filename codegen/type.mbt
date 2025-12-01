@@ -2,7 +2,7 @@
 pub fn Context::ctype_kind_to_llvm_type(
   self : Context,
   dataKind : @parser.CTypeDataKind,
-) -> &@IR.Type raise CodeGenError {
+) -> &@IR.Type raise {
   let { llvm_ctx, .. } = self
   match dataKind {
     Void => (llvm_ctx.getVoidTy() : &@IR.Type)
@@ -30,14 +30,10 @@ pub fn Context::ctype_kind_to_llvm_type(
       }
     Array(ty, size) => {
       let elem_ty = self.ctype_to_llvm_type(ty)
-      let ty = llvm_ctx.getArrayType(elem_ty, size) catch {
-        err => raise IllegalLLVMUsage("\{err}")
-      }
-      ty
+      llvm_ctx.getArrayType(elem_ty, size)
     }
-    Enum(_) =>
-      // Enums are represented as 32-bit integers in LLVM
-      llvm_ctx.getInt32Ty()
+    // Enums are represented as 32-bit integers in LLVM
+    Enum(_) => llvm_ctx.getInt32Ty()
     Union(_) =>
       raise IllegalLLVMUsage(
         "Union types are not directly representable in LLVM types",
@@ -53,6 +49,6 @@ pub fn Context::ctype_kind_to_llvm_type(
 pub fn Context::ctype_to_llvm_type(
   self : Context,
   ctype : @parser.CType,
-) -> &@IR.Type raise CodeGenError {
+) -> &@IR.Type raise {
   self.ctype_kind_to_llvm_type(ctype.dataKind)
 }
