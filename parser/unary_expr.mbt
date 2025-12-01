@@ -32,9 +32,9 @@
 ///   | "-" cast_expression
 ///   | "~" cast_expression
 ///   | "!" cast_expression
-///   | "sizeof" unary_expression          (TODO)
-///   | "sizeof" '(' type_name ')'         (TODO)
-///   | "alignof" '(' type_name ')'        (TODO)
+///   | "sizeof" unary_expression
+///   | "sizeof" '(' type_name ')'
+///   | "alignof" '(' type_name ')'
 ///   ;
 ///
 /// ## Parse Function
@@ -72,6 +72,9 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     Negate(_) => "unary operator -"
     BitNot(_) => "unary operator ~"
     LogicalNot(_) => "unary operator !"
+    SizeofExpr(_) => "sizeof expression"
+    SizeofType(_) => "sizeof type"
+    Alignof(_) => "alignof"
   }
   let prefix = if color { @color.taint(prefix, Magenta) } else { prefix }
   let ctype = if color {
@@ -151,6 +154,32 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
       )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
+    SizeofExpr(inner) => {
+      let inner_str = inner.to_string(color~)
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
+    }
+    SizeofType(ctype) => {
+      let type_str = if color {
+        @color.taint("\{ctype}", Green)
+      } else {
+        "\{ctype}"
+      }
+      "\{prefix} \{ctype}\n└-type name: \{type_str}"
+    }
+    Alignof(ctype) => {
+      let type_str = if color {
+        @color.taint("\{ctype}", Green)
+      } else {
+        "\{ctype}"
+      }
+      "\{prefix} \{ctype}\n└-type name: \{type_str}"
+    }
   }
   s
 }
@@ -165,9 +194,9 @@ pub enum UnaryExprKind {
   Negate(UnaryExpr)
   BitNot(UnaryExpr)
   LogicalNot(UnaryExpr)
-  // SizeofExpr(UnaryExpr)
-  // SizeofType(CType)
-  // Alignof(CType)
+  SizeofExpr(UnaryExpr)
+  SizeofType(CType)
+  Alignof(CType)
 } derive(Eq)
 
 ///|
@@ -341,6 +370,53 @@ pub fn Context::parse_unary_expr(
       }
       (unary_expr, rest)
     }
+    // Sizeof '(' type_name ')'
+    [{ kind: Keyword(Sizeof), .. },
+     { kind: Bracket('('), .. }, tok, ..] as tokens if
+     self.is_keyword_or_type_name(tok) => {
+      let (ctype, rest) = self.parse_type_name(tokens[2:])
+      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
+        let msg = "Expected ')' after type name in sizeof"
+        raise ParseError(rest[0], msg)
+      }
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: SizeofType(ctype),
+        ctype: CType::long(),
+        tokens,
+      }
+      (unary_expr, rest[1:])
+    }
+    // Size of unary_expr 
+    [{ kind: Keyword(Sizeof), .. }, .. rest] => {
+      let (inner_expr, rest) = self.parse_unary_expr(rest)
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: SizeofExpr(inner_expr),
+        ctype: CType::long(),
+        tokens,
+      }
+      (unary_expr, rest)
+    }
+    // align of '(' type_name ')'
+    [{ kind: Keyword(Alignof), .. },.. rest] => {
+      guard rest is [{ kind: Bracket('('), .. }, ..rest] else {
+        let msg = "Expected '(' after 'alignof'"
+        raise ParseError(rest[0], msg)
+      }
+      let (ctype, rest) = self.parse_type_name(rest)
+      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
+        let msg = "Expected ')' after type name in alignof"
+        raise ParseError(rest[0], msg)
+      }
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: Alignof(ctype),
+        ctype: CType::long(),
+        tokens,
+      }
+      (unary_expr, rest[1:])
+    }
     tokens => {
       let (postfix_expr, rest) = self.parse_postfix_expr(tokens)
       let tokens = init_toks[0:rest.start_offset() - start_offset]
@@ -365,6 +441,10 @@ pub fn UnaryExpr::is_constant(self : Self) -> Bool {
     Negate(inner) => inner.is_constant()
     BitNot(inner) => inner.is_constant()
     LogicalNot(inner) => inner.is_constant()
+    // TODO: Check sizeof and alignof if their operands are constant
+    SizeofExpr(_) => false
+    SizeofType(_) => false
+    Alignof(_) => false
   }
 }
 
@@ -402,7 +482,10 @@ pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
   match self.kind {
     PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
     Deref(_) => !self.ctype.is_const
-    PreInc(_) | PreDec(_) | AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) =>
+    PreInc(_) | PreDec(_) => false
+    AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) =>
+      false
+    SizeofExpr(_) | SizeofType(_) | Alignof(_) =>
       false
   }
 }

@@ -41,5 +41,17 @@ fn Context::emit_unary_expr(
       let zero = self.llvm_ctx.getConstFalse()
       self.builder.createICmpEQ(val, zero)
     }
+    SizeofExpr(expr) => {
+      ignore(expr)
+      raise Unimplemented("Sizeof expression codegen is not implemented yet")
+    }
+    SizeofType(ty) => {
+      ignore(ty)
+      raise Unimplemented("Sizeof type codegen is not implemented yet")
+    }
+    Alignof(ty) => {
+      ignore(ty)
+      raise Unimplemented("Alignof type codegen is not implemented yet")
+    }
   }
 }
