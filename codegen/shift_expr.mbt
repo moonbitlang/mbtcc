@@ -1,8 +1,7 @@
-
-
+///|
 fn Context::emit_shift_expr(
-  self: Context,
-  expr: @parser.ShiftExpr
+  self : Context,
+  expr : @parser.ShiftExpr,
 ) -> &@IR.Value raise {
   // TODO: This Implementation is incorrect.
   // first it does not handle floating point numbers correctly.

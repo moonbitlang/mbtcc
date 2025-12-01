@@ -36,4 +36,5 @@ pub fn Context::emit_function_def(
   }
   self.emit_compound_stmt(body)
   let _ = self.exit_scope()
+
 }

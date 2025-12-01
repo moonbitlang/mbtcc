@@ -18,6 +18,7 @@ pub fn Context::emit_local_decl(
   }
 }
 
+///|
 fn Context::emit_local_variable(
   self : Context,
   ty : @parser.CType,
@@ -29,19 +30,16 @@ fn Context::emit_local_variable(
   self.var_env.set(name, alloca)
   let init_expr = match init_expr {
     Some(init_expr) => init_expr
-    None => return 
+    None => return
   }
   match init_expr.kind {
     AssignExpr(assign_expr) => {
       let value = self.emit_assign_expr(assign_expr)
       self.builder.createStore(value, alloca) |> ignore
     }
-    InitializerList(_) => {
+    InitializerList(_) =>
       raise Unimplemented("Initializer list not implemented yet")
-    }
-    _ => {
-      raise Unimplemented("Initializer kind not implemented yet")
-    }
+    _ => raise Unimplemented("Initializer kind not implemented yet")
   }
 }
 
@@ -51,9 +49,7 @@ pub fn Context::emit_statement(
   stmt : @parser.Statement,
 ) -> Unit raise {
   match stmt.kind {
-    ReturnVoid => {
-      self.builder.createRetVoid() |> ignore
-    }
+    ReturnVoid => self.builder.createRetVoid() |> ignore
     Return(expr) => {
       let value = self.emit_expr(expr)
       self.builder.createRet(value) |> ignore

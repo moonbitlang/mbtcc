@@ -1,6 +1,7 @@
+///|
 fn Context::emit_and_expr(
-  self: Context,
-  expr: @parser.AndExpr
+  self : Context,
+  expr : @parser.AndExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     EqualityExpr(expr) => self.emit_equality_expr(expr)
@@ -12,9 +13,10 @@ fn Context::emit_and_expr(
   }
 }
 
+///|
 fn Context::emit_logical_and_expr(
-  self: Context,
-  expr: @parser.LogicalAndExpr
+  self : Context,
+  expr : @parser.LogicalAndExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     InclusiveOrExpr(expr) => self.emit_inclusive_or_expr(expr)

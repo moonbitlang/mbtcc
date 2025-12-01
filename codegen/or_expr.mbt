@@ -1,6 +1,7 @@
+///|
 fn Context::emit_inclusive_or_expr(
-  self: Context,
-  expr: @parser.InclusiveOrExpr
+  self : Context,
+  expr : @parser.InclusiveOrExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     ExclusiveOrExpr(expr) => self.emit_exclusive_or_expr(expr)
@@ -12,9 +13,10 @@ fn Context::emit_inclusive_or_expr(
   }
 }
 
+///|
 fn Context::emit_logical_or_expr(
-  self: Context,
-  expr: @parser.LogicalOrExpr
+  self : Context,
+  expr : @parser.LogicalOrExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     LogicalAndExpr(expr) => self.emit_logical_and_expr(expr)

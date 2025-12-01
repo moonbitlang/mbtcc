@@ -371,11 +371,11 @@ pub fn Context::parse_unary_expr(
       (unary_expr, rest)
     }
     // Sizeof '(' type_name ')'
-    [{ kind: Keyword(Sizeof), .. },
-     { kind: Bracket('('), .. }, tok, ..] as tokens if
-     self.is_keyword_or_type_name(tok) => {
+    [{ kind: Keyword(Sizeof), .. }, { kind: Bracket('('), .. }, tok, ..] as tokens if self.is_keyword_or_type_name(
+        tok,
+      ) => {
       let (ctype, rest) = self.parse_type_name(tokens[2:])
-      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
+      guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
         let msg = "Expected ')' after type name in sizeof"
         raise ParseError(rest[0], msg)
       }
@@ -399,13 +399,13 @@ pub fn Context::parse_unary_expr(
       (unary_expr, rest)
     }
     // align of '(' type_name ')'
-    [{ kind: Keyword(Alignof), .. },.. rest] => {
-      guard rest is [{ kind: Bracket('('), .. }, ..rest] else {
+    [{ kind: Keyword(Alignof), .. }, .. rest] => {
+      guard rest is [{ kind: Bracket('('), .. }, .. rest] else {
         let msg = "Expected '(' after 'alignof'"
         raise ParseError(rest[0], msg)
       }
       let (ctype, rest) = self.parse_type_name(rest)
-      guard rest is [{ kind: Bracket(')'), .. }, ..rest] else {
+      guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
         let msg = "Expected ')' after type name in alignof"
         raise ParseError(rest[0], msg)
       }
@@ -483,10 +483,8 @@ pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
     PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
     Deref(_) => !self.ctype.is_const
     PreInc(_) | PreDec(_) => false
-    AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) =>
-      false
-    SizeofExpr(_) | SizeofType(_) | Alignof(_) =>
-      false
+    AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) => false
+    SizeofExpr(_) | SizeofType(_) | Alignof(_) => false
   }
 }
 

@@ -1,8 +1,7 @@
-
-
+///|
 fn Context::emit_multiplicative_expr(
-  self: Context,
-  expr: @parser.MultiExpr
+  self : Context,
+  expr : @parser.MultiExpr,
 ) -> &@IR.Value raise {
   // TODO: This Implementation didn't handle type promotion.
   // Besides, it didn't consider unsigned and floating point types.

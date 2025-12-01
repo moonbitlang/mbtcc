@@ -1,7 +1,7 @@
-
+///|
 fn Context::emit_equality_expr(
-  self: Context,
-  expr: @parser.EqualityExpr
+  self : Context,
+  expr : @parser.EqualityExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     RelationalExpr(expr) => self.emit_relational_expr(expr)

@@ -645,6 +645,9 @@ pub enum UnaryExprKind {
   Negate(UnaryExpr)
   BitNot(UnaryExpr)
   LogicalNot(UnaryExpr)
+  SizeofExpr(UnaryExpr)
+  SizeofType(CType)
+  Alignof(CType)
 }
 impl Eq for UnaryExprKind
 

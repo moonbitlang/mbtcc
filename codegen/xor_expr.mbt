@@ -1,7 +1,7 @@
-
+///|
 fn Context::emit_exclusive_or_expr(
-  self: Context,
-  expr: @parser.ExclusiveOrExpr
+  self : Context,
+  expr : @parser.ExclusiveOrExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     AndExpr(expr) => self.emit_and_expr(expr)

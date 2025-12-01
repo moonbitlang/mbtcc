@@ -1,8 +1,7 @@
-
-
+///|
 fn Context::emit_prim_expr(
-  self: Context,
-  expr: @parser.PrimExpr
+  self : Context,
+  expr : @parser.PrimExpr,
 ) -> &@IR.Value raise {
   let { llvm_ctx, .. } = self
   match expr.kind {

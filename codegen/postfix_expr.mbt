@@ -1,7 +1,7 @@
-
+///|
 fn Context::emit_postfix_expr(
-  self: Self,
-  expr: @parser.PostfixExpr
+  self : Self,
+  expr : @parser.PostfixExpr,
 ) -> &@IR.Value raise {
   match expr.kind {
     PrimExpr(expr) => self.emit_prim_expr(expr)
