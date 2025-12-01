@@ -1,13 +1,13 @@
 ///|
-pub suberror CodeGenError String derive(Show)
-
-///|
 pub struct Context {
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
+  builder : @IR.IRBuilder
   func_decls : Map[String, @parser.CType]
   func_defs : Map[String, @IR.Function]
   prog : @parser.Program
+  var_env : @env.Env[String, &@IR.Value]
+  current_func : @IR.Function?
 }
 
 ///|
@@ -19,9 +19,21 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   }
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule(source_file)
+  let builder = llvm_ctx.createBuilder()
   let func_decls = Map::new()
   let func_defs = Map::new()
-  Context::{ llvm_ctx, llvm_mod, func_decls, func_defs, prog }
+  let var_env = @env.Env::new()
+  let current_func = None
+  Context::{
+    llvm_ctx,
+    llvm_mod,
+    builder,
+    func_decls,
+    func_defs,
+    prog,
+    var_env,
+    current_func,
+  }
 }
 
 ///|
@@ -29,6 +41,24 @@ pub fn Context::emit(self : Context) -> Unit raise CodeGenError {
   let externals = self.prog.externals
   for ext_decl in externals {
     self.emit_external_decl(ext_decl)
+  }
+}
+
+///|
+fn Context::enter_scope(self : Context) -> @env.Env[String, &@IR.Value] {
+  @env.Env::new(parent=Some(self.var_env))
+}
+
+///|
+fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
+  match self.var_env.parent {
+    Some(parent_env) => parent_env
+    None => {
+      println(
+        "Compiler ICE: Attempted to exit scope with no parent in Context::exit_scope",
+      )
+      panic()
+    }
   }
 }
 
@@ -67,7 +97,7 @@ pub fn Context::emit_type_decl(
   // emit type declaration
   ignore(self)
   ignore(type_decl)
-  raise CodeGenError("Type declaration emission not implemented yet")
+  raise Unimplemented("Type declaration emission not implemented yet")
 }
 
 ///|
@@ -80,7 +110,7 @@ pub fn Context::emit_typedef(
   ignore(self)
   ignore(ty)
   ignore(name)
-  raise CodeGenError("Typedef emission not implemented yet")
+  raise Unimplemented("Typedef emission not implemented yet")
 }
 
 ///|
@@ -89,16 +119,7 @@ pub fn Context::emit_global_variable_decl(
 ) -> Unit raise CodeGenError {
   // emit global variable declaration
   ignore(self)
-  raise CodeGenError("Global variable declaration emission not implemented yet")
-}
-
-///|
-pub fn Context::emit_function_def(
-  self : Context,
-  func_def : @parser.FunctionDefinition,
-) -> Unit raise CodeGenError {
-  // emit function definition
-  ignore(self)
-  ignore(func_def)
-  raise CodeGenError("Function definition emission not implemented yet")
+  raise Unimplemented(
+    "Global variable declaration emission not implemented yet",
+  )
 }

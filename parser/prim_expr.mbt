@@ -124,11 +124,11 @@ pub impl Show for PrimExprKind with output(self, logger) {
     Double(v) => "\{v}"
     Strings(strs) => {
       let joined = strs
-      .join("")
-      .replace_all(old="\n", new="\\n")
-      .replace_all(old="\t", new="\\t")
-      .replace_all(old="\"", new="\\\"")
-      .replace_all(old="\r", new="\\r")
+        .join("")
+        .replace_all(old="\n", new="\\n")
+        .replace_all(old="\t", new="\\t")
+        .replace_all(old="\"", new="\\\"")
+        .replace_all(old="\r", new="\\r")
       "\"\{joined}\""
     }
     Paren(expr) => expr.to_string(color=true)
