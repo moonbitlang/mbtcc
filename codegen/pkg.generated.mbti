@@ -15,7 +15,7 @@ pub suberror CodeGenError {
   IllegalLLVMUsage(String)
   SemanticError(String)
 }
-impl Show for CodeGenError
+pub impl Show for CodeGenError
 
 // Types and methods
 pub struct Context {
@@ -28,20 +28,20 @@ pub struct Context {
   var_env : @env.Env[String, &@IR.Value]
   current_func : @IR.Function?
 }
-fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
-fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise
-fn Context::emit(Self) -> Unit raise
-fn Context::emit_additive_expr(Self, @parser.AddiExpr) -> &@IR.Value raise
-fn Context::emit_compound_stmt(Self, @parser.CompoundStmt) -> Unit raise
-fn Context::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise
-fn Context::emit_function_def(Self, @parser.FunctionDefinition) -> Unit raise
-fn Context::emit_global_decl(Self, @parser.Declaration) -> Unit raise CodeGenError
-fn Context::emit_global_variable_decl(Self) -> Unit raise CodeGenError
-fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
-fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
-fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
-fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
-fn Context::init_from_parse_program(@parser.Context) -> Self
+pub fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
+pub fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise
+pub fn Context::emit(Self) -> Unit raise
+pub fn Context::emit_additive_expr(Self, @parser.AddiExpr) -> &@IR.Value raise
+pub fn Context::emit_compound_stmt(Self, @parser.CompoundStmt) -> Unit raise
+pub fn Context::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise
+pub fn Context::emit_function_def(Self, @parser.FunctionDefinition) -> Unit raise
+pub fn Context::emit_global_decl(Self, @parser.Declaration) -> Unit raise CodeGenError
+pub fn Context::emit_global_variable_decl(Self) -> Unit raise CodeGenError
+pub fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
+pub fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
+pub fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
+pub fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
+pub fn Context::init_from_parse_program(@parser.Context) -> Self
 
 // Type aliases
 

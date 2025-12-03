@@ -219,23 +219,42 @@ test "Tokenize String Literal Test" {
   let lexer_ctx = Context::new(code~, source_file="demo")
   let tokens = lexer_ctx.tokenize()
   inspect(tokens.length(), content="7")
-  inspect(tokens[0].kind, content="Hello, World!")
-  inspect(tokens[1].kind, content="This is a test.")
-  inspect(tokens[2].kind, content="")
+  inspect(
+    tokens[0].kind,
+    content=(
+      #|"Hello, World!"
+    ),
+  )
+  inspect(
+    tokens[1].kind,
+    content=(
+      #|"This is a test."
+    ),
+  )
+  inspect(
+    tokens[2].kind,
+    content=(
+      #|""
+    ),
+  )
   inspect(
     tokens[3].kind,
     content=(
-      #|String with 
-      #| new line
+      #|"String with \n new line"
     ),
   )
   inspect(
     tokens[4].kind,
     content=(
-      #|Escaped quote: " inside
+      #|"Escaped quote: " inside"
     ),
   )
-  inspect(tokens[5].kind, content="Backslash: \\ inside")
+  inspect(
+    tokens[5].kind,
+    content=(
+      #|"Backslash: \\ inside"
+    ),
+  )
   inspect(tokens[6].kind, content="<EOF>")
 }
 

@@ -2,11 +2,11 @@
 package "Kaida-Amethyst/mbtcc/color"
 
 // Values
-fn strip_color(String) -> String
+pub fn strip_color(String) -> String
 
-fn[T : Show] strip_object_color(T) -> String
+pub fn[T : Show] strip_object_color(T) -> String
 
-fn taint(String, Color) -> String
+pub fn taint(String, Color) -> String
 
 // Errors
 

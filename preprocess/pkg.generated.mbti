@@ -6,7 +6,7 @@ import(
 )
 
 // Values
-fn preprocess(@lexer.Context) -> @lexer.Context raise PreprecessError
+pub fn preprocess(@lexer.Context) -> @lexer.Context raise PreprecessError
 
 // Errors
 pub suberror PreprecessError {

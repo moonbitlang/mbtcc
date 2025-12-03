@@ -141,7 +141,7 @@ fn ParserContext::get_code_line(self : Self, codeidx : Int) -> String {
   let mut line_start = 0
   let mut i = codeidx - 1
   while i >= 0 {
-    if code[i] == '\n' {
+    if code.code_unit_at(i).to_int() == '\n'.to_int() {
       line_start = i + 1
       break
     }
@@ -152,7 +152,7 @@ fn ParserContext::get_code_line(self : Self, codeidx : Int) -> String {
   let mut line_end = len
   i = codeidx
   while i < len {
-    if code[i] == '\n' {
+    if code.code_unit_at(i).to_int() == '\n'.to_int() {
       line_end = i
       break
     }
