@@ -14,7 +14,7 @@ pub suberror CodeGenError {
   SyntaxError(String)
   UnSupportFeature(String)
 }
-impl Show for CodeGenError
+pub impl Show for CodeGenError
 
 // Types and methods
 pub struct CodeGenContext {
@@ -29,17 +29,17 @@ pub struct CodeGenContext {
   llvm_struct_env : @oldenv.Env[&@IR.Type]
   mut anon_struct_counter : Int
 }
-fn CodeGenContext::analysis_declspecs(Self, Array[@oldparser.DeclSpec]) -> Type raise
-fn CodeGenContext::analysis_direct_declarator_type_for_param(Self, @oldparser.DirectDeclarator, Type) -> Type raise CodeGenError
-fn CodeGenContext::dump(Self) -> Unit
-fn CodeGenContext::emit_declaration(Self, @oldparser.Declaration) -> Unit raise
-fn CodeGenContext::emit_external_decl(Self, @oldparser.ExternalDeclaration) -> Unit raise
-fn CodeGenContext::emit_function_definition(Self, @oldparser.FunctionDefinition) -> Unit raise
-fn CodeGenContext::from_parser(@oldparser.ParserContext) -> Self
-fn CodeGenContext::run(Self) -> Unit raise
+pub fn CodeGenContext::analysis_declspecs(Self, Array[@oldparser.DeclSpec]) -> Type raise
+pub fn CodeGenContext::analysis_direct_declarator_type_for_param(Self, @oldparser.DirectDeclarator, Type) -> Type raise CodeGenError
+pub fn CodeGenContext::dump(Self) -> Unit
+pub fn CodeGenContext::emit_declaration(Self, @oldparser.Declaration) -> Unit raise
+pub fn CodeGenContext::emit_external_decl(Self, @oldparser.ExternalDeclaration) -> Unit raise
+pub fn CodeGenContext::emit_function_definition(Self, @oldparser.FunctionDefinition) -> Unit raise
+pub fn CodeGenContext::from_parser(@oldparser.ParserContext) -> Self
+pub fn CodeGenContext::run(Self) -> Unit raise
 
 type FuncCodeGenContext
-fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value raise
+pub fn FuncCodeGenContext::emit_cast(Self, from_type~ : Type, to_type~ : Type, &@IR.Value) -> &@IR.Value raise
 
 pub enum Type {
   Void
@@ -52,8 +52,8 @@ pub enum Type {
   Enum(Array[(String, Int64)])
   Union(String, Array[(String, Type)])
 }
-impl Eq for Type
-impl Show for Type
+pub impl Eq for Type
+pub impl Show for Type
 
 // Type aliases
 

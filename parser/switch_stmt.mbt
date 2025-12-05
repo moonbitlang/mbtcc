@@ -129,10 +129,10 @@ pub fn SwitchStmt::to_string(self : Self, color? : Bool = true) -> String {
 /// #|        └-[1]: default case statement
 /// #|               └-stmt: return statement
 /// #|                       └-int literal 0 (int)
-/// 
-/// 
-/// 
-/// 
+///
+///
+///
+///
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])

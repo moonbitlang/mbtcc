@@ -209,7 +209,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
 /// #|          └-rvalue: additive expr: + (int)
 /// #|                    ├-variable sum (int)
 /// #|                    └-variable i (int)
-/// 
+///
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])

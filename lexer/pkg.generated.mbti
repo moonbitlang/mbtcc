@@ -2,11 +2,11 @@
 package "Kaida-Amethyst/mbtcc/lexer"
 
 // Values
-fn dummy_eof() -> Token
+pub fn dummy_eof() -> Token
 
-fn dummy_long(Int64, raw? : String) -> Token
+pub fn dummy_long(Int64, raw? : String) -> Token
 
-fn restore_code_from_tokens(Array[Token]) -> String
+pub fn restore_code_from_tokens(Array[Token]) -> String
 
 // Errors
 
@@ -17,8 +17,8 @@ pub(all) struct Context {
   tokens : Array[Token]
   err_toks : Array[Token]
 }
-fn Context::new(code~ : String, source_file~ : String) -> Self
-fn Context::tokenize(Self) -> Array[Token]
+pub fn Context::new(code~ : String, source_file~ : String) -> Self
+pub fn Context::tokenize(Self) -> Array[Token]
 
 pub enum Keyword {
   Void
@@ -70,8 +70,8 @@ pub enum Keyword {
   Attribute
   BuiltinOffsetof
 }
-impl Eq for Keyword
-impl Show for Keyword
+pub impl Eq for Keyword
+pub impl Show for Keyword
 
 pub struct Token {
   kind : TokenKind
@@ -82,8 +82,8 @@ pub struct Token {
   raw : String
   err_msg : String
 }
-fn Token::detail(Self) -> String
-impl Show for Token
+pub fn Token::detail(Self) -> String
+pub impl Show for Token
 
 pub enum TokenKind {
   Keyword(Keyword)
@@ -113,9 +113,9 @@ pub enum TokenKind {
   Hash2
   EOF
 }
-fn TokenKind::detail(Self) -> String
-impl Eq for TokenKind
-impl Show for TokenKind
+pub fn TokenKind::detail(Self) -> String
+pub impl Eq for TokenKind
+pub impl Show for TokenKind
 
 // Type aliases
 

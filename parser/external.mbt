@@ -179,7 +179,7 @@ pub fn FunctionDefinition::to_string(
 /// #|         └-additive expr: + (int)
 /// #|           ├-variable a (int)
 /// #|           └-variable b (int)
-/// 
+///
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
