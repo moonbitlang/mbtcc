@@ -53,7 +53,13 @@ pub fn Context::emit_statement(
     ReturnVoid => self.builder.createRetVoid() |> ignore
     Return(expr) => {
       let value = self.emit_expr(expr)
-      self.builder.createRet(value) |> ignore
+      let _ = self.builder.createRet(value)
+
+    }
+    // Expression statement - evaluate the expression for its side effects
+    Expr(expr) => {
+      let _ = self.emit_expr(expr)
+
     }
     _ => raise Unimplemented("Statement emission not implemented yet")
   }

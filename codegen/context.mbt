@@ -81,6 +81,46 @@ fn Context::exit_scope(self : Context) -> Unit {
 }
 
 ///|
+/// Get or declare a function in the LLVM module
+/// If the function is already declared, return it
+/// Otherwise, declare it based on the function type from func_decls
+fn Context::get_or_declare_function(
+  self : Context,
+  func_name : String,
+) -> @IR.Function raise {
+  match self.llvm_mod.getFunction(func_name) {
+    Some(f) => f
+    None => self.declare_function(func_name)
+  }
+}
+
+///|
+fn Context::declare_function(
+  self : Context,
+  func_name : String,
+) -> @IR.Function raise {
+  guard self.func_decls.get(func_name) is Some(func_type) else {
+    raise SemanticError("Undeclared function '\{func_name}'")
+  }
+  guard func_type.dataKind is Function(params, ret_ty, is_variadic~) else {
+    raise SemanticError("'\{func_name}' is not a function")
+  }
+  let param_types : Array[&@IR.Type] = Array::new()
+  for param in params {
+    let (param_ty, _) = param
+    let llvm_param_ty = self.ctype_to_llvm_type(param_ty)
+    param_types.push(llvm_param_ty)
+  }
+  let llvm_ret_ty = self.ctype_to_llvm_type(ret_ty)
+  let func_type = self.llvm_ctx.getFunctionType(
+    llvm_ret_ty,
+    param_types,
+    isVarArg=is_variadic,
+  )
+  self.llvm_mod.addFunction(func_type, func_name)
+}
+
+///|
 pub fn Context::emit_external_decl(
   self : Context,
   ext_decl : @parser.ExternalDeclaration,
@@ -102,8 +142,30 @@ pub fn Context::emit_global_decl(
     TypeDeclaration(type_decl) => self.emit_type_decl(type_decl)
     // typedef declaration, e.g. `typedef int MyInt;`
     TypeDef(ty, name) => self.emit_typedef(ty, name)
-    // variable declaration, e.g. `int x;`
-    VariableDeclaration(_) => self.emit_global_variable_decl()
+    // Function declaration (e.g., `int foo();`)
+    // We don't need to emit anything for function declarations
+    // They will be emitted when we encounter function definitions or calls
+    VariableDeclaration({ dataKind: Function(_), .. } as ctype, name, _, ..) =>
+      self.func_decls.set(name, ctype)
+    // variable declaration
+    VariableDeclaration(
+      ctype,
+      is_static~,
+      is_extern~,
+      is_register~,
+      is_thread_local~,
+      name,
+      initializer
+    ) =>
+      self.emit_global_variable_decl(
+        ctype,
+        name,
+        initializer,
+        is_static~,
+        is_extern~,
+        is_register~,
+        is_thread_local~,
+      )
   }
 }
 
@@ -134,9 +196,23 @@ pub fn Context::emit_typedef(
 ///|
 pub fn Context::emit_global_variable_decl(
   self : Context,
+  ctype : @parser.CType,
+  name : String,
+  initializer : @parser.Initializer?,
+  is_static~ : Bool,
+  is_extern~ : Bool,
+  is_register~ : Bool,
+  is_thread_local~ : Bool,
 ) -> Unit raise CodeGenError {
   // emit global variable declaration
   ignore(self)
+  ignore(ctype)
+  ignore(name)
+  ignore(initializer)
+  ignore(is_static)
+  ignore(is_extern)
+  ignore(is_register)
+  ignore(is_thread_local)
   raise Unimplemented(
     "Global variable declaration emission not implemented yet",
   )

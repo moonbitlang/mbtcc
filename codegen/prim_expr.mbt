@@ -5,20 +5,7 @@ fn Context::emit_prim_expr(
 ) -> &@IR.Value raise {
   let { llvm_ctx, .. } = self
   match expr.kind {
-    Ident(name) => {
-      guard self.var_env.get(name) is Some(val) else {
-        raise SemanticError("Undefined identifier: '\{name}'")
-      }
-      // Check if we have type information for this variable
-      // If we do, it means it's a local variable that needs to be loaded
-      match self.var_types.get(name) {
-        Some(cty) => {
-          let llvm_ty = self.ctype_to_llvm_type(cty)
-          self.builder.createLoad(llvm_ty, val)
-        }
-        None => val // Function parameters or other direct values
-      }
-    }
+    Ident(name) => self.get_value_by_name(name)
     Char(c) => llvm_ctx.getConstInt8(c.to_int())
     Int(i) => llvm_ctx.getConstInt32(i)
     Long(i) => llvm_ctx.getConstInt64(i)
@@ -33,5 +20,27 @@ fn Context::emit_prim_expr(
       self.builder.createGlobalString(full_str)
     }
     Paren(expr) => self.emit_expr(expr)
+  }
+}
+
+///|
+fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
+  match self.var_env.get(name) {
+    Some(val) =>
+      // Check if we have type information for this variable
+      // If we do, it means it's a local variable that needs to be loaded
+      match self.var_types.get(name) {
+        Some(cty) => {
+          let llvm_ty = self.ctype_to_llvm_type(cty)
+          self.builder.createLoad(llvm_ty, val)
+        }
+        None => val // Function parameters or other direct values
+      }
+    None =>
+      // Not a local variable, check if it's a function
+      match self.func_decls.get(name) {
+        Some(_) => self.get_or_declare_function(name)
+        None => raise SemanticError("Undefined identifier: '\{name}'")
+      }
   }
 }

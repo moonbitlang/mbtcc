@@ -40,11 +40,12 @@ pub fn Context::emit_compound_stmt(Self, @parser.CompoundStmt) -> Unit raise
 pub fn Context::emit_external_decl(Self, @parser.ExternalDeclaration) -> Unit raise
 pub fn Context::emit_function_def(Self, @parser.FunctionDefinition) -> Unit raise
 pub fn Context::emit_global_decl(Self, @parser.Declaration) -> Unit raise CodeGenError
-pub fn Context::emit_global_variable_decl(Self) -> Unit raise CodeGenError
+pub fn Context::emit_global_variable_decl(Self, @parser.CType, String, @parser.Initializer?, is_static~ : Bool, is_extern~ : Bool, is_register~ : Bool, is_thread_local~ : Bool) -> Unit raise CodeGenError
 pub fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
 pub fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
 pub fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
 pub fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
+pub fn Context::get_or_declare_function(Self, String) -> @IR.Function raise
 pub fn Context::init_from_parse_program(@parser.Context) -> Self
 
 // Type aliases
