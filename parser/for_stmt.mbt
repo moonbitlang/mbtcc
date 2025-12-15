@@ -277,6 +277,9 @@ pub fn Context::parse_for_statement(
     raise ParseError(tokens[0], "Expected '(' after 'for'")
   }
 
+  // for 语句创建独立作用域，初始化声明的标识符仅在循环内部可见
+  self.push_scope()
+
   // Parse initialization clause
   // This can be either:
   // 1. A declaration (e.g., int i = 0;)
@@ -324,6 +327,8 @@ pub fn Context::parse_for_statement(
 
   // Parse body statement
   let (body, tokens) = self.parse_statement(tokens)
+  // 离开 for 作用域
+  self.pop_scope()
   let for_stmt = ForStmt::{
     init,
     cond,
