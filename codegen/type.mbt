@@ -54,24 +54,18 @@ pub fn Context::ctype_to_llvm_type(
 }
 
 ///|
-pub fn is_integral_kind(kind : @parser.CTypeDataKind) -> Bool {
+fn is_integral_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
-    Char
-    | UChar
-    | Int16
-    | UInt16
-    | Int
-    | UInt
-    | Long
-    | ULong
-    | LongLong
-    | ULongLong => true
+    Char | UChar => true
+    Int16 | UInt16 => true
+    Int | UInt => true
+    Long | ULong | LongLong | ULongLong => true
     _ => false
   }
 }
 
 ///|
-pub fn is_floating_kind(kind : @parser.CTypeDataKind) -> Bool {
+fn is_floating_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
     Float | Double | LongDouble => true
     _ => false
@@ -79,21 +73,10 @@ pub fn is_floating_kind(kind : @parser.CTypeDataKind) -> Bool {
 }
 
 ///|
-pub fn is_unsigned_kind(kind : @parser.CTypeDataKind) -> Bool {
+fn is_unsigned_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
     UChar | UInt16 | UInt | ULong | ULongLong => true
     _ => false
-  }
-}
-
-///|
-pub fn int_kind_bitwidth(kind : @parser.CTypeDataKind) -> Int raise {
-  match kind {
-    Char | UChar => 8
-    Int16 | UInt16 => 16
-    Int | UInt => 32
-    Long | ULong | LongLong | ULongLong => 64
-    _ => raise IllegalLLVMUsage("Non-integer kind has no bitwidth")
   }
 }
 
