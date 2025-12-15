@@ -5,6 +5,7 @@
     "Kaida-Amethyst/mbtcc/parser",
     "Kaida-Amethyst/mbtcc/lexer",
     "Kaida-Amethyst/mbtcc/preprocess",
+    "Kaida-Amethyst/mbtcc/codegen",
     "moonbitlang/x/fs"
   ],
   "link" : {

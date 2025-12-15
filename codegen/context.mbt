@@ -37,11 +37,12 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
 }
 
 ///|
-pub fn Context::emit(self : Context) -> Unit raise {
+pub fn Context::emit(self : Context) -> @IR.Module raise {
   let externals = self.prog.externals
   for ext_decl in externals {
     self.emit_external_decl(ext_decl)
   }
+  self.llvm_mod
 }
 
 ///|

@@ -80,10 +80,17 @@ fn main_err() -> Unit raise {
     let ctx = @parser.Context::from_lexer(lexer_ctx)
     if print_tokens {
       ctx.tokens.each(t => println(t))
-    } else {
-      let prog = ctx.parse()
-      println(prog)
+      continue
     }
+
+    let prog = ctx.parse()
+    if print_ast.val {
+      println(prog)
+      continue
+    }
+    let codegen_ctx = @codegen.codegen_from_parser(ctx)
+    let llvm_mod = codegen_ctx.emit()
+    println(llvm_mod)
   }
 }
 
