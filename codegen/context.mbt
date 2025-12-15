@@ -6,8 +6,8 @@ pub struct Context {
   func_decls : Map[String, @parser.CType]
   func_defs : Map[String, @IR.Function]
   prog : @parser.Program
-  var_env : @env.Env[String, &@IR.Value]
-  current_func : @IR.Function?
+  mut var_env : @env.Env[String, &@IR.Value]
+  mut current_func : @IR.Function?
 }
 
 ///|
@@ -47,12 +47,14 @@ pub fn Context::emit(self : Context) -> @IR.Module raise {
 
 ///|
 fn Context::enter_scope(self : Context) -> @env.Env[String, &@IR.Value] {
-  @env.Env::new(parent=Some(self.var_env))
+  let env = @env.Env::new(parent=Some(self.var_env))
+  self.var_env = env
+  env
 }
 
 ///|
 fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
-  match self.var_env.parent {
+  let env = match self.var_env.parent {
     Some(parent_env) => parent_env
     None => {
       println(
@@ -61,6 +63,8 @@ fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
       panic()
     }
   }
+  self.var_env = env
+  env
 }
 
 ///|

@@ -28,8 +28,8 @@ pub struct Context {
   func_decls : Map[String, @parser.CType]
   func_defs : Map[String, @IR.Function]
   prog : @parser.Program
-  var_env : @env.Env[String, &@IR.Value]
-  current_func : @IR.Function?
+  mut var_env : @env.Env[String, &@IR.Value]
+  mut current_func : @IR.Function?
 }
 pub fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
 pub fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise

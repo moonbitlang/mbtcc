@@ -26,6 +26,7 @@
 
 另外，README.md里面的描述并不适用于新的编译器实现，请忽略里面的内容。
 
+有关llvm的API描述，请参考根目录下的IR.mbti
 
 # Project Agents.md Guide
 
