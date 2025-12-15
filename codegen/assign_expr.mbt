@@ -21,7 +21,7 @@ fn Context::emit_assignment(
   let rhs_val = self.emit_assign_expr(right)
   let rhs_ctype = right.ctype
   let new_val = match assign_op {
-    Assign => self.ensure_assignable_value(rhs_val, rhs_ctype, lhs_ctype)
+    Assign => self.cast_value_to_ctype(rhs_val, rhs_ctype, lhs_ctype)
     AddAssign =>
       self.compute_add_sub_assignment(
         lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, true,
@@ -30,70 +30,38 @@ fn Context::emit_assignment(
       self.compute_add_sub_assignment(
         lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, false,
       )
-    MulAssign => {
-      self.ensure_numeric(
-        lhs_ctype, "Operator '*=' requires a numeric left value",
+    MulAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "*",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createMul(lhs_val, rhs_val)
-    }
-    DivAssign => {
-      self.ensure_numeric(
-        lhs_ctype, "Operator '/=' requires a numeric left value",
+    DivAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "/",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createSDiv(lhs_val, rhs_val)
-    }
-    ModAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '%=' requires an integral left value",
+    ModAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "%",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createSRem(lhs_val, rhs_val)
-    }
-    ShlAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '<<=' requires an integral left value",
+    ShlAssign =>
+      self.compute_shift_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, true,
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createShl(lhs_val, rhs_val)
-    }
-    ShrAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '>>=' requires an integral left value",
+    ShrAssign =>
+      self.compute_shift_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, false,
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createLShr(lhs_val, rhs_val)
-    }
-    AndAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '&=' requires an integral left value",
+    AndAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "&",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createAnd(lhs_val, rhs_val)
-    }
-    XorAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '^=' requires an integral left value",
+    XorAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "^",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createXor(lhs_val, rhs_val)
-    }
-    OrAssign => {
-      self.ensure_integral(
-        lhs_ctype, "Operator '|=' requires an integral left value",
+    OrAssign =>
+      self.compute_numeric_assignment(
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "|",
       )
-      let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      self.builder.createOr(lhs_val, rhs_val)
-    }
   }
   self.builder.createStore(new_val, lhs_ptr) |> ignore
   new_val
@@ -121,17 +89,16 @@ fn Context::compute_add_sub_assignment(
   let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
   match lhs_ctype.dataKind {
     Ptr(elem_ty) => {
-      if !rhs_ctype.is_integral() {
-        println(
-          "Compiler ICE: parser allowed non-integral offset '\{rhs_ctype}' in pointer arithmetic",
-        )
-        panic()
-      }
+      let rhs_int = self.cast_value_to_ctype(
+        rhs_val,
+        rhs_ctype,
+        @parser.CType::int(),
+      )
       let step = if is_add {
-        rhs_val
+        rhs_int
       } else {
-        let zero = self.llvm_ctx.getConstZero(rhs_val.getType())
-        self.builder.createSub(zero, rhs_val)
+        let zero = self.llvm_ctx.getConstZero(rhs_int.getType())
+        self.builder.createSub(zero, rhs_int)
       }
       let indices : Array[&@IR.Value] = Array::new()
       indices.push(step)
@@ -139,65 +106,30 @@ fn Context::compute_add_sub_assignment(
       self.builder.createGEP(lhs_val, elem_llvm_ty, indices)
     }
     _ => {
-      self.ensure_same_ctype(lhs_ctype, rhs_ctype)
-      if is_add {
-        self.builder.createAdd(lhs_val, rhs_val)
-      } else {
-        self.builder.createSub(lhs_val, rhs_val)
+      let common = match lhs_ctype.common_type(rhs_ctype) {
+        Some(t) => t
+        None => {
+          println(
+            "Compiler ICE: parser allowed incompatible types '\{lhs_ctype}' and '\{rhs_ctype}' for '+=' or '-='",
+          )
+          panic()
+        }
       }
+      let lcast = self.cast_value_to_ctype(lhs_val, lhs_ctype, common)
+      let rcast = self.cast_value_to_ctype(rhs_val, rhs_ctype, common)
+      let sum = if is_floating_kind(common.dataKind) {
+        if is_add {
+          self.builder.createFAdd(lcast, rcast)
+        } else {
+          self.builder.createFSub(lcast, rcast)
+        }
+      } else if is_add {
+        self.builder.createAdd(lcast, rcast)
+      } else {
+        self.builder.createSub(lcast, rcast)
+      }
+      self.cast_value_to_ctype(sum, common, lhs_ctype)
     }
-  }
-}
-
-///|
-fn Context::ensure_assignable_value(
-  self : Context,
-  rhs_val : &@IR.Value,
-  rhs_ctype : @parser.CType,
-  expected_ctype : @parser.CType,
-) -> &@IR.Value {
-  self.ensure_same_ctype(expected_ctype, rhs_ctype)
-  rhs_val
-}
-
-///|
-fn Context::ensure_same_ctype(
-  self : Context,
-  expected_ctype : @parser.CType,
-  actual_ctype : @parser.CType,
-) -> Unit {
-  ignore(self)
-  if expected_ctype != actual_ctype {
-    println(
-      "Compiler ICE: type mismatch between parser result '\{expected_ctype}' and value '\{actual_ctype}'",
-    )
-    panic()
-  }
-}
-
-///|
-fn Context::ensure_numeric(
-  self : Context,
-  ctype : @parser.CType,
-  msg : String,
-) -> Unit {
-  ignore(self)
-  if !ctype.is_numeric() {
-    println("Compiler ICE: \{msg}")
-    panic()
-  }
-}
-
-///|
-fn Context::ensure_integral(
-  self : Context,
-  ctype : @parser.CType,
-  msg : String,
-) -> Unit {
-  ignore(self)
-  if !ctype.is_integral() {
-    println("Compiler ICE: \{msg}")
-    panic()
   }
 }
 
@@ -287,4 +219,91 @@ fn Context::apply_inc_dec(
   }
   self.builder.createStore(updated_val, lvalue_ptr) |> ignore
   (current_val, updated_val)
+}
+
+///|
+fn Context::compute_numeric_assignment(
+  self : Context,
+  lhs_ptr : &@IR.Value,
+  lhs_ctype : @parser.CType,
+  rhs_val : &@IR.Value,
+  rhs_ctype : @parser.CType,
+  op : String,
+) -> &@IR.Value raise {
+  let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
+  let common = match lhs_ctype.common_type(rhs_ctype) {
+    Some(t) => t
+    None => {
+      println(
+        "Compiler ICE: parser allowed incompatible types '\{lhs_ctype}' and '\{rhs_ctype}' for op '\{op}='",
+      )
+      panic()
+    }
+  }
+  let lcast = self.cast_value_to_ctype(lhs_val, lhs_ctype, common)
+  let rcast = self.cast_value_to_ctype(rhs_val, rhs_ctype, common)
+  let res = if is_floating_kind(common.dataKind) {
+    match op {
+      "*" => self.builder.createFMul(lcast, rcast)
+      "/" => self.builder.createFDiv(lcast, rcast)
+      "%" => self.builder.createFRem(lcast, rcast)
+      "&" | "|" | "^" => {
+        println("Compiler ICE: bitwise op on floating type '\{common}'")
+        panic()
+      }
+      _ => panic()
+    }
+  } else {
+    match op {
+      "*" => self.builder.createMul(lcast, rcast)
+      "/" =>
+        if is_unsigned_kind(common.dataKind) {
+          self.builder.createUDiv(lcast, rcast)
+        } else {
+          self.builder.createSDiv(lcast, rcast)
+        }
+      "%" =>
+        if is_unsigned_kind(common.dataKind) {
+          self.builder.createURem(lcast, rcast)
+        } else {
+          self.builder.createSRem(lcast, rcast)
+        }
+      "&" => self.builder.createAnd(lcast, rcast)
+      "|" => self.builder.createOr(lcast, rcast)
+      "^" => self.builder.createXor(lcast, rcast)
+      _ => panic()
+    }
+  }
+  self.cast_value_to_ctype(res, common, lhs_ctype)
+}
+
+///|
+fn Context::compute_shift_assignment(
+  self : Context,
+  lhs_ptr : &@IR.Value,
+  lhs_ctype : @parser.CType,
+  rhs_val : &@IR.Value,
+  rhs_ctype : @parser.CType,
+  is_left : Bool,
+) -> &@IR.Value raise {
+  if !lhs_ctype.is_integral() {
+    println(
+      "Compiler ICE: parser allowed shift assignment on non-integral '\{lhs_ctype}'",
+    )
+    panic()
+  }
+  let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
+  let shift_amt = self.cast_value_to_ctype(
+    rhs_val,
+    rhs_ctype,
+    @parser.CType::int(),
+  )
+  let res = if is_left {
+    self.builder.createShl(lhs_val, shift_amt)
+  } else if is_unsigned_kind(lhs_ctype.dataKind) {
+    self.builder.createLShr(lhs_val, shift_amt)
+  } else {
+    self.builder.createAShr(lhs_val, shift_amt)
+  }
+  self.cast_value_to_ctype(res, lhs_ctype, lhs_ctype)
 }

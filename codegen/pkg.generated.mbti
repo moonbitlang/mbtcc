@@ -12,6 +12,14 @@ pub fn codegen(String, source_file? : String) -> @IR.Module raise
 
 pub fn codegen_from_parser(@parser.Context) -> Context
 
+pub fn int_kind_bitwidth(@parser.CTypeDataKind) -> Int raise
+
+pub fn is_floating_kind(@parser.CTypeDataKind) -> Bool
+
+pub fn is_integral_kind(@parser.CTypeDataKind) -> Bool
+
+pub fn is_unsigned_kind(@parser.CTypeDataKind) -> Bool
+
 // Errors
 pub suberror CodeGenError {
   Unimplemented(String)

@@ -52,3 +52,128 @@ pub fn Context::ctype_to_llvm_type(
 ) -> &@IR.Type raise {
   self.ctype_kind_to_llvm_type(ctype.dataKind)
 }
+
+///|
+pub fn is_integral_kind(kind : @parser.CTypeDataKind) -> Bool {
+  match kind {
+    Char
+    | UChar
+    | Int16
+    | UInt16
+    | Int
+    | UInt
+    | Long
+    | ULong
+    | LongLong
+    | ULongLong => true
+    _ => false
+  }
+}
+
+///|
+pub fn is_floating_kind(kind : @parser.CTypeDataKind) -> Bool {
+  match kind {
+    Float | Double | LongDouble => true
+    _ => false
+  }
+}
+
+///|
+pub fn is_unsigned_kind(kind : @parser.CTypeDataKind) -> Bool {
+  match kind {
+    UChar | UInt16 | UInt | ULong | ULongLong => true
+    _ => false
+  }
+}
+
+///|
+pub fn int_kind_bitwidth(kind : @parser.CTypeDataKind) -> Int raise {
+  match kind {
+    Char | UChar => 8
+    Int16 | UInt16 => 16
+    Int | UInt => 32
+    Long | ULong | LongLong | ULongLong => 64
+    _ => raise IllegalLLVMUsage("Non-integer kind has no bitwidth")
+  }
+}
+
+///|
+fn Context::cast_value_to_ctype(
+  self : Context,
+  val : &@IR.Value,
+  from_ctype : @parser.CType,
+  to_ctype : @parser.CType,
+) -> &@IR.Value raise {
+  if from_ctype == to_ctype {
+    return val
+  }
+  let from_kind = from_ctype.dataKind
+  let to_kind = to_ctype.dataKind
+  // Numeric conversions
+  if is_integral_kind(from_kind) && is_integral_kind(to_kind) {
+    let target_ty = self.ctype_to_llvm_type(to_ctype)
+    let to_int_ty = target_ty.tryAsIntType().unwrap()
+    let from_ty = val.getType().tryAsIntType().unwrap()
+    let from_width = from_ty.getBitWidth()
+    let to_width = to_int_ty.getBitWidth()
+    if from_width == to_width {
+      val
+    } else if from_width < to_width {
+      if is_unsigned_kind(from_kind) {
+        self.builder.createZExt(val, to_int_ty)
+      } else {
+        self.builder.createSExt(val, to_int_ty)
+      }
+    } else {
+      self.builder.createTrunc(val, to_int_ty)
+    }
+  } else if is_integral_kind(from_kind) && is_floating_kind(to_kind) {
+    let target_ty = self.ctype_to_llvm_type(to_ctype).tryAsFPType().unwrap()
+    if is_unsigned_kind(from_kind) {
+      self.builder.createUIToFP(val, target_ty)
+    } else {
+      self.builder.createSIToFP(val, target_ty)
+    }
+  } else if is_floating_kind(from_kind) && is_integral_kind(to_kind) {
+    let target_ty = self.ctype_to_llvm_type(to_ctype).tryAsIntType().unwrap()
+    if is_unsigned_kind(to_kind) {
+      self.builder.createFPToUI(val, target_ty)
+    } else {
+      self.builder.createFPToSI(val, target_ty)
+    }
+  } else if is_floating_kind(from_kind) && is_floating_kind(to_kind) {
+    let target_ty = self.ctype_to_llvm_type(to_ctype).tryAsFPType().unwrap()
+    let from_ty = val.getType().tryAsFPType().unwrap()
+    let from_width = from_ty.getBitWidth()
+    let to_width = target_ty.getBitWidth()
+    if from_width == to_width {
+      val
+    } else if from_width < to_width {
+      self.builder.createFPExt(val, target_ty)
+    } else {
+      self.builder.createFPTrunc(val, target_ty)
+    }
+  } else if from_kind is Ptr(_) && is_integral_kind(to_kind) {
+    let to_int_ty = self.ctype_to_llvm_type(to_ctype).tryAsIntType().unwrap()
+    self.builder.createPtrToInt(val, to_int_ty)
+  } else if is_integral_kind(from_kind) && to_kind is Ptr(_) {
+    println(
+      "Compiler ICE: int to pointer cast '\{from_ctype}' -> '\{to_ctype}' not supported",
+    )
+    panic()
+  } else if from_kind is Ptr(_) && to_kind is Ptr(_) {
+    if from_ctype == to_ctype {
+      val
+    } else {
+      println(
+        "Compiler ICE: pointer cast from '\{from_ctype}' to '\{to_ctype}' not supported",
+      )
+      panic()
+    }
+  } else {
+    println(
+      "Compiler ICE: cannot cast value from '\{from_ctype}' to '\{to_ctype}'",
+    )
+    panic()
+  }
+}
