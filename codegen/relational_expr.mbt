@@ -28,10 +28,8 @@ fn Context::emit_rel_compare(
   let common = match left.ctype.common_type(right.ctype) {
     Some(t) => t
     None => {
-      println(
-        "Compiler ICE: parser produced relational comparison with incompatible types '\{left.ctype}' and '\{right.ctype}'",
-      )
-      panic()
+      let msg = "parser produced relational comparison with incompatible types '\{left.ctype}' and '\{right.ctype}'"
+      codegen_unreachable(msg~)
     }
   }
   let lval = self.cast_value_to_ctype(lraw, left.ctype, common)
@@ -42,36 +40,20 @@ fn Context::emit_rel_compare(
       "gt" => self.builder.createFCmpOGT(lval, rval)
       "le" => self.builder.createFCmpOLE(lval, rval)
       "ge" => self.builder.createFCmpOGE(lval, rval)
-      _ => panic()
+      _ => codegen_unreachable()
     }
   } else {
     let is_unsigned = is_unsigned_kind(common.dataKind)
-    match cmp {
-      "lt" =>
-        if is_unsigned {
-          self.builder.createICmpULT(lval, rval)
-        } else {
-          self.builder.createICmpSLT(lval, rval)
-        }
-      "gt" =>
-        if is_unsigned {
-          self.builder.createICmpUGT(lval, rval)
-        } else {
-          self.builder.createICmpSGT(lval, rval)
-        }
-      "le" =>
-        if is_unsigned {
-          self.builder.createICmpULE(lval, rval)
-        } else {
-          self.builder.createICmpSLE(lval, rval)
-        }
-      "ge" =>
-        if is_unsigned {
-          self.builder.createICmpUGE(lval, rval)
-        } else {
-          self.builder.createICmpSGE(lval, rval)
-        }
-      _ => panic()
+    match (cmp, is_unsigned) {
+      ("lt", true) => self.builder.createICmpULT(lval, rval)
+      ("lt", false) => self.builder.createICmpSLT(lval, rval)
+      ("gt", true) => self.builder.createICmpUGT(lval, rval)
+      ("gt", false) => self.builder.createICmpSGT(lval, rval)
+      ("le", true) => self.builder.createICmpULE(lval, rval)
+      ("le", false) => self.builder.createICmpSLE(lval, rval)
+      ("ge", true) => self.builder.createICmpUGE(lval, rval)
+      ("ge", false) => self.builder.createICmpSGE(lval, rval)
+      _ => codegen_unreachable()
     }
   }
 }

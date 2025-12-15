@@ -32,15 +32,15 @@ fn Context::emit_assignment(
       )
     MulAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "*",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '*',
       )
     DivAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "/",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '/',
       )
     ModAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "%",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '%',
       )
     ShlAssign =>
       self.compute_shift_assignment(
@@ -52,15 +52,15 @@ fn Context::emit_assignment(
       )
     AndAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "&",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '&',
       )
     XorAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "^",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '^',
       )
     OrAssign =>
       self.compute_numeric_assignment(
-        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, "|",
+        lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '|',
       )
   }
   self.builder.createStore(new_val, lhs_ptr) |> ignore
@@ -191,24 +191,23 @@ fn Context::apply_inc_dec(
   self : Context,
   lvalue_ptr : &@IR.Value,
   ctype : @parser.CType,
-  is_inc : Bool,
+  is_inc~ : Bool,
 ) -> (&@IR.Value, &@IR.Value) raise {
   if !ctype.is_inc_ok() {
-    println(
-      "Compiler ICE: parser allowed inc/dec on unsupported type '\{ctype}'",
-    )
-    panic()
+    let msg = "increment/decrement on unsupported type '\{ctype}'"
+    codegen_unreachable(msg~)
   }
   let current_val = self.load_lvalue(lvalue_ptr, ctype)
   let updated_val = match ctype.dataKind {
     Ptr(elem_ty) => {
       let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
-      let step = self.llvm_ctx.getConstInt32(if is_inc { 1 } else { -1 })
+      let stepn = if is_inc { 1 } else { -1 }
+      let step = self.llvm_ctx.getConstInt32(stepn)
       let indices : Array[&@IR.Value] = Array::new()
       indices.push(step)
       self.builder.createGEP(current_val, elem_llvm_ty, indices)
     }
-    _ => {
+    _others => {
       let one = self.llvm_ctx.getConstOne(current_val.getType())
       if is_inc {
         self.builder.createAdd(current_val, one)
@@ -217,7 +216,7 @@ fn Context::apply_inc_dec(
       }
     }
   }
-  self.builder.createStore(updated_val, lvalue_ptr) |> ignore
+  let _ = self.builder.createStore(updated_val, lvalue_ptr)
   (current_val, updated_val)
 }
 
@@ -228,50 +227,42 @@ fn Context::compute_numeric_assignment(
   lhs_ctype : @parser.CType,
   rhs_val : &@IR.Value,
   rhs_ctype : @parser.CType,
-  op : String,
+  op : Char,
 ) -> &@IR.Value raise {
   let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
   let common = match lhs_ctype.common_type(rhs_ctype) {
     Some(t) => t
     None => {
-      println(
-        "Compiler ICE: parser allowed incompatible types '\{lhs_ctype}' and '\{rhs_ctype}' for op '\{op}='",
-      )
-      panic()
+      let msg = "incompatible types '\{lhs_ctype}' and '\{rhs_ctype}' for op '\{op}='"
+      codegen_unreachable(msg~)
     }
   }
   let lcast = self.cast_value_to_ctype(lhs_val, lhs_ctype, common)
   let rcast = self.cast_value_to_ctype(rhs_val, rhs_ctype, common)
   let res = if is_floating_kind(common.dataKind) {
     match op {
-      "*" => self.builder.createFMul(lcast, rcast)
-      "/" => self.builder.createFDiv(lcast, rcast)
-      "%" => self.builder.createFRem(lcast, rcast)
-      "&" | "|" | "^" => {
-        println("Compiler ICE: bitwise op on floating type '\{common}'")
-        panic()
+      '*' => self.builder.createFMul(lcast, rcast)
+      '/' => self.builder.createFDiv(lcast, rcast)
+      '%' => self.builder.createFRem(lcast, rcast)
+      '&' | '|' | '^' => {
+        let msg = "bitwise op on floating type '\{common}'"
+        codegen_unreachable(msg~)
       }
-      _ => panic()
+      _ => codegen_unreachable()
     }
   } else {
     match op {
-      "*" => self.builder.createMul(lcast, rcast)
-      "/" =>
-        if is_unsigned_kind(common.dataKind) {
+      '*' => self.builder.createMul(lcast, rcast)
+      '/' if is_unsigned_kind(common.dataKind) =>
           self.builder.createUDiv(lcast, rcast)
-        } else {
-          self.builder.createSDiv(lcast, rcast)
-        }
-      "%" =>
-        if is_unsigned_kind(common.dataKind) {
+      '/' => self.builder.createSDiv(lcast, rcast)
+      '%' if is_unsigned_kind(common.dataKind) =>
           self.builder.createURem(lcast, rcast)
-        } else {
-          self.builder.createSRem(lcast, rcast)
-        }
-      "&" => self.builder.createAnd(lcast, rcast)
-      "|" => self.builder.createOr(lcast, rcast)
-      "^" => self.builder.createXor(lcast, rcast)
-      _ => panic()
+      '%' => self.builder.createSRem(lcast, rcast)
+      '&' => self.builder.createAnd(lcast, rcast)
+      '|' => self.builder.createOr(lcast, rcast)
+      '^' => self.builder.createXor(lcast, rcast)
+      _ => codegen_unreachable()
     }
   }
   self.cast_value_to_ctype(res, common, lhs_ctype)
@@ -287,10 +278,8 @@ fn Context::compute_shift_assignment(
   is_left : Bool,
 ) -> &@IR.Value raise {
   if !lhs_ctype.is_integral() {
-    println(
-      "Compiler ICE: parser allowed shift assignment on non-integral '\{lhs_ctype}'",
-    )
-    panic()
+    let msg = "shift assignment on non-integral type '\{lhs_ctype}'"
+    codegen_unreachable(msg~)
   }
   let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
   let shift_amt = self.cast_value_to_ctype(

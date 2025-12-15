@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 
 void print_char(char x) {

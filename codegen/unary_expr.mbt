@@ -7,12 +7,12 @@ fn Context::emit_unary_expr(
     PostfixExpr(expr) => self.emit_postfix_expr(expr)
     PreInc(expr) => {
       let (ptr, ctype) = self.get_lvalue_ptr_from_unary(expr)
-      let (_, new_val) = self.apply_inc_dec(ptr, ctype, true)
+      let (_, new_val) = self.apply_inc_dec(ptr, ctype, is_inc=true)
       new_val
     }
     PreDec(expr) => {
       let (ptr, ctype) = self.get_lvalue_ptr_from_unary(expr)
-      let (_, new_val) = self.apply_inc_dec(ptr, ctype, false)
+      let (_, new_val) = self.apply_inc_dec(ptr, ctype, is_inc=false)
       new_val
     }
     AddrOf(expr) => {

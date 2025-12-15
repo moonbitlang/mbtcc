@@ -23,12 +23,12 @@ fn Context::emit_postfix_expr(
     }
     PostInc(expr) => {
       let (ptr, ctype) = self.get_lvalue_ptr_from_postfix(expr)
-      let (old_val, _) = self.apply_inc_dec(ptr, ctype, true)
+      let (old_val, _) = self.apply_inc_dec(ptr, ctype, is_inc=true)
       old_val
     }
     PostDec(expr) => {
       let (ptr, ctype) = self.get_lvalue_ptr_from_postfix(expr)
-      let (old_val, _) = self.apply_inc_dec(ptr, ctype, false)
+      let (old_val, _) = self.apply_inc_dec(ptr, ctype, is_inc=false)
       old_val
     }
   }
