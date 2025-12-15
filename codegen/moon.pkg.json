@@ -1,6 +1,5 @@
 {
   "import": [
-    "Kaida-Amethyst/mbtcc/lexer",
     "Kaida-Amethyst/mbtcc/parser",
     "Kaida-Amethyst/mbtcc/env",
     "Kaida-Amethyst/either",

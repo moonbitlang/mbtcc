@@ -26,7 +26,7 @@ fn Context::lex_number_literal(
         n => (n, "")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
+        "f" | "F" => TokenKind::Float(Float::from_double(number))
         _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
@@ -51,7 +51,7 @@ fn Context::lex_number_literal(
         n => (n, "")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
+        "f" | "F" => TokenKind::Float(Float::from_double(number))
         _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
@@ -72,7 +72,7 @@ fn Context::lex_number_literal(
         n => (n, "")
       }
       let token_kind = match s {
-        "f" | "F" => TokenKind::Float(number.to_float())
+        "f" | "F" => TokenKind::Float(Float::from_double(number))
         _ => TokenKind::Double(number)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
