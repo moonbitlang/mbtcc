@@ -6,28 +6,23 @@ fn Context::emit_unary_expr(
   match expr.kind {
     PostfixExpr(expr) => self.emit_postfix_expr(expr)
     PreInc(expr) => {
-      ignore(expr)
-      raise Unimplemented(
-        "Pre-increment expression codegen is not implemented yet",
-      )
+      let (ptr, ctype) = self.get_lvalue_ptr_from_unary(expr)
+      let (_, new_val) = self.apply_inc_dec(ptr, ctype, true)
+      new_val
     }
     PreDec(expr) => {
-      ignore(expr)
-      raise Unimplemented(
-        "Pre-decrement expression codegen is not implemented yet",
-      )
+      let (ptr, ctype) = self.get_lvalue_ptr_from_unary(expr)
+      let (_, new_val) = self.apply_inc_dec(ptr, ctype, false)
+      new_val
     }
     AddrOf(expr) => {
-      ignore(expr)
-      raise Unimplemented(
-        "Address-of expression codegen is not implemented yet",
-      )
+      let (ptr, _) = self.get_lvalue_ptr_from_unary(expr)
+      ptr
     }
-    Deref(expr) => {
-      ignore(expr)
-      raise Unimplemented(
-        "Dereference expression codegen is not implemented yet",
-      )
+    Deref(inner) => {
+      let ptr_val = self.emit_unary_expr(inner)
+      let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
+      self.builder.createLoad(llvm_ty, ptr_val)
     }
     Negate(expr) => {
       let val = self.emit_unary_expr(expr)

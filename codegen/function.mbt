@@ -38,7 +38,10 @@ pub fn Context::emit_function_def(
         raise IllegalLLVMUsage("\{msg} : \{err}")
       }
     }
-    self.var_env.set(parem_name, llvm_param)
+    // 为参数分配栈空间，便于后续作为可修改的左值处理
+    let alloca = self.builder.createAlloca(param_types[i])
+    let _ = self.builder.createStore(llvm_param, alloca)
+    self.var_env.set(parem_name, alloca)
     self.var_types.set(parem_name, param_ty)
   }
   self.emit_compound_stmt(body)

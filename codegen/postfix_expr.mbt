@@ -22,12 +22,14 @@ fn Context::emit_postfix_expr(
       raise Unimplemented("Pointer member access not implemented yet")
     }
     PostInc(expr) => {
-      ignore(expr)
-      raise Unimplemented("Postfix increment not implemented yet")
+      let (ptr, ctype) = self.get_lvalue_ptr_from_postfix(expr)
+      let (old_val, _) = self.apply_inc_dec(ptr, ctype, true)
+      old_val
     }
     PostDec(expr) => {
-      ignore(expr)
-      raise Unimplemented("Postfix decrement not implemented yet")
+      let (ptr, ctype) = self.get_lvalue_ptr_from_postfix(expr)
+      let (old_val, _) = self.apply_inc_dec(ptr, ctype, false)
+      old_val
     }
   }
 }

@@ -45,7 +45,6 @@ pub fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
 pub fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
 pub fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
 pub fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
-pub fn Context::get_or_declare_function(Self, String) -> @IR.Function raise
 pub fn Context::init_from_parse_program(@parser.Context) -> Self
 
 // Type aliases
