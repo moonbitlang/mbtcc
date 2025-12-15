@@ -1,3 +1,32 @@
+# About This Project
+
+本项目是mbtcc，是一个使用MoonBit编写的C编译器。
+
+项目结构：
+
+- lexer: 词法分析器
+- preprocess: 预处理器
+- parser: 语法分析器
+- codegen: llvm代码生成
+- main: 命令行工具等
+
+使用方法：
+
+以demo.c为例
+
+- `moon run mina -- demo.c --print-tokens`，打印词法分析后的结果
+
+- `moon run main -- demo.c -E` 进行预处理，打印预处理后的代码
+
+- `moon run main -- demo.c --print-ast` 进行语法分析，打印语法分析出来的语法树。
+
+- `moon run main -- demo.c` 期望是输出llvm IR。
+
+注意，项目下有一些以old开头的目录，这是因为mbtcc有过一版重构。不用去管以old为开头的这些目录。
+
+另外，README.md里面的描述并不适用于新的编译器实现，请忽略里面的内容。
+
+
 # Project Agents.md Guide
 
 This is a [MoonBit](https://docs.moonbitlang.com) project.
