@@ -266,16 +266,17 @@ pub fn Context::parse_external_declaration(
       )
     }
 
-    // Add function parameters to the context for parsing the function body
+    // Enter function scope: parameters + body
+    self.push_scope()
     for param in param_types {
       let (param_type, param_name) = param
       if param_name != "" {
         self.add_var(param_name, param_type)
       }
     }
-
     // Parse compound statement (function body)
     let (body, rest) = self.parse_compound_statement(rest)
+    self.pop_scope()
     let func_def = FunctionDefinition::{
       name,
       params: param_types,

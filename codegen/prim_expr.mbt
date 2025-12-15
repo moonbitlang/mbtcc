@@ -36,11 +36,9 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
         }
         None => val // Function parameters or other direct values
       }
-    None =>
-      // Not a local variable, check if it's a function
-      match self.func_decls.get(name) {
-        Some(_) => self.get_or_declare_function(name)
-        None => raise SemanticError("Undefined identifier: '\{name}'")
-      }
+    // Not a local variable, check if it's a function
+    // TODO: incorrect implementation, 
+    // if not local variable, it could also be a global variable.
+    None => self.get_or_declare_function(name)
   }
 }
