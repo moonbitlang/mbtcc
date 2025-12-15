@@ -233,8 +233,8 @@ pub enum UnaryExprKind {
 ///   
 ///   #|unary operator ++ (int)
 /// #|└-variable i (int)
-/// 
-/// 
+///
+///
 /// )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])

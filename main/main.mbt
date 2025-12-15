@@ -82,7 +82,6 @@ fn main_err() -> Unit raise {
       ctx.tokens.each(t => println(t))
       continue
     }
-
     let prog = ctx.parse()
     if print_ast.val {
       println(prog)
