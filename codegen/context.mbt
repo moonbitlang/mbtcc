@@ -15,7 +15,7 @@ pub struct Context {
 pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let { source_file, prog, .. } = ctx
   guard !prog.is_empty() else {
-    println("Compiler ICE: empty program in Context::from_parse_program")
+    println("Compiler ICE: empty program.")
     panic()
   }
   let llvm_ctx = @IR.Context::new()
@@ -58,23 +58,13 @@ fn Context::enter_scope(self : Context) -> Unit {
 
 ///|
 fn Context::exit_scope(self : Context) -> Unit {
-  let env = match self.var_env.parent {
-    Some(parent_env) => parent_env
-    None => {
-      println(
-        "Compiler ICE: Attempted to exit scope with no parent in Context::exit_scope",
-      )
-      panic()
-    }
+  guard self.var_env.parent is Some(env) else {
+    println("Compiler ICE: Attempted to exit scope with no parent.")
+    panic()
   }
-  let types = match self.var_types.parent {
-    Some(parent_types) => parent_types
-    None => {
-      println(
-        "Compiler ICE: Attempted to exit scope with no parent in Context::exit_scope",
-      )
-      panic()
-    }
+  guard self.var_types.parent is Some(types) else {
+    println("Compiler ICE: Attempted to exit scope with no parent.")
+    panic()
   }
   self.var_env = env
   self.var_types = types
