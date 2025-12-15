@@ -28,6 +28,7 @@ fn Context::emit_local_variable(
   let llvm_ty = self.ctype_to_llvm_type(ty)
   let alloca = self.builder.createAlloca(llvm_ty, name~)
   self.var_env.set(name, alloca)
+  self.var_types.set(name, ty)
   let init_expr = match init_expr {
     Some(init_expr) => init_expr
     None => return

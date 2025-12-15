@@ -7,6 +7,7 @@ pub struct Context {
   func_defs : Map[String, @IR.Function]
   prog : @parser.Program
   mut var_env : @env.Env[String, &@IR.Value]
+  mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
 }
 
@@ -23,6 +24,7 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let func_decls = Map::new()
   let func_defs = Map::new()
   let var_env = @env.Env::new()
+  let var_types = @env.Env::new()
   let current_func = None
   Context::{
     llvm_ctx,
@@ -32,6 +34,7 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     func_defs,
     prog,
     var_env,
+    var_types,
     current_func,
   }
 }
@@ -46,14 +49,15 @@ pub fn Context::emit(self : Context) -> @IR.Module raise {
 }
 
 ///|
-fn Context::enter_scope(self : Context) -> @env.Env[String, &@IR.Value] {
+fn Context::enter_scope(self : Context) -> Unit {
   let env = @env.Env::new(parent=Some(self.var_env))
+  let types = @env.Env::new(parent=Some(self.var_types))
   self.var_env = env
-  env
+  self.var_types = types
 }
 
 ///|
-fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
+fn Context::exit_scope(self : Context) -> Unit {
   let env = match self.var_env.parent {
     Some(parent_env) => parent_env
     None => {
@@ -63,8 +67,17 @@ fn Context::exit_scope(self : Context) -> @env.Env[String, &@IR.Value] {
       panic()
     }
   }
+  let types = match self.var_types.parent {
+    Some(parent_types) => parent_types
+    None => {
+      println(
+        "Compiler ICE: Attempted to exit scope with no parent in Context::exit_scope",
+      )
+      panic()
+    }
+  }
   self.var_env = env
-  env
+  self.var_types = types
 }
 
 ///|

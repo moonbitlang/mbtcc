@@ -9,7 +9,15 @@ fn Context::emit_prim_expr(
       guard self.var_env.get(name) is Some(val) else {
         raise SemanticError("Undefined identifier: '\{name}'")
       }
-      val
+      // Check if we have type information for this variable
+      // If we do, it means it's a local variable that needs to be loaded
+      match self.var_types.get(name) {
+        Some(cty) => {
+          let llvm_ty = self.ctype_to_llvm_type(cty)
+          self.builder.createLoad(llvm_ty, val)
+        }
+        None => val // Function parameters or other direct values
+      }
     }
     Char(c) => llvm_ctx.getConstInt8(c.to_int())
     Int(i) => llvm_ctx.getConstInt32(i)

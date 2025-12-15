@@ -6,7 +6,7 @@
     "Kaida-Amethyst/either": "0.1.0",
     "Yoorkin/ArgParser": "0.2.0",
     "moonbitlang/x": "0.4.37",
-    "Kaida-Amethyst/MoonLLVM": "0.1.14"
+    "Kaida-Amethyst/MoonLLVM": "0.1.15"
   },
   "readme": "README.md",
   "repository": "https://github.com/moonbitlang/mbtcc",
