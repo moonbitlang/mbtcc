@@ -6,8 +6,10 @@ pub fn Context::emit_additive_expr(
   // TODO: This Implementation didn't handle type promotion.
   match expr.kind {
     MultiExpr(expr) => self.emit_multiplicative_expr(expr)
-    AddExpr(left, right) => self.emit_add_sub(expr.ctype, left, right, is_add=true)
-    SubExpr(left, right) => self.emit_add_sub(expr.ctype, left, right, is_add=false)
+    AddExpr(left, right) =>
+      self.emit_add_sub(expr.ctype, left, right, is_add=true)
+    SubExpr(left, right) =>
+      self.emit_add_sub(expr.ctype, left, right, is_add=false)
   }
 }
 
@@ -34,11 +36,12 @@ fn Context::emit_add_sub(
   }
 }
 
+///|
 fn Context::emit_add_sub_ptr(
-  self: Self,
+  self : Self,
   left : @parser.AddiExpr,
   right : @parser.MultiExpr,
-  is_add~: Bool
+  is_add~ : Bool,
 ) -> &@IR.Value raise {
   // pointer +/- integer
   let (ptr_val, idx_val, elem_ty) = match
@@ -63,11 +66,7 @@ fn Context::emit_add_sub_ptr(
     false => right.ctype
   }
   let to_ctype = @parser.CType::int()
-  let idx_val = self.cast_value_to_ctype(
-    idx_val,
-    from_ctype,
-    to_ctype,
-  )
+  let idx_val = self.cast_value_to_ctype(idx_val, from_ctype, to_ctype)
   let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
   let indices : Array[&@IR.Value] = Array::new()
   let step = if is_add {

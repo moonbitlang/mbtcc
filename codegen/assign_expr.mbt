@@ -254,10 +254,10 @@ fn Context::compute_numeric_assignment(
     match op {
       '*' => self.builder.createMul(lcast, rcast)
       '/' if is_unsigned_kind(common.dataKind) =>
-          self.builder.createUDiv(lcast, rcast)
+        self.builder.createUDiv(lcast, rcast)
       '/' => self.builder.createSDiv(lcast, rcast)
       '%' if is_unsigned_kind(common.dataKind) =>
-          self.builder.createURem(lcast, rcast)
+        self.builder.createURem(lcast, rcast)
       '%' => self.builder.createSRem(lcast, rcast)
       '&' => self.builder.createAnd(lcast, rcast)
       '|' => self.builder.createOr(lcast, rcast)

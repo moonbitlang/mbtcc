@@ -34,11 +34,9 @@ fn Context::emit_mul_div_rem(
     let is_unsigned = is_unsigned_kind(result_ctype.dataKind)
     match op {
       '*' => self.builder.createMul(lval, rval)
-      '/' if is_unsigned =>
-         self.builder.createUDiv(lval, rval)
+      '/' if is_unsigned => self.builder.createUDiv(lval, rval)
       '/' => self.builder.createSDiv(lval, rval)
-      '%' if is_unsigned =>
-          self.builder.createURem(lval, rval)
+      '%' if is_unsigned => self.builder.createURem(lval, rval)
       '%' => self.builder.createSRem(lval, rval)
       _ => codegen_unreachable()
     }

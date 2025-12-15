@@ -26,8 +26,8 @@ fn Context::emit_eq_compare(
     match left.ctype.common_type(right.ctype) {
       Some(t) => t
       None => {
-        let msg = "parser produced equality comparison with incompatible types "+
-                  " '\{left.ctype}' and '\{right.ctype}'"
+        let msg = "parser produced equality comparison with incompatible types " +
+          " '\{left.ctype}' and '\{right.ctype}'"
         codegen_unreachable(msg~)
       }
     }
