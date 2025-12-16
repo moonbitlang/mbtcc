@@ -89,6 +89,7 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
     Switch(switch_stmt) => switch_stmt.to_string(color~)
     For(for_stmt) => for_stmt.to_string(color~)
     While(while_stmt) => while_stmt.to_string(color~)
+    DoWhile(do_while_stmt) => do_while_stmt.to_string(color~)
     Goto(label) => {
       let prefix = if color {
         @color.taint("goto statement: ", Magenta) + label
@@ -153,6 +154,7 @@ pub enum StmtKind {
   Switch(SwitchStmt)
   For(ForStmt)
   While(WhileStmt)
+  DoWhile(DoWhileStmt)
   Goto(String)
   Continue
   Break
@@ -215,6 +217,10 @@ pub fn Context::parse_statement(
     [{ kind: Keyword(While), .. }, ..] => {
       let (while_stmt, rest) = self.parse_while_statement(tokens)
       (StmtKind::While(while_stmt), rest)
+    }
+    [{ kind: Keyword(Do), .. }, ..] => {
+      let (do_while_stmt, rest) = self.parse_do_while_statement(tokens)
+      (StmtKind::DoWhile(do_while_stmt), rest)
     }
     [{ kind: Identifier(label), .. }, { kind: Colon, .. }, .. rest] if !self.is_name_has_been_defined(
         label,

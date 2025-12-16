@@ -31,7 +31,9 @@ pub struct Context {
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
-  mut tmp_counter : Int
+  tmp_counter : Int
+  break_stack : Array[@IR.BasicBlock]
+  continue_stack : Array[@IR.BasicBlock]
 }
 pub fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
 pub fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise

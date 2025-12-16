@@ -9,6 +9,8 @@ pub struct Context {
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
+  break_stack : Array[@IR.BasicBlock]
+  continue_stack : Array[@IR.BasicBlock]
 }
 
 ///|
@@ -26,6 +28,8 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
   let current_func = None
+  let break_stack = Array::new()
+  let continue_stack = Array::new()
   Context::{
     llvm_ctx,
     llvm_mod,
@@ -36,6 +40,8 @@ pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     var_env,
     var_types,
     current_func,
+    break_stack,
+    continue_stack,
   }
 }
 

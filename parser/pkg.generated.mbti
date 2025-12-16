@@ -236,6 +236,7 @@ pub fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[
 pub fn Context::parse_declaration(Self, ArrayView[@lexer.Token], skip_semi? : Bool) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_designator(Self, ArrayView[@lexer.Token]) -> (Designator, ArrayView[@lexer.Token]) raise ParseError
+pub fn Context::parse_do_while_statement(Self, ArrayView[@lexer.Token]) -> (DoWhileStmt, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_enum_specifier(Self, ArrayView[@lexer.Token]) -> (CTypeDataKind, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_equality_expr(Self, ArrayView[@lexer.Token]) -> (EqualityExpr, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_exclusive_or_expr(Self, ArrayView[@lexer.Token]) -> (ExclusiveOrExpr, ArrayView[@lexer.Token]) raise ParseError
@@ -283,6 +284,15 @@ pub(all) enum Designator {
 }
 pub impl Eq for Designator
 pub impl Show for Designator
+
+pub struct DoWhileStmt {
+  body : Statement
+  cond : Expr
+  tokens : ArrayView[@lexer.Token]
+}
+pub fn DoWhileStmt::to_string(Self, color? : Bool) -> String
+pub impl Eq for DoWhileStmt
+pub impl Show for DoWhileStmt
 
 pub struct EqualityExpr {
   kind : EqualityExprKind
@@ -589,6 +599,7 @@ pub enum StmtKind {
   Switch(SwitchStmt)
   For(ForStmt)
   While(WhileStmt)
+  DoWhile(DoWhileStmt)
   Goto(String)
   Continue
   Break
@@ -652,18 +663,13 @@ pub enum UnaryExprKind {
 pub impl Eq for UnaryExprKind
 
 pub struct WhileStmt {
-  kind : WhileStmtKind
+  cond : Expr
+  body : Statement
   tokens : ArrayView[@lexer.Token]
 }
 pub fn WhileStmt::to_string(Self, color? : Bool) -> String
 pub impl Eq for WhileStmt
 pub impl Show for WhileStmt
-
-pub enum WhileStmtKind {
-  While(Expr, Statement)
-  DoWhile(Statement, Expr)
-}
-pub impl Eq for WhileStmtKind
 
 // Type aliases
 

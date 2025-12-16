@@ -45,6 +45,39 @@ fn Context::emit_local_variable(
 }
 
 ///|
+fn Context::push_loop_targets(
+  self : Context,
+  break_bb : @IR.BasicBlock,
+  continue_bb : @IR.BasicBlock,
+) -> Unit {
+  self.break_stack.push(break_bb)
+  self.continue_stack.push(continue_bb)
+}
+
+///|
+fn Context::pop_loop_targets(self : Context) -> Unit {
+  let _ = self.break_stack.pop()
+  let _ = self.continue_stack.pop()
+
+}
+
+///|
+fn Context::current_break_target(self : Context) -> @IR.BasicBlock raise {
+  guard self.break_stack.length() > 0 else {
+    raise SemanticError("`break` used outside of loop")
+  }
+  self.break_stack[self.break_stack.length() - 1]
+}
+
+///|
+fn Context::current_continue_target(self : Context) -> @IR.BasicBlock raise {
+  guard self.continue_stack.length() > 0 else {
+    raise SemanticError("`continue` used outside of loop")
+  }
+  self.continue_stack[self.continue_stack.length() - 1]
+}
+
+///|
 pub fn Context::emit_statement(
   self : Context,
   stmt : @parser.Statement,
@@ -59,6 +92,10 @@ pub fn Context::emit_statement(
     Compound(comp) => self.emit_compound_stmt(comp)
     If(if_stmt) => self.emit_if_stmt(if_stmt)
     For(for_stmt) => self.emit_for_stmt(for_stmt)
+    While(while_stmt) => self.emit_while_stmt(while_stmt)
+    DoWhile(do_while_stmt) => self.emit_do_while_stmt(do_while_stmt)
+    Break => self.emit_break()
+    Continue => self.emit_continue()
     // Expression statement - evaluate the expression for its side effects
     Expr(expr) => {
       let _ = self.emit_expr(expr)
@@ -114,7 +151,7 @@ fn Context::emit_statement_maybe_term(
   stmt : @parser.Statement,
 ) -> Bool raise {
   match stmt.kind {
-    Return(_) | ReturnVoid => {
+    Return(_) | ReturnVoid | Break | Continue => {
       self.emit_statement(stmt)
       true
     }
@@ -172,6 +209,7 @@ fn Context::emit_for_stmt(
   let body_bb = func.addBasicBlock()
   let update_bb = func.addBasicBlock()
   let merge_bb = func.addBasicBlock()
+  self.push_loop_targets(merge_bb, update_bb)
 
   // 跳转到条件块
   let _ = self.builder.createBr(cond_bb)
@@ -214,5 +252,18 @@ fn Context::emit_for_stmt(
   // 退出循环作用域，并继续在 merge 后插入
   self.builder.setInsertPoint(merge_bb)
   let _ = self.exit_scope()
+  self.pop_loop_targets()
+}
 
+
+///|
+fn Context::emit_break(self : Context) -> Unit raise {
+  let target = self.current_break_target()
+  self.builder.createBr(target) |> ignore
+}
+
+///|
+fn Context::emit_continue(self : Context) -> Unit raise {
+  let target = self.current_continue_target()
+  self.builder.createBr(target) |> ignore
 }
