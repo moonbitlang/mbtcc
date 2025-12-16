@@ -14,12 +14,8 @@ pub struct Context {
 }
 
 ///|
-pub fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
+fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let { source_file, prog, .. } = ctx
-  guard !prog.is_empty() else {
-    println("Compiler ICE: empty program.")
-    panic()
-  }
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule(source_file)
   let builder = llvm_ctx.createBuilder()

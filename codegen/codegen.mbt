@@ -11,5 +11,9 @@ pub fn codegen(
 
 ///|
 pub fn codegen_from_parser(parse_ctx : @parser.Context) -> Context {
+  guard !parse_ctx.prog.is_empty() else {
+    println("Compiler ICE: cannot codegen from empty program")
+    panic()
+  }
   Context::init_from_parse_program(parse_ctx)
 }

@@ -602,9 +602,12 @@ test "VA_ARGS Test - 1: Basic __VA_ARGS__" {
   inspect(tokens.length(), content="7")
   inspect(tokens[0].kind, content="printf")
   inspect(tokens[1].kind, content="(")
-  inspect(tokens[2].kind, content=(
-    #|"Hello"
-  ))
+  inspect(
+    tokens[2].kind,
+    content=(
+      #|"Hello"
+    ),
+  )
   inspect(tokens[3].kind, content=",")
   inspect(tokens[4].kind, content="42")
   inspect(tokens[5].kind, content=")")
@@ -624,9 +627,12 @@ test "VA_ARGS Test - 2: Named variadic args" {
   inspect(tokens.length(), content="7")
   inspect(tokens[0].kind, content="printf")
   inspect(tokens[1].kind, content="(")
-  inspect(tokens[2].kind, content=(
-    #|"Value: %d"
-  ))
+  inspect(
+    tokens[2].kind,
+    content=(
+      #|"Value: %d"
+    ),
+  )
   inspect(tokens[3].kind, content=",")
   inspect(tokens[4].kind, content="x")
   inspect(tokens[5].kind, content=")")
@@ -646,9 +652,12 @@ test "VA_ARGS Test - 3: Fixed + variadic args" {
   inspect(tokens.length(), content="9")
   inspect(tokens[0].kind, content="printf")
   inspect(tokens[1].kind, content="(")
-  inspect(tokens[2].kind, content=(
-    #|"Values: %d %d"
-  ))
+  inspect(
+    tokens[2].kind,
+    content=(
+      #|"Values: %d %d"
+    ),
+  )
   inspect(tokens[3].kind, content=",")
   inspect(tokens[4].kind, content="1")
   inspect(tokens[5].kind, content=",")

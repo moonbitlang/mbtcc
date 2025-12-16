@@ -255,7 +255,6 @@ fn Context::emit_for_stmt(
   self.pop_loop_targets()
 }
 
-
 ///|
 fn Context::emit_break(self : Context) -> Unit raise {
   let target = self.current_break_target()

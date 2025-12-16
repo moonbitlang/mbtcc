@@ -31,7 +31,6 @@ pub struct Context {
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
-  tmp_counter : Int
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
 }
@@ -48,7 +47,6 @@ pub fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
 pub fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
 pub fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
 pub fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
-pub fn Context::init_from_parse_program(@parser.Context) -> Self
 
 // Type aliases
 

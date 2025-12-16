@@ -30,5 +30,3 @@ fn Context::emit_while_stmt(
   self.builder.setInsertPoint(merge_bb)
   self.pop_loop_targets()
 }
-
-
