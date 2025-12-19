@@ -621,7 +621,7 @@ pub fn ParserContext::tokenize(self : Self) -> Unit raise {
     }
     code =>
       raise LexerError(
-        "Parse Error: Unexpected char: \{code.code_unit_at(0)}, loc = \{code.start_offset()}",
+        "Parse Error: Unexpected char: \{code[0]}, loc = \{code.start_offset()}",
       )
   }
 }
@@ -709,28 +709,22 @@ fn parse_hex_float(hex_str : String) -> Double {
 
   // 跳过可能的 "0x" 前缀
   if i + 1 < len &&
-    hex_str.code_unit_at(i).to_int() == 48 &&
-    (
-      hex_str.code_unit_at(i + 1).to_int() == 120 ||
-      hex_str.code_unit_at(i + 1).to_int() == 88
-    ) { // '0' = 48, 'x' = 120, 'X' = 88
+    hex_str[i].to_int() == 48 &&
+    (hex_str[i + 1].to_int() == 120 || hex_str[i + 1].to_int() == 88) { // '0' = 48, 'x' = 120, 'X' = 88
     i += 2
   }
 
   // 解析整数部分
-  while i < len &&
-        hex_char_value_from_int(hex_str.code_unit_at(i).to_int()) is Some(digit) {
+  while i < len && hex_char_value_from_int(hex_str[i].to_int()) is Some(digit) {
     mantissa = mantissa * 16.0 + digit.to_double()
     i += 1
   }
 
   // 解析小数部分
-  if i < len && hex_str.code_unit_at(i).to_int() == 46 { // '.' = 46
+  if i < len && hex_str[i].to_int() == 46 { // '.' = 46
     i += 1
     let mut fraction_power = 1.0
-    while i < len &&
-          hex_char_value_from_int(hex_str.code_unit_at(i).to_int())
-          is Some(digit) {
+    while i < len && hex_char_value_from_int(hex_str[i].to_int()) is Some(digit) {
       fraction_power /= 16.0
       mantissa += digit.to_double() * fraction_power
       i += 1
@@ -738,23 +732,17 @@ fn parse_hex_float(hex_str : String) -> Double {
   }
 
   // 解析指数部分
-  if i < len &&
-    (
-      hex_str.code_unit_at(i).to_int() == 112 ||
-      hex_str.code_unit_at(i).to_int() == 80
-    ) { // 'p' = 112, 'P' = 80
+  if i < len && (hex_str[i].to_int() == 112 || hex_str[i].to_int() == 80) { // 'p' = 112, 'P' = 80
     i += 1
     let mut exp_sign = 1
-    if i < len && hex_str.code_unit_at(i).to_int() == 43 { // '+' = 43
+    if i < len && hex_str[i].to_int() == 43 { // '+' = 43
       i += 1
-    } else if i < len && hex_str.code_unit_at(i).to_int() == 45 { // '-' = 45
+    } else if i < len && hex_str[i].to_int() == 45 { // '-' = 45
       exp_sign = -1
       i += 1
     }
-    while i < len &&
-          hex_str.code_unit_at(i).to_int() >= 48 &&
-          hex_str.code_unit_at(i).to_int() <= 57 { // '0' = 48, '9' = 57
-      exponent = exponent * 10 + (hex_str.code_unit_at(i).to_int() - 48)
+    while i < len && hex_str[i].to_int() >= 48 && hex_str[i].to_int() <= 57 { // '0' = 48, '9' = 57
+      exponent = exponent * 10 + (hex_str[i].to_int() - 48)
       i += 1
     }
     exponent *= exp_sign
