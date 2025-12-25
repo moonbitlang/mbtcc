@@ -102,7 +102,11 @@ pub fn Context::emit_statement(
 
     }
     Noop => ()
-    _ => raise Unimplemented("Statement emission not implemented yet")
+    Switch(_) => raise Unimplemented("Switch emission not implemented yet")
+    DefaultCase(_) => raise Unimplemented("Default case emission not implemented yet")
+    Case(_) => raise Unimplemented("Case emission not implemented yet")
+    Labeled(_) => raise Unimplemented("Label emission not implemented yet")
+    Goto(_) => raise Unimplemented("Goto emission not implemented yet")
   }
 }
 
