@@ -107,7 +107,7 @@ pub fn SwitchStmt::to_string(self : Self, color? : Bool = true) -> String {
 ///
 /// ## Example Usage
 ///
-/// ```mbt
+/// ```mbt test
 /// let code = "switch (x) { case 1: return 1; default: return 0; }"
 /// let ctx = Context::new(code~, source_file="demo")
 /// ctx.add_var("x", CType::int())
@@ -115,24 +115,16 @@ pub fn SwitchStmt::to_string(self : Self, color? : Bool = true) -> String {
 /// inspect(
 ///   switch_stmt.to_string(color=false),
 ///   content=(
-///     
-///   
-///   
-///   
 ///   #|switch statement
-/// #|├-expr: variable x (int)
-/// #|└-body: compound_statement
-/// #|        ├-[0]: case statement
-/// #|        |      ├-value: int literal 1 (int)
-/// #|        |      └-stmt: return statement
-/// #|        |              └-int literal 1 (int)
-/// #|        └-[1]: default case statement
-/// #|               └-stmt: return statement
-/// #|                       └-int literal 0 (int)
-///
-///
-///
-///
+///   #|├-expr: variable x (int)
+///   #|└-body: compound_statement
+///   #|        ├-[0]: case statement
+///   #|        |      ├-value: int literal 1 (int)
+///   #|        |      └-stmt: return statement
+///   #|        |              └-int literal 1 (int)
+///   #|        └-[1]: default case statement
+///   #|               └-stmt: return statement
+///   #|                       └-int literal 0 (int)
 ///   )
 /// )
 /// assert_true(rest is [{ kind: EOF, ..}])
