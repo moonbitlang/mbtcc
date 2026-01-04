@@ -102,9 +102,12 @@ pub fn Context::emit_statement(
 
     }
     Noop => ()
-    Switch(_) => raise Unimplemented("Switch emission not implemented yet")
-    DefaultCase(_) => raise Unimplemented("Default case emission not implemented yet")
-    Case(_) => raise Unimplemented("Case emission not implemented yet")
+    Switch(switch_stmt) => self.emit_switch_stmt(switch_stmt)
+    // Case and DefaultCase are handled within emit_switch_stmt
+    // They should not be encountered at the top level
+    DefaultCase(_) =>
+      raise SemanticError("Default case outside of switch statement")
+    Case(_, _) => raise SemanticError("Case outside of switch statement")
     Labeled(_) => raise Unimplemented("Label emission not implemented yet")
     Goto(_) => raise Unimplemented("Goto emission not implemented yet")
   }

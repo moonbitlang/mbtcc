@@ -209,3 +209,23 @@ pub fn Context::emit_global_variable_decl(
     "Global variable declaration emission not implemented yet",
   )
 }
+
+fn Context::convert_value_to_int_value(
+  self: Context,
+  val: &@IR.Value
+) -> &@IR.Value raise {
+  let ty = val.getType()
+  guard ty.tryAsIntType() is None else {
+    return val
+  }
+
+  // Val's Type must be not an integer type
+  match ty.tryAsFPType() {
+    Some(_) => {
+      let i32_ty = self.llvm_ctx.getInt32Ty()
+      self.builder.createFPToSI(val, i32_ty)
+    }
+    None =>
+      raise SemanticError("Cannot convert switch condition to integer type")
+  }
+}
