@@ -133,22 +133,26 @@ fn Context::emit_if_stmt(
   self.builder.setInsertPoint(then_bb)
   let then_term = self.emit_statement_maybe_term(if_stmt.then_stmt)
   if !then_term {
-    let _ = self.builder.createBr(merge_bb)
-
+    self.builder.createBr(merge_bb) |> ignore
   }
 
-  // else branch
-  match if_stmt.else_stmt {
-    Some(else_stmt) => {
-      self.builder.setInsertPoint(else_bb)
-      let else_term = self.emit_statement_maybe_term(else_stmt)
-      if !else_term {
-        let _ = self.builder.createBr(merge_bb)
-
-      }
+  let else_term = if if_stmt.else_stmt is Some(else_stmt) {
+    self.builder.setInsertPoint(else_bb)
+    let else_term = self.emit_statement_maybe_term(else_stmt)
+    if !else_term {
+      self.builder.createBr(merge_bb) |> ignore
     }
-    None => ()
+    else_term
+  } else {
+    false
   }
+
+  if then_term && else_term {
+    // both branches are terminated, no need for merge block
+    merge_bb.removeFromParent()
+    return
+  }
+
   self.builder.setInsertPoint(merge_bb)
 }
 
