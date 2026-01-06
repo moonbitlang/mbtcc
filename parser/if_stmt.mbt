@@ -70,7 +70,7 @@ pub fn IfStmt::to_string(self : Self, color? : Bool = true) -> String {
   }
   let cond_str = self.cond.to_string(color~)
   let then_str = self.then_stmt.to_string(color~)
-  let cond_lines = cond_str.split("\n")
+  let cond_lines = cond_str.split("\n").to_array().iterator()
   let cond_formatted = format_lines(
     cond_lines,
     head_with="├-cond: ",
@@ -78,7 +78,7 @@ pub fn IfStmt::to_string(self : Self, color? : Bool = true) -> String {
   )
   let result = match self.else_stmt {
     None => {
-      let then_lines = then_str.split("\n")
+      let then_lines = then_str.split("\n").to_array().iterator()
       let then_formatted = format_lines(
         then_lines,
         head_with="└-then: ",
@@ -87,14 +87,14 @@ pub fn IfStmt::to_string(self : Self, color? : Bool = true) -> String {
       "\{prefix}\n\{cond_formatted}\n\{then_formatted}"
     }
     Some(else_stmt) => {
-      let then_lines = then_str.split("\n")
+      let then_lines = then_str.split("\n").to_array().iterator()
       let then_formatted = format_lines(
         then_lines,
         head_with="├-then: ",
         continue_with="│       ",
       )
       let else_str = else_stmt.to_string(color~)
-      let else_lines = else_str.split("\n")
+      let else_lines = else_str.split("\n").to_array().iterator()
       let else_formatted = format_lines(
         else_lines,
         head_with="└-else: ",

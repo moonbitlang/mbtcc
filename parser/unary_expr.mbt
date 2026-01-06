@@ -86,7 +86,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     PostfixExpr(postfix_expr) => postfix_expr.to_string(color~)
     PreInc(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -96,7 +96,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     PreDec(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -106,7 +106,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     AddrOf(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -116,7 +116,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     Deref(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -126,7 +126,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     Negate(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -136,7 +136,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     BitNot(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -146,7 +146,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     LogicalNot(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",
@@ -156,7 +156,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     SizeofExpr(inner) => {
       let inner_str = inner.to_string(color~)
-      let lines = inner_str.split("\n")
+      let lines = inner_str.split("\n").to_array().iterator()
       let lines_formatted = format_lines(
         lines,
         head_with="└-",

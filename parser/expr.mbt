@@ -60,7 +60,7 @@ pub fn Expr::to_string(self : Self, color? : Bool = true) -> String {
   let mut result = prefix
   for i, assign_expr in self.assign_exprs {
     let assign_str = assign_expr.to_string(color~)
-    let lines = assign_str.split("\n")
+    let lines = assign_str.split("\n").to_array().iterator()
     let is_last = i == self.assign_exprs.length() - 1
     let formatted = if is_last {
       format_lines(lines, head_with="└-[\{i}]: ", continue_with="      ")

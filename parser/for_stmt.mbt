@@ -84,7 +84,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
     None => result = result + "\n├-init: (none)"
     Some(Expr(expr)) => {
       let init_str = expr.to_string(color~)
-      let init_lines = init_str.split("\n")
+      let init_lines = init_str.split("\n").to_array().iterator()
       let init_formatted = format_lines(
         init_lines,
         head_with="├-init: ",
@@ -96,7 +96,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
       result = result + "\n├-init: (declaration)"
       for i, decl in decls {
         let decl_str = decl.to_string(color~)
-        let decl_lines = decl_str.split("\n")
+        let decl_lines = decl_str.split("\n").to_array().iterator()
         let is_last = i == decls.length() - 1
         // Use consistent indentation
         let decl_formatted = if is_last {
@@ -129,7 +129,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
     }
     Some(cond) => {
       let cond_str = cond.to_string(color~)
-      let cond_lines = cond_str.split("\n")
+      let cond_lines = cond_str.split("\n").to_array().iterator()
       let cond_formatted = format_lines(
         cond_lines,
         head_with="├-cond: ",
@@ -144,7 +144,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
     None => result = result + "\n├-update: (none)"
     Some(update) => {
       let update_str = update.to_string(color~)
-      let update_lines = update_str.split("\n")
+      let update_lines = update_str.split("\n").to_array().iterator()
       let update_formatted = format_lines(
         update_lines,
         head_with="├-update: ",
@@ -156,7 +156,7 @@ pub fn ForStmt::to_string(self : Self, color? : Bool = true) -> String {
 
   // Format body
   let body_str = self.body.to_string(color~)
-  let body_lines = body_str.split("\n")
+  let body_lines = body_str.split("\n").to_array().iterator()
   let body_formatted = format_lines(
     body_lines,
     head_with="└-body: ",

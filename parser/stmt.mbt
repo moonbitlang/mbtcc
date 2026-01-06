@@ -24,7 +24,7 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
         "labeled statement: " + label
       }
       let stmt_str = stmt.to_string(color~)
-      let stmt_lines = stmt_str.split("\n")
+      let stmt_lines = stmt_str.split("\n").to_array().iterator()
       let stmt_formatted = format_lines(
         stmt_lines,
         head_with="└-",
@@ -40,13 +40,13 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
       }
       let value_str = const_expr.to_string(color~)
       let stmt_str = stmt.to_string(color~)
-      let value_lines = value_str.split("\n")
+      let value_lines = value_str.split("\n").to_array().iterator()
       let value_formatted = format_lines(
         value_lines,
         head_with="├-value: ",
         continue_with="│        ",
       )
-      let stmt_lines = stmt_str.split("\n")
+      let stmt_lines = stmt_str.split("\n").to_array().iterator()
       let stmt_formatted = format_lines(
         stmt_lines,
         head_with="└-stmt: ",
@@ -61,7 +61,7 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
         "default case statement"
       }
       let stmt_str = stmt.to_string(color~)
-      let stmt_lines = stmt_str.split("\n")
+      let stmt_lines = stmt_str.split("\n").to_array().iterator()
       let stmt_formatted = format_lines(
         stmt_lines,
         head_with="└-stmt: ",
@@ -77,7 +77,7 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
         "expr statement"
       }
       let expr_str = expr.to_string(color~)
-      let expr_lines = expr_str.split("\n")
+      let expr_lines = expr_str.split("\n").to_array().iterator()
       let expr_formatted = format_lines(
         expr_lines,
         head_with="└-",
@@ -117,7 +117,7 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
         "return statement"
       }
       let expr_str = expr.to_string(color~)
-      let expr_lines = expr_str.split("\n")
+      let expr_lines = expr_str.split("\n").to_array().iterator()
       let expr_formatted = format_lines(
         expr_lines,
         head_with="└-",

@@ -137,7 +137,7 @@ pub fn FunctionDefinition::to_string(
 
   // Format body
   let body_str = self.body.to_string(color~)
-  let body_lines = body_str.split("\n")
+  let body_lines = body_str.split("\n").to_array().iterator()
   let body_formatted = format_lines(
     body_lines,
     head_with="└-",

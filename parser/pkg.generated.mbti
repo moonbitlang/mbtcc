@@ -8,7 +8,7 @@ import(
 )
 
 // Values
-pub fn format_lines(Iter[StringView], head_with? : String, continue_with? : String) -> String
+pub fn format_lines(Iterator[StringView], head_with? : String, continue_with? : String) -> String
 
 pub fn next_check_point(ArrayView[@lexer.Token]) -> ArrayView[@lexer.Token]
 

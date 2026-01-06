@@ -135,7 +135,6 @@ fn Context::emit_if_stmt(
   if !then_term {
     self.builder.createBr(merge_bb) |> ignore
   }
-
   let else_term = if if_stmt.else_stmt is Some(else_stmt) {
     self.builder.setInsertPoint(else_bb)
     let else_term = self.emit_statement_maybe_term(else_stmt)
@@ -146,13 +145,11 @@ fn Context::emit_if_stmt(
   } else {
     false
   }
-
   if then_term && else_term {
     // both branches are terminated, no need for merge block
     merge_bb.removeFromParent()
     return
   }
-
   self.builder.setInsertPoint(merge_bb)
 }
 

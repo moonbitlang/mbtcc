@@ -62,19 +62,19 @@ pub fn ConditionalExpr::to_string(self : Self, color? : Bool = true) -> String {
       let then_str = then_expr.to_string(color~)
       let else_str = else_expr.to_string(color~)
       // Format nested expressions
-      let cond_lines = cond_str.split("\n")
+      let cond_lines = cond_str.split("\n").to_array().iterator()
       let cond_formatted = format_lines(
         cond_lines,
         head_with="├-cond: ",
         continue_with="│       ",
       )
-      let then_lines = then_str.split("\n")
+      let then_lines = then_str.split("\n").to_array().iterator()
       let then_formatted = format_lines(
         then_lines,
         head_with="├-then: ",
         continue_with="│       ",
       )
-      let else_lines = else_str.split("\n")
+      let else_lines = else_str.split("\n").to_array().iterator()
       let else_formatted = format_lines(
         else_lines,
         head_with="└-else: ",

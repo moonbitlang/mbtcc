@@ -77,13 +77,13 @@ pub fn PostfixExpr::to_string(self : Self, color? : Bool = true) -> String {
     ArrayAccess(arr_expr, index_expr) => {
       let arr_str = arr_expr.to_string(color~)
       let index_str = index_expr.to_string(color~)
-      let arr_lines = arr_str.split("\n")
+      let arr_lines = arr_str.split("\n").to_array().iterator()
       let arr_formatted = format_lines(
         arr_lines,
         head_with="├-array: ",
         continue_with="│        ",
       )
-      let index_lines = index_str.split("\n")
+      let index_lines = index_str.split("\n").to_array().iterator()
       let index_formatted = format_lines(
         index_lines,
         head_with="└-index: ",
@@ -93,7 +93,7 @@ pub fn PostfixExpr::to_string(self : Self, color? : Bool = true) -> String {
     }
     FuncCall(func_expr, args) => {
       let func_str = func_expr.to_string(color~)
-      let func_lines = func_str.split("\n")
+      let func_lines = func_str.split("\n").to_array().iterator()
       let func_formatted = format_lines(
         func_lines,
         head_with="├-function: ",
@@ -105,7 +105,7 @@ pub fn PostfixExpr::to_string(self : Self, color? : Bool = true) -> String {
         let mut result = "\{prefix} \{ctype}\n\{func_formatted}\n└-args:"
         for i, arg in args {
           let arg_str = arg.to_string(color~)
-          let arg_lines = arg_str.split("\n")
+          let arg_lines = arg_str.split("\n").to_array().iterator()
           let is_last = i == args.length() - 1
           let formatted = if is_last {
             format_lines(

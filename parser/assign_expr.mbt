@@ -80,13 +80,13 @@ pub fn AssignExpr::to_string(self : Self, color? : Bool = true) -> String {
       let left_str = unary_expr.to_string(color~)
       let right_str = assign_expr.to_string(color~)
       // Format nested expressions
-      let left_lines = left_str.split("\n")
+      let left_lines = left_str.split("\n").to_array().iterator()
       let left_formatted = format_lines(
         left_lines,
         head_with="├-lvalue: ",
         continue_with="│         ",
       )
-      let right_lines = right_str.split("\n")
+      let right_lines = right_str.split("\n").to_array().iterator()
       let right_formatted = format_lines(
         right_lines,
         head_with="└-rvalue: ",

@@ -30,7 +30,7 @@ pub fn CompoundStmt::to_string(self : Self, color? : Bool = true) -> String {
       Left(stmt) => stmt.to_string(color~)
       Right(decl) => decl.to_string(color~)
     }
-    let item_lines = item_str.split("\n")
+    let item_lines = item_str.split("\n").to_array().iterator()
     let is_last = i == self.items.length() - 1
     let item_formatted = if is_last {
       let head_with = "└-[\{i}]: "

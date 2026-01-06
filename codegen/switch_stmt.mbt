@@ -206,8 +206,7 @@ fn Context::emit_switch_body(
   let case_idx : Ref[Int] = Ref::new(0)
   let in_default : Ref[Bool] = Ref::new(false)
   let items_len = compound.items.length()
-
-  fn emit_stmt_in_switch_body(i: Int, stmt: @parser.Statement) -> Unit raise {
+  fn emit_stmt_in_switch_body(i : Int, stmt : @parser.Statement) -> Unit raise {
     match stmt.kind {
       Case(_) => {
         // Check if current block needs a fallthrough branch
@@ -225,9 +224,7 @@ fn Context::emit_switch_body(
           case_idx.val = case_idx.val + 1
         }
         // Emit the statement (which will recursively handle nested cases)
-        self.emit_case_stmt(
-          stmt, cases, case_idx, default_bb, in_default,
-        )
+        self.emit_case_stmt(stmt, cases, case_idx, default_bb, in_default)
       }
       DefaultCase(_) => {
         // Check if current block needs a fallthrough branch
@@ -246,9 +243,7 @@ fn Context::emit_switch_body(
           None => raise SemanticError("No default case found")
         }
         // Emit the statement
-        self.emit_case_stmt(
-          stmt, cases, case_idx, default_bb, in_default,
-        )
+        self.emit_case_stmt(stmt, cases, case_idx, default_bb, in_default)
       }
       _ => {
         // Regular statement - just emit it

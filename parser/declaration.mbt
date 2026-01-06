@@ -132,7 +132,7 @@ pub fn Declaration::to_string(self : Self, color? : Bool = true) -> String {
         ""
       }
       let initializer = initializer.to_string(color~)
-      let initializer_lines = initializer.split("\n")
+      let initializer_lines = initializer.split("\n").to_array().iterator()
       let initializer_formatted = format_lines(
         initializer_lines,
         head_with="└-",

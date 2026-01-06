@@ -73,13 +73,13 @@ pub fn AddiExpr::to_string(self : Self, color? : Bool = true) -> String {
       let left_str = left.to_string(color~)
       let right_str = right.to_string(color~)
       // Add backtick prefix to each line of nested expressions
-      let left_lines = left_str.split("\n")
+      let left_lines = left_str.split("\n").to_array().iterator()
       let left_formatted = format_lines(
         left_lines,
         head_with="├-",
         continue_with="│ ",
       )
-      let right_lines = right_str.split("\n")
+      let right_lines = right_str.split("\n").to_array().iterator()
       let right_formatted = format_lines(
         right_lines,
         head_with="└-",

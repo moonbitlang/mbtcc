@@ -210,14 +210,13 @@ pub fn Context::emit_global_variable_decl(
   )
 }
 
+///|
 fn Context::convert_value_to_int_value(
-  self: Context,
-  val: &@IR.Value
+  self : Context,
+  val : &@IR.Value,
 ) -> &@IR.Value raise {
   let ty = val.getType()
-  guard ty.tryAsIntType() is None else {
-    return val
-  }
+  guard ty.tryAsIntType() is None else { return val }
 
   // Val's Type must be not an integer type
   match ty.tryAsFPType() {

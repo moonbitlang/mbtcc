@@ -55,13 +55,13 @@ pub fn WhileStmt::to_string(self : Self, color? : Bool = true) -> String {
   }
   let cond_str = self.cond.to_string(color~)
   let body_str = self.body.to_string(color~)
-  let cond_lines = cond_str.split("\n")
+  let cond_lines = cond_str.split("\n").to_array().iterator()
   let cond_formatted = format_lines(
     cond_lines,
     head_with="├-cond: ",
     continue_with="│       ",
   )
-  let body_lines = body_str.split("\n")
+  let body_lines = body_str.split("\n").to_array().iterator()
   let body_formatted = format_lines(
     body_lines,
     head_with="└-body: ",
