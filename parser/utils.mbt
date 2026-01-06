@@ -21,7 +21,7 @@ pub fn next_check_point(tokens : ArrayView[Token]) -> ArrayView[Token] {
 /// For AI:
 /// Modify this function is ok.
 pub fn format_lines(
-  lines : Iter[StringView],
+  lines : Iterator[StringView],
   head_with? : String = "└-",
   continue_with? : String = "│ ",
 ) -> String {
