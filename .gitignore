@@ -10,3 +10,5 @@ llvm_*
 tmp/
 smith_test/
 Agents2.md
+_build/
+target
