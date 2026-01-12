@@ -13,7 +13,9 @@
 // limitations under the License.
 
 ///|
-pub suberror ParseError (Int, String) derive(Show, Eq)
+pub suberror ParseError {
+  ParseError((Int, String))
+} derive(Show, Eq)
 
 //primaryExpression
 //    : Identifier

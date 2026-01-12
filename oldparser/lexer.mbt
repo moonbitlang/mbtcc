@@ -159,7 +159,9 @@ pub enum Constant {
 } derive(Show, Eq)
 
 ///|
-pub suberror LexerError String derive(Show)
+pub suberror LexerError {
+  LexerError(String)
+} derive(Show)
 
 ///|
 pub fn ParserContext::tokenize(self : Self) -> Unit raise {
