@@ -11,6 +11,18 @@ pub struct Context {
   mut current_func : @IR.Function?
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
+  // switch 语句 codegen 的临时上下文栈（支持嵌套 switch 与嵌套 case label）
+  switch_ctx_stack : Array[SwitchCodegenCtx]
+}
+
+///|
+pub struct SwitchCodegenCtx {
+  switch_inst : @IR.SwitchInst
+  case_map : Map[Int, @IR.BasicBlock]
+  default_bb : @IR.BasicBlock
+  exit_bb : @IR.BasicBlock
+  mut active : Bool
+  mut has_default : Bool
 }
 
 ///|
@@ -26,6 +38,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let current_func = None
   let break_stack = Array::new()
   let continue_stack = Array::new()
+  let switch_ctx_stack = Array::new()
   Context::{
     llvm_ctx,
     llvm_mod,
@@ -38,6 +51,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     current_func,
     break_stack,
     continue_stack,
+    switch_ctx_stack,
   }
 }
 

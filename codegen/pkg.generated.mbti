@@ -33,6 +33,7 @@ pub struct Context {
   mut current_func : @IR.Function?
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
+  switch_ctx_stack : Array[SwitchCodegenCtx]
 }
 pub fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
 pub fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise
@@ -47,6 +48,15 @@ pub fn Context::emit_local_decl(Self, @parser.Declaration) -> Unit raise
 pub fn Context::emit_statement(Self, @parser.Statement) -> Unit raise
 pub fn Context::emit_type_decl(Self, @parser.CType) -> Unit raise CodeGenError
 pub fn Context::emit_typedef(Self, @parser.CType, String) -> Unit raise CodeGenError
+
+pub struct SwitchCodegenCtx {
+  switch_inst : @IR.SwitchInst
+  case_map : Map[Int, @IR.BasicBlock]
+  default_bb : @IR.BasicBlock
+  exit_bb : @IR.BasicBlock
+  mut active : Bool
+  mut has_default : Bool
+}
 
 // Type aliases
 

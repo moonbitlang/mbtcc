@@ -16,10 +16,14 @@ pub suberror FunctionDefinitionParseError {
   CompoundStatementParseError(Error)
 }
 
-pub suberror LexerError String
+pub suberror LexerError {
+  LexerError(String)
+}
 pub impl Show for LexerError
 
-pub suberror ParseError (Int, String)
+pub suberror ParseError {
+  ParseError((Int, String))
+}
 pub impl Eq for ParseError
 pub impl Show for ParseError
 
