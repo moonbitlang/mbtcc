@@ -89,7 +89,12 @@ fn main_err() -> Unit raise {
     }
     let codegen_ctx = @codegen.codegen_from_parser(ctx)
     let llvm_mod = codegen_ctx.emit()
-    println(llvm_mod)
+    // println(llvm_mod)
+    if output.val != "" {
+      @fs.write_string_to_file(output.val, llvm_mod.to_string())
+    } else {
+      println(llvm_mod)
+    }
   }
 }
 

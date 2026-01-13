@@ -6,7 +6,9 @@
     "Kaida-Amethyst/mbtcc/lexer",
     "Kaida-Amethyst/mbtcc/preprocess",
     "Kaida-Amethyst/mbtcc/codegen",
-    "moonbitlang/x/fs"
+    "moonbitlang/x/fs",
+    "moonbitlang/core/ref",
+    "moonbitlang/core/env"
   ],
   "link" : {
     "native" : {
