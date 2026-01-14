@@ -33,5 +33,3 @@ fn Context::emit_if_stmt(
     merge_bb.removeFromParent()
   }
 }
-
-

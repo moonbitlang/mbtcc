@@ -291,4 +291,3 @@ fn unwind_case_chain(
   let payload = go(stmt, labels)
   (labels, payload)
 }
-

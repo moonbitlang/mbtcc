@@ -38,13 +38,22 @@ pub fn Context::emit_function_def(
         raise IllegalLLVMUsage("\{msg} : \{err}")
       }
     }
-    // 为参数分配栈空间，便于后续作为可修改的左值处理
     let alloca = self.builder.createAlloca(param_types[i])
     let _ = self.builder.createStore(llvm_param, alloca)
     self.var_env.set(parem_name, alloca)
     self.var_types.set(parem_name, param_ty)
   }
   self.emit_compound_stmt(body)
+  let cur_bb = self.builder.getInsertBlock()
+  if cur_bb.getTerminator() is None {
+    match ret_ty.dataKind {
+      Void => self.builder.createRetVoid() |> ignore
+      _ => {
+        let zero = self.llvm_ctx.getConstZero(llvm_ret_ty)
+        self.builder.createRet(zero) |> ignore
+      }
+    }
+  }
   self.exit_scope()
   self.current_func = None
 }
