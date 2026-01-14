@@ -35,13 +35,13 @@ fn Context::emit_unary_expr(
     }
     BitNot(expr) => {
       let val = self.emit_unary_expr(expr)
-      let one = self.llvm_ctx.getConstOne(val.getType())
-      self.builder.createXor(one, val)
+      self.builder.createNot(val)
     }
     LogicalNot(expr) => {
       let val = self.emit_unary_expr(expr)
-      let zero = self.llvm_ctx.getConstFalse()
-      self.builder.createICmpEQ(val, zero)
+      let cond = self.to_bool(val) // i1: x != 0
+      let inv = self.builder.createXor(cond, self.llvm_ctx.getConstTrue())
+      self.builder.createZExt(inv, self.llvm_ctx.getInt32Ty())
     }
     SizeofExpr(expr) => {
       ignore(expr)
