@@ -44,12 +44,12 @@ fn Context::emit_unary_expr(
       self.builder.createZExt(inv, self.llvm_ctx.getInt32Ty())
     }
     SizeofExpr(expr) => {
-      ignore(expr)
-      raise Unimplemented("Sizeof expression codegen is not implemented yet")
+      let sz = self.ctype_sizeof_bytes(expr.ctype)
+      self.llvm_ctx.getConstInt64(sz)
     }
     SizeofType(ty) => {
-      ignore(ty)
-      raise Unimplemented("Sizeof type codegen is not implemented yet")
+      let sz = self.ctype_sizeof_bytes(ty)
+      self.llvm_ctx.getConstInt64(sz)
     }
     Alignof(ty) => {
       ignore(ty)

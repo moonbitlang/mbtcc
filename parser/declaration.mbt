@@ -454,31 +454,46 @@ pub fn Context::parse_declarator(
   decay_array_to_ptr? : Bool = false,
 ) -> (CType, String, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
-  if rest is [{ kind: Bracket('('), .. }, .. rest2] {
-    let ty = CType::void_()
-    let (_, _, rest) = self.parse_declarator(
-      ty,
-      storage,
-      rest2,
-      init_tokens,
-      decay_array_to_ptr~,
-    )
-    guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
-      raise ParseError(rest[0], "expected ')'")
+  // 参考 chibicc：遇到 '(' 时先“试探性”解析括号内 declarator，
+  // 再把括号后的 type-suffix 应用到当前 ty 上，
+  // 最后用新的 ty 回头重解析括号内 declarator —— 这样能正确处理
+  // `(*fp)(...)` / `(*fp[3])(...)` 等 `()`/`[]` 结合优先级。
+  if rest is [{ kind: Bracket('('), .. } as tok, ..] {
+    let rest2 = rest[1:]
+    guard rest2 is [tok2, ..] else { raise ParseError(tok, "unexpected end") }
+    if !self.is_keyword_or_type_name(tok2) {
+      // 试探解析，目的是找到匹配的 ')'
+      let (_dummy_ty, _dummy_name, rest3) = self.parse_declarator(
+        CType::void_(),
+        storage,
+        rest2,
+        init_tokens,
+        decay_array_to_ptr~,
+      )
+      guard rest3 is [{ kind: Bracket(')'), .. }, .. rest4] else {
+        raise ParseError(tok, "expected ')'")
+      }
+      // 先解析括号外的 suffix，得到新的类型
+      let (outer_ty, rest5) = self.parse_type_suffix(
+        rest4,
+        ty,
+        init_tokens,
+        decay_array_to_ptr~,
+      )
+      // 再用新的类型重解析括号内 declarator，把 suffix 绑定到内部
+      let (final_ty, name, _rest_after_inner) = self.parse_declarator(
+        outer_ty,
+        storage,
+        rest2,
+        init_tokens,
+        decay_array_to_ptr~,
+      )
+      // final parse 必须在 ')' 处结束，否则说明括号不匹配或语法不一致
+      guard _rest_after_inner is [{ kind: Bracket(')'), .. }, ..] else {
+        raise ParseError(tok, "expected ')' after declarator")
+      }
+      return (final_ty, name, rest5)
     }
-    let (ctype, _) = self.parse_type_suffix(
-      rest,
-      ty,
-      init_tokens,
-      decay_array_to_ptr~,
-    )
-    return self.parse_declarator(
-      ctype,
-      storage,
-      rest2,
-      init_tokens,
-      decay_array_to_ptr~,
-    )
   }
   let (name, rest) = if rest is [{ kind: Identifier(name), .. }, .. rest] {
     guard !self.is_type_name(name) else {

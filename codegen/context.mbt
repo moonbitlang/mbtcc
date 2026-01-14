@@ -180,10 +180,29 @@ pub fn Context::emit_type_decl(
   self : Context,
   type_decl : @parser.CType,
 ) -> Unit raise CodeGenError {
-  // emit type declaration
-  ignore(self)
-  ignore(type_decl)
-  raise Unimplemented("Type declaration emission not implemented yet")
+  match type_decl.dataKind {
+    Struct(name, fields) => {
+      if name != "" {
+        match self.llvm_ctx.getStructTypeByName(name) {
+          Some(_) => return
+          None => ()
+        }
+      }
+      let elem_tys : Array[&@IR.Type] = Array::new()
+      for f in fields {
+        let { ctype, .. } = f
+        let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
+          err => raise IllegalLLVMUsage("\{err}")
+        }
+        elem_tys.push(llvm_ty)
+      }
+      let _ = self.llvm_ctx.getStructType(elem_tys, name~, isPacked=false) catch {
+        err => raise IllegalLLVMUsage("\{err}")
+      }
+
+    }
+    _ => raise Unimplemented("Type declaration emission not implemented yet")
+  }
 }
 
 ///|

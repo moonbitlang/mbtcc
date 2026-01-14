@@ -385,7 +385,8 @@ pub fn Context::parse_unary_expr(
         ctype: CType::long(),
         tokens,
       }
-      (unary_expr, rest[1:])
+      // guard 已经消费了 `)`，这里不要再额外跳过一个 token
+      (unary_expr, rest)
     }
     // Size of unary_expr 
     [{ kind: Keyword(Sizeof), .. }, .. rest] => {
@@ -415,7 +416,7 @@ pub fn Context::parse_unary_expr(
         ctype: CType::long(),
         tokens,
       }
-      (unary_expr, rest[1:])
+      (unary_expr, rest)
     }
     tokens => {
       let (postfix_expr, rest) = self.parse_postfix_expr(tokens)

@@ -147,14 +147,11 @@ fn Context::cast_value_to_ctype(
     )
     panic()
   } else if from_kind is Ptr(_) && to_kind is Ptr(_) {
-    if from_ctype == to_ctype {
-      val
-    } else {
-      println(
-        "Compiler ICE: pointer cast from '\{from_ctype}' to '\{to_ctype}' not supported",
-      )
-      panic()
-    }
+    // 在当前实现里，所有指针类型的 LLVM 类型都统一为 `ptr`，因此不同指针类型之间转换是 no-op
+    val
+  } else if from_kind is Function(_, _, ..) && to_kind is Ptr(_) {
+    // 函数在表达式中会退化为函数指针；MoonLLVM 里函数值可直接作为 ptr 使用
+    val
   } else {
     println(
       "Compiler ICE: cannot cast value from '\{from_ctype}' to '\{to_ctype}'",

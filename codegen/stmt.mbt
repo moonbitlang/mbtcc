@@ -40,39 +40,7 @@ fn Context::emit_local_variable(
       self.builder.createStore(value, alloca) |> ignore
     }
     InitializerList(initializers) =>
-      match ty.dataKind {
-        Array(elem_ty, size) => {
-          let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
-          let arr_llvm_ty = self.ctype_to_llvm_type(ty)
-          let zero = self.llvm_ctx.getConstInt32(0)
-          // 逐个写入 initializer；不足部分补 0
-          let mut i = 0
-          while i < size {
-            let v = if i < initializers.length() {
-              match initializers[i].kind {
-                AssignExpr(ae) => {
-                  let raw = self.emit_assign_expr(ae)
-                  self.cast_value_to_ctype(raw, ae.ctype, elem_ty)
-                }
-                _ =>
-                  raise Unimplemented(
-                    "Only simple assignment initializers are supported in array initializer list",
-                  )
-              }
-            } else {
-              self.llvm_ctx.getConstZero(elem_llvm_ty)
-            }
-            let idx = self.llvm_ctx.getConstInt32(i)
-            let indices : Array[&@IR.Value] = Array::new()
-            indices.push(zero)
-            indices.push(idx)
-            let elem_ptr = self.builder.createGEP(alloca, arr_llvm_ty, indices)
-            let _ = self.builder.createStore(v, elem_ptr)
-            i = i + 1
-          }
-        }
-        _ => raise Unimplemented("Initializer list not implemented yet")
-      }
+      self.emit_initializer_list_to_ptr(alloca, ty, initializers)
     _ => raise Unimplemented("Initializer kind not implemented yet")
   }
 }

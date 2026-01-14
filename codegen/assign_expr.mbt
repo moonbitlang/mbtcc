@@ -175,14 +175,33 @@ fn Context::get_lvalue_ptr_from_postfix(
       let (ptr, elem_ty) = self.emit_array_access_ptr(arr_expr, idx_expr)
       (ptr, elem_ty)
     }
-    MemberAccess(_, _) =>
-      raise Unimplemented(
-        "Member access codegen for lvalues is not implemented yet",
-      )
-    PtrMemberAccess(_, _) =>
-      raise Unimplemented(
-        "Pointer member access codegen for lvalues is not implemented yet",
-      )
+    MemberAccess(base, field_name) => {
+      // lvalue 的 `p.x`：必须从内存里取 struct 的地址，再 gep 到字段
+      let (base_ptr, base_ty) = self.get_lvalue_ptr_from_postfix(base)
+      let (idx, fty) = struct_field_index_and_type(base_ty, field_name)
+      let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(zero)
+      indices.push(self.llvm_ctx.getConstInt32(idx))
+      let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+      (field_ptr, fty)
+    }
+    PtrMemberAccess(base, field_name) => {
+      // lvalue 的 `p->x`：先取出 ptr 值，再 gep 到字段
+      guard base.ctype.dataKind is Ptr(inner) else {
+        raise SemanticError("Pointer member access on non-pointer type")
+      }
+      let (idx, fty) = struct_field_index_and_type(inner, field_name)
+      let base_ptr = self.emit_postfix_expr(base)
+      let st_llvm_ty = self.ctype_to_llvm_type(inner)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(zero)
+      indices.push(self.llvm_ctx.getConstInt32(idx))
+      let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+      (field_ptr, fty)
+    }
   }
 }
 
