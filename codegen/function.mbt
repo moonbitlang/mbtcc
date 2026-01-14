@@ -49,8 +49,8 @@ pub fn Context::emit_function_def(
     match ret_ty.dataKind {
       Void => self.builder.createRetVoid() |> ignore
       _ => {
-        let zero = self.llvm_ctx.getConstZero(llvm_ret_ty)
-        self.builder.createRet(zero) |> ignore
+        let msg = "Function '\{name}' must return a value of type '\{ret_ty}'"
+        raise SemanticError("\{msg}")
       }
     }
   }

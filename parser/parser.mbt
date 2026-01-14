@@ -44,6 +44,8 @@ pub fn Context::parse(self : Context) -> Program raise ParseError {
       println("Compiler ICE: unexpected end of tokens in parse_program")
       panic()
     }
+    // Ignore stray semicolons
+    [{ kind: Semi, ..}, ..tokens] => continue tokens
     tokens => {
       let (external, rest) = self.parse_external_declaration(tokens)
       externals.append(external)
