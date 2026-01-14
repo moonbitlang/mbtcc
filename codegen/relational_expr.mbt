@@ -35,16 +35,18 @@ fn Context::emit_rel_compare(
   let lval = self.cast_value_to_ctype(lraw, left.ctype, common)
   let rval = self.cast_value_to_ctype(rraw, right.ctype, common)
   if is_floating_kind(common.dataKind) {
-    match cmp {
+    let res = match cmp {
       "lt" => self.builder.createFCmpOLT(lval, rval)
       "gt" => self.builder.createFCmpOGT(lval, rval)
       "le" => self.builder.createFCmpOLE(lval, rval)
       "ge" => self.builder.createFCmpOGE(lval, rval)
       _ => codegen_unreachable()
     }
+    // C 里关系运算结果类型是 int（0 或 1）
+    self.builder.createZExt(res, self.llvm_ctx.getInt32Ty())
   } else {
     let is_unsigned = is_unsigned_kind(common.dataKind)
-    match (cmp, is_unsigned) {
+    let res = match (cmp, is_unsigned) {
       ("lt", true) => self.builder.createICmpULT(lval, rval)
       ("lt", false) => self.builder.createICmpSLT(lval, rval)
       ("gt", true) => self.builder.createICmpUGT(lval, rval)
@@ -55,5 +57,6 @@ fn Context::emit_rel_compare(
       ("ge", false) => self.builder.createICmpSGE(lval, rval)
       _ => codegen_unreachable()
     }
+    self.builder.createZExt(res, self.llvm_ctx.getInt32Ty())
   }
 }

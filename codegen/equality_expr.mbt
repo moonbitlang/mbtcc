@@ -35,10 +35,11 @@ fn Context::emit_eq_compare(
   let lval = self.cast_value_to_ctype(lraw, left.ctype, common)
   let rval = self.cast_value_to_ctype(rraw, right.ctype, common)
   let is_floating = is_floating_kind(common.dataKind)
-  match (is_floating, is_eq) {
+  let cmp = match (is_floating, is_eq) {
     (true, true) => self.builder.createFCmpOEQ(lval, rval)
     (true, false) => self.builder.createFCmpONE(lval, rval)
     (false, true) => self.builder.createICmpEQ(lval, rval)
     (false, false) => self.builder.createICmpNE(lval, rval)
   }
+  self.builder.createZExt(cmp, self.llvm_ctx.getInt32Ty())
 }

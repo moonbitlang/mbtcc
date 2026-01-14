@@ -102,7 +102,9 @@ fn Context::cast_value_to_ctype(
     if from_width == to_width {
       val
     } else if from_width < to_width {
-      if is_unsigned_kind(from_kind) {
+      if from_width == 1 {
+        self.builder.createZExt(val, to_int_ty)
+      } else if is_unsigned_kind(from_kind) {
         self.builder.createZExt(val, to_int_ty)
       } else {
         self.builder.createSExt(val, to_int_ty)

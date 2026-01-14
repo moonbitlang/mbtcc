@@ -36,6 +36,7 @@ fn Context::emit_local_variable(
   match init_expr.kind {
     AssignExpr(assign_expr) => {
       let value = self.emit_assign_expr(assign_expr)
+      let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
       self.builder.createStore(value, alloca) |> ignore
     }
     InitializerList(_) =>

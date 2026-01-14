@@ -26,7 +26,10 @@ fn Context::emit_logical_and_expr(
     LogicalAndExpr(left, right) => {
       let left_val = self.emit_logical_and_expr(left)
       let right_val = self.emit_inclusive_or_expr(right)
-      self.builder.createAnd(left_val, right_val)
+      let lbool = self.to_bool(left_val)
+      let rbool = self.to_bool(right_val)
+      let res_i1 = self.builder.createAnd(lbool, rbool)
+      self.builder.createZExt(res_i1, self.llvm_ctx.getInt32Ty())
     }
   }
 }
