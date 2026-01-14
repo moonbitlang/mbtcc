@@ -419,10 +419,7 @@ fn Context::emit_if_stmt(
   let func = self.current_func.unwrap()
   let then_bb = func.addBasicBlock()
   let merge_bb = func.addBasicBlock()
-  let else_bb = match if_stmt.else_stmt {
-    Some(_) => func.addBasicBlock()
-    None => merge_bb
-  }
+  let else_bb = func.addBasicBlock()
   let _ = self.builder.createCondBr(cond_bool, then_bb, else_bb)
 
   // then branch
@@ -435,9 +432,7 @@ fn Context::emit_if_stmt(
   // else branch
   self.builder.setInsertPoint(else_bb)
   let else_term = match if_stmt.else_stmt {
-    Some(else_stmt) => {
-      self.emit_statement_maybe_term(else_stmt)
-    }
+    Some(else_stmt) => self.emit_statement_maybe_term(else_stmt)
     None => false
   }
   if !else_term {
