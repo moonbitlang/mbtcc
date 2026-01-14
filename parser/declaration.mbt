@@ -298,7 +298,11 @@ pub fn Context::parse_declaration(
       raise ParseError(tokens[0], "typedef cannot have storage class specifier")
     }
     let (ctype, name, rest) = self.parse_declarator(
-      base_ty, storage, rest, init_tokens,
+      base_ty,
+      storage,
+      rest,
+      init_tokens,
+      decay_array_to_ptr=false,
     )
     guard rest is [{ kind: Semi, .. }, .. rest] else {
       raise ParseError(rest[0], "expected ';' after typedef")
@@ -351,7 +355,11 @@ pub fn Context::parse_init_declarator_list(
 ) -> (Array[Declaration], ArrayView[Token]) raise ParseError {
   let decls : Array[Declaration] = Array::new()
   let (ctype, name, tokens) = self.parse_declarator(
-    base_ty, storage, tokens, init_tokens,
+    base_ty,
+    storage,
+    tokens,
+    init_tokens,
+    decay_array_to_ptr=false,
   )
   guard !(name is "") else {
     raise ParseError(tokens[0], "declarator name cannot be empty")
@@ -386,7 +394,11 @@ pub fn Context::parse_init_declarator_list(
       raise ParseError(tok, "unexpected ',' in declaration")
     [{ kind: Comma, .. }, .. tokens] => {
       let (ctype, name, tokens) = self.parse_declarator(
-        base_ty, storage, tokens, init_tokens,
+        base_ty,
+        storage,
+        tokens,
+        init_tokens,
+        decay_array_to_ptr=false,
       )
       guard !(name is "") else {
         raise ParseError(tokens[0], "declarator name cannot be empty")
@@ -394,6 +406,8 @@ pub fn Context::parse_init_declarator_list(
       guard !self.is_name_has_been_defined(name) else {
         raise ParseError(tokens[0], "redeclaration of variable: \{name}")
       }
+      // 逗号分隔的后续 declarator 也需要加入变量环境（否则后续引用会被判定为未声明）
+      self.add_var(name, ctype)
       let (decl_kind, tokens) = if tokens
         is [{ kind: AssignOp("="), .. }, .. tokens] {
         let (initializer, tokens) = self.parse_initializer(tokens)
@@ -437,16 +451,34 @@ pub fn Context::parse_declarator(
   storage : StorageClass,
   tokens : ArrayView[Token],
   init_tokens : ArrayView[Token],
+  decay_array_to_ptr? : Bool = false,
 ) -> (CType, String, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
   if rest is [{ kind: Bracket('('), .. }, .. rest2] {
     let ty = CType::void_()
-    let (_, _, rest) = self.parse_declarator(ty, storage, rest2, init_tokens)
+    let (_, _, rest) = self.parse_declarator(
+      ty,
+      storage,
+      rest2,
+      init_tokens,
+      decay_array_to_ptr~,
+    )
     guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
       raise ParseError(rest[0], "expected ')'")
     }
-    let (ctype, _) = self.parse_type_suffix(rest, ty, init_tokens)
-    return self.parse_declarator(ctype, storage, rest2, init_tokens)
+    let (ctype, _) = self.parse_type_suffix(
+      rest,
+      ty,
+      init_tokens,
+      decay_array_to_ptr~,
+    )
+    return self.parse_declarator(
+      ctype,
+      storage,
+      rest2,
+      init_tokens,
+      decay_array_to_ptr~,
+    )
   }
   let (name, rest) = if rest is [{ kind: Identifier(name), .. }, .. rest] {
     guard !self.is_type_name(name) else {
@@ -459,7 +491,12 @@ pub fn Context::parse_declarator(
   } else {
     ("", rest)
   }
-  let (ctype, rest) = self.parse_type_suffix(rest, ty, init_tokens)
+  let (ctype, rest) = self.parse_type_suffix(
+    rest,
+    ty,
+    init_tokens,
+    decay_array_to_ptr~,
+  )
   (ctype, name, rest)
 }
 

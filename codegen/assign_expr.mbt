@@ -171,10 +171,10 @@ fn Context::get_lvalue_ptr_from_postfix(
       )
     FuncCall(_) =>
       raise SemanticError("Function call results are not assignable lvalues")
-    ArrayAccess(_, _) =>
-      raise Unimplemented(
-        "Array access codegen for lvalues is not implemented yet",
-      )
+    ArrayAccess(arr_expr, idx_expr) => {
+      let (ptr, elem_ty) = self.emit_array_access_ptr(arr_expr, idx_expr)
+      (ptr, elem_ty)
+    }
     MemberAccess(_, _) =>
       raise Unimplemented(
         "Member access codegen for lvalues is not implemented yet",

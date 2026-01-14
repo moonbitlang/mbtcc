@@ -30,10 +30,21 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
       // Check if we have type information for this variable
       // If we do, it means it's a local variable that needs to be loaded
       match self.var_types.get(name) {
-        Some(cty) => {
-          let llvm_ty = self.ctype_to_llvm_type(cty)
-          self.builder.createLoad(llvm_ty, val)
-        }
+        Some(cty) =>
+          match cty.dataKind {
+            Array(_, _) => {
+              let arr_llvm_ty = self.ctype_to_llvm_type(cty)
+              let zero = self.llvm_ctx.getConstInt32(0)
+              let indices : Array[&@IR.Value] = Array::new()
+              indices.push(zero)
+              indices.push(zero)
+              self.builder.createGEP(val, arr_llvm_ty, indices)
+            }
+            _ => {
+              let llvm_ty = self.ctype_to_llvm_type(cty)
+              self.builder.createLoad(llvm_ty, val)
+            }
+          }
         None => val // Function parameters or other direct values
       }
     // Not a local variable, check if it's a function

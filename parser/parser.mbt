@@ -45,7 +45,7 @@ pub fn Context::parse(self : Context) -> Program raise ParseError {
       panic()
     }
     // Ignore stray semicolons
-    [{ kind: Semi, ..}, ..tokens] => continue tokens
+    [{ kind: Semi, .. }, .. tokens] => continue tokens
     tokens => {
       let (external, rest) = self.parse_external_declaration(tokens)
       externals.append(external)

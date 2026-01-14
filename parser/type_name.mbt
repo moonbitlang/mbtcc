@@ -175,7 +175,12 @@ fn Context::parse_abstract_declarator(
     guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
       raise ParseError(rest[0], "Expected ')' to close abstract declarator")
     }
-    let (new_base_ty, rest) = self.parse_type_suffix(rest, ty, init_tokens)
+    let (new_base_ty, rest) = self.parse_type_suffix(
+      rest,
+      ty,
+      init_tokens,
+      decay_array_to_ptr=true,
+    )
     let (ctype, _) = self.parse_abstract_declarator(
       rest2, new_base_ty, init_tokens,
     )
@@ -183,7 +188,7 @@ fn Context::parse_abstract_declarator(
     ctype.tokens = tokens
     return (ctype, rest)
   }
-  self.parse_type_suffix(rest, ty, init_tokens)
+  self.parse_type_suffix(rest, ty, init_tokens, decay_array_to_ptr=true)
 }
 
 ///|
@@ -192,10 +197,16 @@ fn Context::parse_type_suffix(
   tokens : ArrayView[Token],
   base_ty : CType,
   init_tokens : ArrayView[Token],
+  decay_array_to_ptr? : Bool = true,
 ) -> (CType, ArrayView[Token]) raise ParseError {
   match tokens {
     [{ kind: Bracket('['), .. }, ..] =>
-      self.parse_array_abstract_declarator(tokens, base_ty, init_tokens)
+      self.parse_array_abstract_declarator(
+        tokens,
+        base_ty,
+        init_tokens,
+        decay_array_to_ptr~,
+      )
     [{ kind: Bracket('('), .. }, ..] =>
       self.parse_function_declarator(tokens, base_ty, init_tokens)
     tokens => (base_ty, tokens)
@@ -208,6 +219,7 @@ fn Context::parse_array_abstract_declarator(
   tokens : ArrayView[Token],
   base_ty : CType,
   init_tokens : ArrayView[Token],
+  decay_array_to_ptr~ : Bool,
 ) -> (CType, ArrayView[Token]) raise ParseError {
   guard tokens is [{ kind: Bracket('['), .. }, .. tokens]
   let start_offset = init_tokens.start_offset()
@@ -215,12 +227,10 @@ fn Context::parse_array_abstract_declarator(
   let mut is_volatile = false
   let mut is_restrict = false
   let mut is_atomic = false
-  // in C, decl like `int [5]`, the `5` inside the brackets is actully useless
-  // `int [5]` <==> `int []` <==> `int *` ==> `Ptr(int)`
-  // while `int [static 5]` is different, it means a static array
-  // `int [static 5]` ==> `Array(int, 5)`
-  // if `static` keyword is found inside the brackets, set is_static_array to true
-  // the ctype is Array(base_ty, size), otherwise, ctype is Ptr(base_ty)
+  // 注意：数组 declarator 的语义依赖上下文：
+  // - 在函数参数位置，`int a[]` / `int a[5]` 会退化为 `int *`
+  // - 在普通对象声明位置，`int a[5]` 是真正的数组类型
+  // 这里用 `decay_array_to_ptr` 控制是否进行退化。
   let mut is_static_array = false
   let mut size : Int? = None
   let rest = loop tokens {
@@ -272,7 +282,7 @@ fn Context::parse_array_abstract_declarator(
       continue rest
     }
   }
-  if is_static_array {
+  if is_static_array || (!decay_array_to_ptr && size is Some(_)) {
     guard size is Some(sz) else {
       raise ParseError(tokens[0], "Static array must have a size")
     }
@@ -361,7 +371,11 @@ fn Context::parse_function_declarator(
     [tok, ..] as tokens if self.is_keyword_or_type_name(tok) => {
       let (param_ty, storage, rest) = self.parse_decl_spec(tokens)
       let (param_ty, param_name, rest) = self.parse_declarator(
-        param_ty, storage, rest, init_tokens,
+        param_ty,
+        storage,
+        rest,
+        init_tokens,
+        decay_array_to_ptr=true,
       )
       parameter_types.push((param_ty, param_name))
       continue rest

@@ -6,9 +6,9 @@ fn Context::emit_postfix_expr(
   match expr.kind {
     PrimExpr(expr) => self.emit_prim_expr(expr)
     ArrayAccess(expr, idx_expr) => {
-      ignore(expr)
-      ignore(idx_expr)
-      raise Unimplemented("Array access not implemented yet")
+      let (elem_ptr, elem_ty) = self.emit_array_access_ptr(expr, idx_expr)
+      let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+      self.builder.createLoad(llvm_ty, elem_ptr)
     }
     FuncCall(func_expr, arg_exprs) => self.emit_func_call(func_expr, arg_exprs)
     MemberAccess(expr, member_name) => {
