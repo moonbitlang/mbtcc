@@ -813,3 +813,56 @@ test "Additive Result Type Test" {
     None => ()
   }
 }
+
+///|
+test "CType Qualifier Stringify Test" {
+  // spec_first=true path
+  let qualified = CType::{
+    dataKind: Int,
+    is_const: false,
+    is_volatile: false,
+    is_restrict: true,
+    is_atomic: true,
+    tokens: [],
+  }
+  inspect("\{qualified}", content="restrict _Atomic int")
+
+  // Ptr uses spec_first=false path (qualifiers printed after)
+  let qualified_ptr = CType::{
+    dataKind: Ptr(CType::int()),
+    is_const: false,
+    is_volatile: false,
+    is_restrict: true,
+    is_atomic: true,
+    tokens: [],
+  }
+  inspect("\{qualified_ptr}", content="int * restrict _Atomic")
+}
+
+///|
+test "CType Rare Kinds And Helpers Test" {
+  inspect(CType::uchar(), content="unsigned char")
+  inspect(CType::int16(), content="short")
+  inspect(CType::uint16(), content="unsigned short")
+  inspect(CType::default_with(LongDouble), content="long double")
+  assert_true(CType::char().is_inc_ok())
+  assert_true(CType::uint().is_inc_ok())
+}
+
+///|
+test "CType Struct BitField Show Test" {
+  let fields = [{ name: "a", ctype: CType::uint(), bit_width: Some(3) }]
+  let anon_struct = CType::struct_type("", fields)
+  inspect("\{anon_struct}", content="struct { unsigned int a : 3; }")
+}
+
+///|
+test "Common Type Unsigned Preference Self Test" {
+  // Cover `is_unsigned(self.dataKind)` branch in common_type
+  let uint_type = CType::uint()
+  let int_type = CType::int()
+  match uint_type.common_type(int_type) {
+    Some(result) => assert_true(result.dataKind == UInt)
+    None => fail("uint and int should have common type")
+  }
+}

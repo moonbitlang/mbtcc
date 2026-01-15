@@ -507,6 +507,8 @@ test "Postfix Expr Parse Test" {
       #|└-index: int literal 2 (int)
     ),
   )
+  // Cover color=true branch (includes colored ctype output)
+  ignore(postfix_expr.to_string())
   assert_true(
     ctx.parse_postfix_expr(postfix_expr.tokens) is (re_postfix_expr, re_rest) &&
     re_postfix_expr == postfix_expr &&
@@ -781,6 +783,36 @@ test "Postfix Expr Error Test" {
   let point_struct = CType::struct_type("Point", point_fields)
   ctx_err4.add_var("p", point_struct)
   let r = try? ctx_err4.parse_postfix_expr(ctx_err4.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: missing closing ']' after array index
+  let code_err5 = "arr[0"
+  let ctx_err5 = Context::new(code=code_err5)
+  let arr_type = CType::{
+    dataKind: Array(CType::int(), 10),
+    is_const: false,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    tokens: [],
+  }
+  ctx_err5.add_var("arr", arr_type)
+  let r = try? ctx_err5.parse_postfix_expr(ctx_err5.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: invalid function argument list (missing comma)
+  let code_err6 = "foo(1 2)"
+  let ctx_err6 = Context::new(code=code_err6)
+  let foo_func_type = CType::{
+    dataKind: Function([], CType::int(), is_variadic=false),
+    is_const: false,
+    is_volatile: false,
+    is_restrict: false,
+    is_atomic: false,
+    tokens: [],
+  }
+  ctx_err6.add_var("foo", foo_func_type)
+  let r = try? ctx_err6.parse_postfix_expr(ctx_err6.tokens)
   assert_true(r is Err(_))
 }
 

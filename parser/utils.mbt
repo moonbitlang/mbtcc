@@ -39,3 +39,16 @@ pub fn format_lines(
   }
   strs.join("\n")
 }
+
+///|
+test "next_check_point Empty Tokens Test" {
+  let arr : Array[Token] = Array::new()
+  let rest = next_check_point(arr[:])
+  assert_true(rest is [])
+}
+
+///|
+test "format_lines Basic Test" {
+  let s = format_lines("a\nb".split("\n"), head_with="H", continue_with="C")
+  inspect(s, content="Ha\nCb")
+}

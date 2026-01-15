@@ -255,3 +255,116 @@ pub fn Context::parse_statement(
   let stmt = Statement::{ kind, tokens }
   (stmt, rest)
 }
+
+///|
+test "Statement Parsing Branches Test" {
+  let code =
+    #|L: ;
+    #|return;
+    #|return 1;
+    #|break;
+    #|continue;
+    #|1;
+    #|;
+    #|switch(0){case 0: break; default: ;}
+    #|for(;;) ;
+    #|while(0) ;
+    #|do ; while(0);
+  let ctx = Context::new(code~, source_file="demo")
+
+  // labeled statement defines label
+  let (stmt1, rest) = ctx.parse_statement(ctx.tokens)
+  inspect(
+    stmt1.to_string(color=false),
+    content="labeled statement: L\n└-empty statement",
+  )
+  ignore(stmt1.to_string()) // cover color=true path
+
+  // return;
+  let (stmt2, rest) = ctx.parse_statement(rest)
+  inspect(stmt2.to_string(color=false), content="return statement (void)")
+
+  // return 1;
+  let (stmt3, rest) = ctx.parse_statement(rest)
+  inspect(
+    stmt3.to_string(color=false),
+    content=(
+      #|return statement
+      #|└-int literal 1 (int)
+    ),
+  )
+
+  // break;
+  let (stmt4, rest) = ctx.parse_statement(rest)
+  inspect(stmt4.to_string(color=false), content="break statement")
+  ignore(stmt4.to_string())
+
+  // continue;
+  let (stmt5, rest) = ctx.parse_statement(rest)
+  inspect(stmt5.to_string(color=false), content="continue statement")
+  ignore(stmt5.to_string())
+
+  // 1;
+  let (stmt6, rest) = ctx.parse_statement(rest)
+  assert_true(stmt6.to_string(color=false).contains("expr statement"))
+  ignore(stmt6.to_string())
+  assert_true("\{stmt6}".length() > 0) // cover Show for Statement
+
+  // ;
+  let (stmt7, rest) = ctx.parse_statement(rest)
+  inspect(stmt7.to_string(color=false), content="empty statement")
+  ignore(stmt7.to_string())
+
+  // switch/for/while/do-while (cover parse_statement branches + to_string recursion)
+  let (stmt8, rest) = ctx.parse_statement(rest)
+  ignore(stmt8.to_string())
+  let (stmt9, rest) = ctx.parse_statement(rest)
+  ignore(stmt9.to_string())
+  let (stmt10, rest) = ctx.parse_statement(rest)
+  ignore(stmt10.to_string())
+  let (stmt11, rest) = ctx.parse_statement(rest)
+  ignore(stmt11.to_string())
+  assert_true(rest is [{ kind: EOF, .. }])
+
+  // goto success path requires label pre-registered in this implementation
+  let code2 = "goto L;"
+  let ctx2 = Context::new(code=code2, source_file="demo")
+  ctx2.add_label("L")
+  let (goto_stmt, rest2) = ctx2.parse_statement(ctx2.tokens)
+  inspect(goto_stmt.to_string(color=false), content="goto statement: L")
+  ignore(goto_stmt.to_string())
+  assert_true(rest2 is [{ kind: EOF, .. }])
+}
+
+///|
+test "Statement Parsing Error Branches Test" {
+  // missing ';' after return expression
+  let code_err1 = "return 1"
+  let ctx_err1 = Context::new(code=code_err1, source_file="demo")
+  let r = try? ctx_err1.parse_statement(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // break without ';'
+  let code_err2 = "break 1;"
+  let ctx_err2 = Context::new(code=code_err2, source_file="demo")
+  let r = try? ctx_err2.parse_statement(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // continue without ';'
+  let code_err3 = "continue 1;"
+  let ctx_err3 = Context::new(code=code_err3, source_file="demo")
+  let r = try? ctx_err3.parse_statement(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // goto without label name
+  let code_err4 = "goto ;"
+  let ctx_err4 = Context::new(code=code_err4, source_file="demo")
+  let r = try? ctx_err4.parse_statement(ctx_err4.tokens)
+  assert_true(r is Err(_))
+
+  // case without ':'
+  let code_err5 = "case 0 ;"
+  let ctx_err5 = Context::new(code=code_err5, source_file="demo")
+  let r = try? ctx_err5.parse_statement(ctx_err5.tokens)
+  assert_true(r is Err(_))
+}

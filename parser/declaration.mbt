@@ -751,4 +751,93 @@ test "Function Declaration Parsing Test" {
   )
 }
 
-// TODO: Add "Declaration with Designatorss Initializer Parsing Test"
+///|
+test "Function Declaration Storage And Variadic Test" {
+  let color = false
+  let code =
+    #|extern int f(int);
+    #|static int g(int a);
+    #|int printf(const char *fmt, ...);
+  let ctx = Context::new(code~, source_file="demo")
+
+  // extern int f(int);
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+  let decl0 = decls[0]
+  inspect(
+    decl0.to_string(color~),
+    content="extern function declaration: int f(int)",
+  )
+  ignore(decl0.to_string()) // cover color=true path
+
+  // static int g(int a);
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl1 = decls[0]
+  inspect(
+    decl1.to_string(color~),
+    content="static function declaration: int g(int a)",
+  )
+
+  // int printf(const char *fmt, ...);
+  let (decls, _rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl2 = decls[0]
+  inspect(
+    decl2.to_string(color~),
+    content="function declaration: int printf(const char * fmt, ...)",
+  )
+}
+
+///|
+test "Declaration with Designated Initializer Parsing Test" {
+  let code =
+    #|struct S { int x; int y; };
+    #|struct S s = { .y = 2, .x = 1 };
+    #|static int sx = 1;
+    #|_Thread_local int tx = 0;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // struct S { ... };
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+  inspect(decls[0].to_string(color=false), content="type declaration: struct S")
+
+  // struct S s = { .y = 2, .x = 1 };
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let s_decl = decls[0]
+  let s_str = s_decl.to_string(color=false)
+  assert_true(s_str.contains(".y ="))
+  assert_true(s_str.contains(".x ="))
+
+  // static int sx = 1;
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let sx_decl = decls[0]
+  assert_true(
+    sx_decl
+    .to_string(color=false)
+    .contains("static variable declaration: int sx"),
+  )
+  ignore(sx_decl.to_string()) // cover color=true path (storage + initializer)
+
+  // _Thread_local int tx = 0;
+  let (decls, _rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let tx_decl = decls[0]
+  assert_true(
+    tx_decl
+    .to_string(color=false)
+    .contains("_Thread_local variable declaration: int tx"),
+  )
+}
+
+///|
+test "Initializer List Error Test" {
+  // Error test: unexpected ',' in initializer list
+  let code = "int x = {1,,2};"
+  let ctx = Context::new(code~, source_file="demo")
+  let r = try? ctx.parse_declaration(ctx.tokens)
+  assert_true(r is Err(_))
+}

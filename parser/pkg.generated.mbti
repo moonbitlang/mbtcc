@@ -234,7 +234,7 @@ pub fn Context::parse_constant_expr(Self, ArrayView[@lexer.Token]) -> (Condition
 #alias(parse_type_name)
 pub fn Context::parse_ctype(Self, ArrayView[@lexer.Token]) -> (CType, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_declaration(Self, ArrayView[@lexer.Token], skip_semi? : Bool) -> (Array[Declaration], ArrayView[@lexer.Token]) raise ParseError
-pub fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token]) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
+pub fn Context::parse_declarator(Self, CType, StorageClass, ArrayView[@lexer.Token], ArrayView[@lexer.Token], decay_array_to_ptr? : Bool) -> (CType, String, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_designator(Self, ArrayView[@lexer.Token]) -> (Designator, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_do_while_statement(Self, ArrayView[@lexer.Token]) -> (DoWhileStmt, ArrayView[@lexer.Token]) raise ParseError
 pub fn Context::parse_enum_specifier(Self, ArrayView[@lexer.Token]) -> (CTypeDataKind, ArrayView[@lexer.Token]) raise ParseError

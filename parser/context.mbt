@@ -226,3 +226,43 @@ pub fn Context::pop_scope(self : Context, loc~ : SourceLoc) -> Unit {
 pub fn Context::catch_err(self : Context, err : ParseError) -> Unit {
   self.errs.push(err)
 }
+
+///|
+test "Context Scope And Symbol Table Test" {
+  let ctx = Context::new(code="", source_file="demo")
+  ctx.add_var("a", CType::int())
+  assert_true(ctx.is_var_name("a"))
+  assert_true(ctx.get_var_ctype("a") is Some(_))
+  ctx.add_typedef("MyInt", CType::int())
+  assert_true(ctx.is_type_name("MyInt"))
+  assert_true(ctx.get_typename_ctype("MyInt") is Some(_))
+  ctx.add_label("L")
+  assert_true(ctx.is_label("L"))
+  ctx.add_tag("Point", Struct("Point", []))
+  assert_true(ctx.is_name_a_tag("Point"))
+  assert_true(ctx.get_tag_ctype("Point") is Some(_))
+  ctx.add_enum_member("E0", Enum("E", []), 0)
+  assert_true(ctx.is_enum_member("E0"))
+
+  // scope push/pop should restore previous env
+  ctx.push_scope()
+  ctx.add_var("b", CType::int())
+  assert_true(ctx.is_var_name("b"))
+  ctx.pop_scope()
+  assert_true(!ctx.is_var_name("b"))
+  assert_true(ctx.is_var_name("a"))
+}
+
+///|
+test "Context Catch Error Test" {
+  let code = "return 1"
+  let ctx = Context::new(code~, source_file="demo")
+  try ctx.parse_statement(ctx.tokens[:]) catch {
+    e => {
+      ctx.catch_err(e)
+      inspect(ctx.errs.length(), content="1")
+    }
+  } noraise {
+    _ => fail("expected parse error")
+  }
+}
