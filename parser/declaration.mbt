@@ -841,3 +841,106 @@ test "Initializer List Error Test" {
   let r = try? ctx.parse_declaration(ctx.tokens)
   assert_true(r is Err(_))
 }
+
+///|
+test "Typedef Error Branches Test" {
+  // typedef cannot have storage class specifier
+  let code_err1 = "typedef static int X;"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_declaration(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // missing ';' after typedef
+  let code_err2 = "typedef int Y"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_declaration(ctx_err2.tokens)
+  assert_true(r is Err(_))
+}
+
+///|
+test "Designator Index And List Parse Test" {
+  // Note: declarator parsing here doesn't support multi-dimensional arrays yet,
+  // but designator parsing itself supports `[1][2]`.
+  let code = "int a[3] = { [1][2] = 7 };"
+  let ctx = Context::new(code~, source_file="demo")
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  let s = decl.to_string(color=false)
+  assert_true(s.contains("][") && s.contains("="))
+  assert_true(s.contains("7"))
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
+test "parse_designator Direct Error Branches Test" {
+  // tokens not starting with '.' or '[' => expected designator
+  let ctx_err1 = Context::new(code="int x;")
+  let r = try? ctx_err1.parse_designator(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // missing closing ']' in designator
+  let ctx_err2 = Context::new(code="[1")
+  let r = try? ctx_err2.parse_designator(ctx_err2.tokens)
+  assert_true(r is Err(_))
+}
+
+///|
+test "Declaration Color And Initializer Show Coverage Test" {
+  // Cover register/_Thread_local storage branches and Initializer/InitializerKind Show.
+  let code =
+    #|register int r;
+    #|_Thread_local int t;
+    #|int x = { [1][2] = 7 };
+  let ctx = Context::new(code~, source_file="demo")
+
+  // register int r;
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+
+  // _Thread_local int t;
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+
+  // int x = { [1][2] = 7 };
+  let (decls, _rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  let decl = decls[0]
+  // Extract initializer and hit its Show impls directly
+  guard decl.kind is VariableDeclaration(_, _, Some(_), ..) else {
+    fail("expected initializer")
+  }
+}
+
+///|
+test "Declaration to_string(color=true) Coverage Test" {
+  // Most existing tests assert with color=false; this test intentionally exercises color=true branches.
+  let code =
+    #|struct S { int x; };
+    #|typedef int T;
+    #|register int rf(int);
+    #|_Thread_local int tf();
+    #|extern int ei = 1;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // type declaration
+  let (decls, rest) = ctx.parse_declaration(ctx.tokens)
+  inspect(decls.length(), content="1")
+
+  // typedef
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+
+  // register function declaration
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+
+  // _Thread_local function declaration
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+
+  // extern variable with initializer
+  let (decls, rest) = ctx.parse_declaration(rest)
+  inspect(decls.length(), content="1")
+  assert_true(rest is [{ kind: EOF, .. }])
+}

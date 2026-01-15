@@ -292,6 +292,19 @@ test "Expr Parse Error Test" {
 }
 
 ///|
+test "Expr Eval Empty Internal Branch Test" {
+  // Construct an empty Expr directly to cover the defensive branch in eval_as_int.
+  let ctx = Context::new(code="0")
+  let expr = Expr::{
+    assign_exprs: Array::new(),
+    ctype: CType::int(),
+    tokens: ctx.tokens[0:1],
+  }
+  let r = try? expr.eval_as_int()
+  assert_true(r is Err(_))
+}
+
+///|
 test "Expr Eval Test" {
   // Test eval_as_int for expressions
   let code =

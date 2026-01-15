@@ -737,6 +737,32 @@ test "Unary Expr Parse Test" {
 }
 
 ///|
+test "Unary Expr Sizeof And Alignof Parse Test" {
+  let code =
+    #|sizeof(int) ;
+    #|sizeof(x) ;
+    #|_Alignof(int) ;
+  let ctx = Context::new(code~, source_file="demo")
+  ctx.add_var("x", CType::int())
+
+  // sizeof(int)
+  let (unary_expr, rest) = ctx.parse_unary_expr(ctx.tokens)
+  assert_true(unary_expr.to_string(color=false).contains("sizeof type"))
+
+  // sizeof(x)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_true(unary_expr.to_string(color=false).contains("sizeof expression"))
+
+  // alignof(int)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  assert_true(unary_expr.to_string(color=false).contains("alignof"))
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
 test "Unary Expr Error Test" {
   // Error test: pre-increment on struct type
   let code_err1 = "++p"

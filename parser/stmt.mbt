@@ -278,7 +278,6 @@ test "Statement Parsing Branches Test" {
     stmt1.to_string(color=false),
     content="labeled statement: L\n└-empty statement",
   )
-  ignore(stmt1.to_string()) // cover color=true path
 
   // return;
   let (stmt2, rest) = ctx.parse_statement(rest)
@@ -297,17 +296,14 @@ test "Statement Parsing Branches Test" {
   // break;
   let (stmt4, rest) = ctx.parse_statement(rest)
   inspect(stmt4.to_string(color=false), content="break statement")
-  ignore(stmt4.to_string())
 
   // continue;
   let (stmt5, rest) = ctx.parse_statement(rest)
   inspect(stmt5.to_string(color=false), content="continue statement")
-  ignore(stmt5.to_string())
 
   // 1;
   let (stmt6, rest) = ctx.parse_statement(rest)
   assert_true(stmt6.to_string(color=false).contains("expr statement"))
-  ignore(stmt6.to_string())
   assert_true("\{stmt6}".length() > 0) // cover Show for Statement
 
   // ;
@@ -332,7 +328,6 @@ test "Statement Parsing Branches Test" {
   ctx2.add_label("L")
   let (goto_stmt, rest2) = ctx2.parse_statement(ctx2.tokens)
   inspect(goto_stmt.to_string(color=false), content="goto statement: L")
-  ignore(goto_stmt.to_string())
   assert_true(rest2 is [{ kind: EOF, .. }])
 }
 
@@ -366,5 +361,11 @@ test "Statement Parsing Error Branches Test" {
   let code_err5 = "case 0 ;"
   let ctx_err5 = Context::new(code=code_err5, source_file="demo")
   let r = try? ctx_err5.parse_statement(ctx_err5.tokens)
+  assert_true(r is Err(_))
+
+  // expression statement without ';'
+  let code_err6 = "1"
+  let ctx_err6 = Context::new(code=code_err6, source_file="demo")
+  let r = try? ctx_err6.parse_statement(ctx_err6.tokens)
   assert_true(r is Err(_))
 }

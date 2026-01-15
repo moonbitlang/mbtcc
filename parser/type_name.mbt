@@ -997,6 +997,30 @@ test "Pointer Type TypeName Parse Test" {
 }
 
 ///|
+test "Pointer TypeName Restrict/Atomic Parse Test" {
+  let code =
+    #|int * restrict ;
+    #|int * _Atomic ;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // int * restrict
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int * restrict")
+  assert_true(
+    ctx.parse_type_name(ty.tokens) is (re_ty, re_rest) &&
+    re_ty == ty &&
+    re_rest is [],
+  )
+
+  // int * _Atomic
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int * _Atomic")
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
 test "Pointer Type TypeName Parse Error Test" {
   // Error test: duplicate const qualifier on pointer
   let code_err1 = "int * const const"
@@ -1008,6 +1032,18 @@ test "Pointer Type TypeName Parse Error Test" {
   let code_err2 = "int * volatile volatile"
   let ctx_err2 = Context::new(code=code_err2)
   let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate restrict qualifier on pointer
+  let code_err3 = "int * restrict restrict"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate _Atomic qualifier on pointer
+  let code_err4 = "int * _Atomic _Atomic"
+  let ctx_err4 = Context::new(code=code_err4)
+  let r = try? ctx_err4.parse_type_name(ctx_err4.tokens)
   assert_true(r is Err(_))
 }
 
@@ -1101,6 +1137,82 @@ test "Array Type TypeName Parse Error Test" {
   let ctx_err3 = Context::new(code=code_err3)
   let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
   assert_true(r is Err(_))
+
+  // Error test: duplicate volatile in array declarator
+  let code_err4 = "int [volatile volatile 10]"
+  let ctx_err4 = Context::new(code=code_err4)
+  let r = try? ctx_err4.parse_type_name(ctx_err4.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate restrict in array declarator
+  let code_err5 = "int [restrict restrict 10]"
+  let ctx_err5 = Context::new(code=code_err5)
+  let r = try? ctx_err5.parse_type_name(ctx_err5.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: duplicate _Atomic in array declarator
+  let code_err6 = "int [_Atomic _Atomic 10]"
+  let ctx_err6 = Context::new(code=code_err6)
+  let r = try? ctx_err6.parse_type_name(ctx_err6.tokens)
+  assert_true(r is Err(_))
+}
+
+///|
+test "Abstract Declarator Missing Close Paren Error Test" {
+  let code_err = "int (*"
+  let ctx_err = Context::new(code=code_err)
+  let r = try? ctx_err.parse_type_name(ctx_err.tokens)
+  assert_true(r is Err(_))
+}
+
+///|
+test "Decl Spec Restrict/Atomic And Long Variants Test" {
+  let code =
+    #|restrict int ;
+    #|_Atomic int ;
+    #|int long ;
+    #|double long ;
+  let ctx = Context::new(code~, source_file="demo")
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="restrict int")
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="_Atomic int")
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="long")
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="long double")
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
+test "Decl Spec Error Branches More Test" {
+  // Conflicting signed/unsigned (unsigned then signed hits a different branch)
+  let code_err1 = "unsigned signed int"
+  let ctx_err1 = Context::new(code=code_err1)
+  let r = try? ctx_err1.parse_type_name(ctx_err1.tokens)
+  assert_true(r is Err(_))
+
+  // Too many 'long' specifiers
+  let code_err2 = "long long long int"
+  let ctx_err2 = Context::new(code=code_err2)
+  let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
+  assert_true(r is Err(_))
+
+  // 'long' cannot be combined with other type specifiers
+  let code_err3 = "char long"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // duplicate restrict in declaration specifiers
+  let code_err4 = "restrict restrict int"
+  let ctx_err4 = Context::new(code=code_err4)
+  let r = try? ctx_err4.parse_type_name(ctx_err4.tokens)
+  assert_true(r is Err(_))
 }
 
 ///|
@@ -1134,6 +1246,25 @@ test "Function Type TypeName Parse Test" {
 }
 
 ///|
+test "Function TypeName Void And OnlyVariadic Test" {
+  let code =
+    #|int (void) ;
+    #|int (*)(...) ;
+  let ctx = Context::new(code~, source_file="demo")
+
+  // int (void) => no parameters
+  let (ty, rest) = ctx.parse_type_name(ctx.tokens)
+  inspect(ty, content="int ()")
+
+  // int (*)(...) => variadic-only function pointer
+  let rest = next_check_point(rest)
+  let (ty, rest) = ctx.parse_type_name(rest)
+  inspect(ty, content="int (...) *")
+  let rest = next_check_point(rest)
+  assert_true(rest is [{ kind: EOF, .. }])
+}
+
+///|
 test "Function Type TypeName Parse Error Test" {
   // Error test: function type without closing parenthesis
   let code_err1 = "int (int, float"
@@ -1146,6 +1277,20 @@ test "Function Type TypeName Parse Error Test" {
   let ctx_err2 = Context::new(code=code_err2)
   let r = try? ctx_err2.parse_type_name(ctx_err2.tokens)
   assert_true(r is Err(_))
+
+  // Error test: '...' not followed by ')'
+  // Note: `int (..., int)` is parsed as an abstract declarator group in this implementation.
+  // Use function pointer form to hit the function-parameter-list branch.
+  let code_err3 = "int (*)(..., int)"
+  let ctx_err3 = Context::new(code=code_err3)
+  let r = try? ctx_err3.parse_type_name(ctx_err3.tokens)
+  assert_true(r is Err(_))
+
+  // Trailing comma before ')' should be accepted (covers a special branch)
+  let code_ok = "int (int, )"
+  let ctx_ok = Context::new(code=code_ok)
+  let r = try? ctx_ok.parse_type_name(ctx_ok.tokens)
+  assert_true(r is Ok(_))
 }
 
 ///|

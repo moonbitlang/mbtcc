@@ -262,6 +262,8 @@ test "Switch Statement Parse Test" {
       #|               └-stmt: break statement
     ),
   )
+  // Cover Show impl
+  ignore("\{switch_stmt}")
   let rest = next_check_point(rest)
   assert_true(rest is [{ kind: EOF, .. }])
 
@@ -304,6 +306,13 @@ test "Switch Statement Parse Test" {
 
 ///|
 test "Switch Statement Parse Error Test" {
+  // Error test: missing 'switch' keyword
+  let code_err0 = "x"
+  let ctx_err0 = Context::new(code=code_err0)
+  ctx_err0.add_var("x", CType::int())
+  let r = try? ctx_err0.parse_switch_statement(ctx_err0.tokens)
+  assert_true(r is Err(_))
+
   // Error test: missing '(' after 'switch'
   let code_err1 = "switch x) {}"
   let ctx_err1 = Context::new(code=code_err1)

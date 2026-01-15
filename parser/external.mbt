@@ -378,4 +378,22 @@ test "External Declaration Parse Error Test" {
   let ctx_err3 = Context::new(code=code_err3)
   let r = try? ctx_err3.parse_external_declaration(ctx_err3.tokens)
   assert_true(r is Err(_))
+
+  // Error test: function definition must have exactly one declarator
+  let code_err4 = "int f(), g() { return 0; }"
+  let ctx_err4 = Context::new(code=code_err4)
+  let r = try? ctx_err4.parse_external_declaration(ctx_err4.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: function definition cannot have extern/register/_Thread_local
+  let code_err5 = "extern int f() { return 0; }"
+  let ctx_err5 = Context::new(code=code_err5)
+  let r = try? ctx_err5.parse_external_declaration(ctx_err5.tokens)
+  assert_true(r is Err(_))
+
+  // Error test: only function declarations can have body
+  let code_err6 = "int y { return; }"
+  let ctx_err6 = Context::new(code=code_err6)
+  let r = try? ctx_err6.parse_external_declaration(ctx_err6.tokens)
+  assert_true(r is Err(_))
 }
