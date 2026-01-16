@@ -25,6 +25,30 @@ priv enum Macro {
 }
 
 ///|
+// Stringizing operator: `#param` in function-like macro replacement list.
+// We approximate C's stringizing by concatenating original token spellings
+// (Token.raw) and escaping `\` and `"` (similar to chibicc's approach).
+fn stringize_macro_arg(arg_tokens : Array[Token]) -> String {
+  if arg_tokens.is_empty() {
+    return ""
+  }
+  let sb = StringBuilder::new()
+  for tok in arg_tokens {
+    // Use original spelling if possible (raw preserves suffix like 1L/1UL).
+    // For string literal tokens, prefer `tok.kind` printing which includes quotes
+    // and the necessary escaping (so `#x` where x is a string literal behaves like C).
+    match tok.kind {
+      String(_) => sb.write_string(tok.kind.to_string())
+      _ => sb.write_string(tok.raw)
+    }
+  }
+  // Note: We intentionally do NOT escape `\` or `"` here. `stringize` produces
+  // the token spelling, and the resulting `TokenKind::String` will escape again
+  // when printed/serialized, which matches C stringizing behavior.
+  sb.to_string()
+}
+
+///|
 let macros : Map[String, Macro] = Map::new()
 
 ///|
@@ -492,13 +516,30 @@ fn replace_identifier(
   if va_args is Some(va_name) {
     args.set(va_name, va_args_tokens)
   }
-  for rep_tok in rep_toks {
-    if rep_tok.kind is Identifier(var_name) &&
-      args.get(var_name) is Some(arg_tokens) {
-      new_tokens.append(arg_tokens)
-      continue
+  // Expand replacement list.
+  // Prefer pattern matching over manual indexing for readability.
+  loop rep_toks[:] {
+    // Stringizing: `#param`
+    [
+      { kind: Hash, .. } as hash_tok,
+      { kind: Identifier(var_name), .. },
+      .. rest,
+    ] if args.get(var_name) is Some(arg_tokens) => {
+      let s = stringize_macro_arg(arg_tokens).to_string()
+      new_tokens.push(@lexer.string_token_like(hash_tok, s))
+      continue rest
     }
-    new_tokens.push(rep_tok)
+    // Normal parameter substitution.
+    [{ kind: Identifier(var_name), .. }, .. rest] if args.get(var_name)
+      is Some(arg_tokens) => {
+      new_tokens.append(arg_tokens)
+      continue rest
+    }
+    [tok, .. rest] => {
+      new_tokens.push(tok)
+      continue rest
+    }
+    [] => break
   }
   (new_tokens, rest)
 }
@@ -1367,3 +1408,69 @@ test "Conditional Inclusion - mixed defined and expressions" {
   inspect(tokens[3].kind, content="1")
   inspect(tokens[4].kind, content=";")
 }
+
+///|
+test "Macro stringizing (#param) basic" {
+  let code =
+    #|#define S(x) #x
+    #|S(1+2)
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+  // Should expand to string literal "1+2"
+  inspect(tokens.length(), content="2")
+  inspect(
+    tokens[0].kind,
+    content=(
+      #|"1+2"
+    ),
+  )
+}
+
+///|
+test "Macro stringizing (#param) for ASSERT-style macro" {
+  let code =
+    #|#define ASSERT(x, y) assert(x, y, #y)
+    #|ASSERT(3, 1+2)
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+  // assert(3, 1+2, "1+2")
+  inspect(tokens[0].kind, content="assert")
+  inspect(tokens[1].kind, content="(")
+  inspect(tokens[2].kind, content="3")
+  inspect(tokens[3].kind, content=",")
+  inspect(tokens[4].kind, content="1")
+  inspect(tokens[5].kind, content="+")
+  inspect(tokens[6].kind, content="2")
+  inspect(tokens[7].kind, content=",")
+  inspect(
+    tokens[8].kind,
+    content=(
+      #|"1+2"
+    ),
+  )
+  inspect(tokens[9].kind, content=")")
+}
+
+///|
+test "Macro stringizing escapes quotes and backslashes" {
+  let code =
+    #|#define S(x) #x
+    #|S("a\\b\"c")
+  let ctx = @lexer.Context::new(code~, source_file="demo.c")
+  let _ = ctx.tokenize()
+  let pre_ctx = preprocess(ctx)
+  let tokens = pre_ctx.tokens
+  // Expect the resulting string literal content to have \" and \\ escaped.
+  inspect(tokens.length(), content="2")
+  inspect(
+    tokens[0].kind,
+    content=(
+      #|"\"a\\\\b\\\"c\""
+    ),
+  )
+}
+

@@ -168,11 +168,12 @@ pub impl Show for TokenKind with output(self, logger) {
     Double(val) => logger.write_string("\{val}")
     Char(c) => logger.write_char(c)
     String(s) => {
-      let s = "\"\{s}\""
+      let inner = s
         .replace_all(old="\\", new="\\\\")
+        .replace_all(old="\"", new="\\\"")
         .replace_all(old="\n", new="\\n")
         .replace_all(old="\t", new="\\t")
-      logger.write_string(s)
+      logger.write_string("\"\{inner}\"")
     }
     ErrorChar(c) => logger.write_char(c)
     Hash => logger.write_string("#")
@@ -232,6 +233,25 @@ pub fn dummy_eof() -> Token {
 ///|
 pub fn dummy_long(val : Int64, raw? : String = "") -> Token {
   Token::new(Long(val), "", 0, 0, 0, raw)
+}
+
+///|
+// Create a new token using another token as a location/template.
+// This is useful for preprocess-generated tokens (e.g. stringizing).
+pub fn token_like(
+  template : Token,
+  kind : TokenKind,
+  raw? : String = "",
+  err_msg? : String = "",
+) -> Token {
+  let { source_file, line, col, idx, .. } = template
+  Token::new(kind, source_file, line, col, idx, raw, err_msg~)
+}
+
+///|
+pub fn string_token_like(template : Token, value : String) -> Token {
+  let { source_file, line, col, idx, .. } = template
+  Token::new(TokenKind::String(value), source_file, line, col, idx, "")
 }
 
 ///|

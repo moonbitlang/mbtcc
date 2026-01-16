@@ -8,6 +8,10 @@ pub fn dummy_long(Int64, raw? : String) -> Token
 
 pub fn restore_code_from_tokens(Array[Token]) -> String
 
+pub fn string_token_like(Token, String) -> Token
+
+pub fn token_like(Token, TokenKind, raw? : String, err_msg? : String) -> Token
+
 // Errors
 
 // Types and methods
