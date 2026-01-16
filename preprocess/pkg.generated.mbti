@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Kaida-Amethyst/mbtcc/preprocess"
 
-import(
-  "Kaida-Amethyst/mbtcc/lexer"
-)
+import {
+  "Kaida-Amethyst/mbtcc/lexer",
+}
 
 // Values
 pub fn preprocess(@lexer.Context) -> @lexer.Context raise PreprecessError

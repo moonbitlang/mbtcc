@@ -20,6 +20,41 @@ fn Context::emit_prim_expr(
       self.builder.createGlobalString(full_str)
     }
     Paren(expr) => self.emit_expr(expr)
+    StmtExpr(comp) => self.emit_stmt_expr(comp)
+  }
+}
+
+///|
+// GNU statement expression: `({ ... })`
+// Evaluate the compound statement in an inner scope and return the value of the
+// last expression-statement.
+fn Context::emit_stmt_expr(
+  self : Context,
+  comp : @parser.CompoundStmt,
+) -> &@IR.Value raise {
+  let { items, .. } = comp
+  let _ = self.enter_scope()
+  let mut last_val : &@IR.Value = self.llvm_ctx.getConstInt32(0)
+  let mut has_last = false
+  for i, item in items {
+    match item {
+      Right(decl) => self.emit_local_decl(decl)
+      Left(stmt) =>
+        match stmt.kind {
+          Expr(e) if i == items.length() - 1 => {
+            last_val = self.emit_expr(e)
+            has_last = true
+          }
+          _ => self.emit_statement(stmt)
+        }
+    }
+  }
+  let _ = self.exit_scope()
+  // Parser enforces the last item is an expression statement; keep a fallback.
+  if has_last {
+    last_val
+  } else {
+    self.llvm_ctx.getConstInt32(0)
   }
 }
 

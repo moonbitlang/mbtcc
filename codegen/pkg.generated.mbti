@@ -1,11 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Kaida-Amethyst/mbtcc/codegen"
 
-import(
-  "Kaida-Amethyst/MoonLLVM/IR"
-  "Kaida-Amethyst/mbtcc/env"
-  "Kaida-Amethyst/mbtcc/parser"
-)
+import {
+  "Kaida-Amethyst/MoonLLVM/IR",
+  "Kaida-Amethyst/mbtcc/env",
+  "Kaida-Amethyst/mbtcc/parser",
+}
 
 // Values
 pub fn codegen(String, source_file? : String) -> @IR.Module raise

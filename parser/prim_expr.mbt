@@ -70,6 +70,20 @@ pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
   if self.kind is Paren(expr) {
     return expr.to_string(color~)
   }
+  if self.kind is StmtExpr(comp) {
+    let prefix = if color {
+      @color.taint("statement expression", Magenta)
+    } else {
+      "statement expression"
+    }
+    let ctype = if color {
+      @color.taint("(\{self.ctype})", Green)
+    } else {
+      "(\{self.ctype})"
+    }
+    let body = comp.to_string(color~)
+    return "\{prefix} \{ctype}\n\{body}"
+  }
   let prefix = match self.kind {
     Ident(_) => "variable"
     Char(_) => "char literal"
@@ -83,6 +97,7 @@ pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
     Double(_) => "double literal"
     Strings(_) => "string literal"
     Paren(_) => ""
+    StmtExpr(_) => "statement expression"
   }
   let prefix = if color { @color.taint(prefix, Magenta) } else { prefix }
   let ctype = if color {
@@ -107,6 +122,8 @@ pub enum PrimExprKind {
   Double(Double)
   Strings(Array[String])
   Paren(Expr) // TODO
+  /// GNU statement expression: `({ ... })`
+  StmtExpr(CompoundStmt)
 } derive(Eq)
 
 ///|
@@ -132,6 +149,7 @@ pub impl Show for PrimExprKind with output(self, logger) {
       "\"\{joined}\""
     }
     Paren(expr) => expr.to_string(color=true)
+    StmtExpr(comp) => comp.to_string(color=true)
   }
   logger.write_string(s)
 }
@@ -205,6 +223,32 @@ pub fn Context::parse_prim_expr(
 ) -> (PrimExpr, ArrayView[Token]) raise ParseError {
   let start_offset = tokens.start_offset()
   let (prim_expr_kind, rest_toks) = match tokens {
+    // GNU statement expression: `({ ... })` or `__extension__ ({ ... })`
+    [
+      { kind: Identifier("__extension__"), .. },
+      { kind: Bracket('('), .. },
+      { kind: Bracket('{'), .. },
+      ..,
+    ] as tokens => {
+      let (comp, rest2) = self.parse_compound_statement(tokens[2:])
+      match rest2 {
+        [{ kind: Bracket(')'), .. }, .. rest3] => (StmtExpr(comp), rest3)
+        [tok, ..] =>
+          raise ParseError(tok, "Expected ')' after statement expression")
+        [] =>
+          raise ParseError(tokens[0], "Expected ')' after statement expression")
+      }
+    }
+    [{ kind: Bracket('('), .. }, { kind: Bracket('{'), .. }, ..] as tokens => {
+      let (comp, rest2) = self.parse_compound_statement(tokens[1:])
+      match rest2 {
+        [{ kind: Bracket(')'), .. }, .. rest3] => (StmtExpr(comp), rest3)
+        [tok, ..] =>
+          raise ParseError(tok, "Expected ')' after statement expression")
+        [] =>
+          raise ParseError(tokens[0], "Expected ')' after statement expression")
+      }
+    }
     [{ kind: Int(v), .. }, .. rest] => (PrimExprKind::Int(v), rest)
     [{ kind: Long(v), .. }, .. rest] => (Long(v), rest)
     [{ kind: LongLong(v), .. }, .. rest] => (LongLong(v), rest)
@@ -251,10 +295,26 @@ pub fn Context::parse_prim_expr(
   let end_offset = rest_toks.start_offset()
   let offset_range = end_offset - start_offset
   let tok_view = tokens[0:offset_range]
-  let ctype = if prim_expr_kind is Paren(expr) {
-    expr.ctype
-  } else {
-    self.get_literal_ctype(prim_expr_kind)
+  let ctype = match prim_expr_kind {
+    Paren(expr) => expr.ctype
+    StmtExpr(comp) => {
+      // Value/type is from the last expression statement in the compound block.
+      guard comp.items.length() > 0 else {
+        raise ParseError(tok_view[0], "Empty statement expression has no value")
+      }
+      match comp.items.last().unwrap() {
+        Left({ kind: Expr(e), .. }) => e.ctype
+        Left(_) => {
+          let msg = "Statement expression must end with an expression statement"
+          raise ParseError(tok_view[0], msg)
+        }
+        Right(_) => {
+          let msg = "Statement expression must end with an expression statement"
+          raise ParseError(tok_view[0], msg)
+        }
+      }
+    }
+    _ => self.get_literal_ctype(prim_expr_kind)
   }
   let prim_expr = PrimExpr::{ kind: prim_expr_kind, ctype, tokens: tok_view }
   (prim_expr, rest_toks)
@@ -282,6 +342,7 @@ fn Context::get_literal_ctype(self : Context, kind : PrimExprKind) -> CType {
 pub fn PrimExpr::is_constant(self : Self) -> Bool {
   match self.kind {
     Ident(_) => false
+    StmtExpr(_) => false
     _ => true
   }
 }
@@ -514,6 +575,18 @@ test "PrimExpr Parse Test" {
   // let rest = next_check_point(rest)
   let r = try? ctx.parse_prim_expr(rest)
   assert_true(r is Err(_))
+}
+
+///|
+test "PrimExpr Parse Statement Expression Test" {
+  let color = false
+  let code =
+    #|({ int x = 3; x + 2; })
+  let ctx = Context::new(code~, source_file="demo")
+  let (prim_expr, rest) = ctx.parse_prim_expr(ctx.tokens)
+  assert_true(rest is [{ kind: EOF, .. }])
+  assert_true(prim_expr.to_string(color~).contains("statement expression"))
+  inspect("\{prim_expr.ctype}", content="int")
 }
 
 ///|

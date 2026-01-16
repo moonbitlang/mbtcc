@@ -1,11 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Kaida-Amethyst/mbtcc/parser"
 
-import(
-  "Kaida-Amethyst/either"
-  "Kaida-Amethyst/mbtcc/env"
-  "Kaida-Amethyst/mbtcc/lexer"
-)
+import {
+  "Kaida-Amethyst/either",
+  "Kaida-Amethyst/mbtcc/env",
+  "Kaida-Amethyst/mbtcc/lexer",
+}
 
 // Values
 pub fn format_lines(Iter[StringView], head_with? : String, continue_with? : String) -> String
@@ -530,6 +530,7 @@ pub enum PrimExprKind {
   Double(Double)
   Strings(Array[String])
   Paren(Expr)
+  StmtExpr(CompoundStmt)
 }
 pub impl Eq for PrimExprKind
 pub impl Show for PrimExprKind

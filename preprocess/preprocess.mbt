@@ -1473,4 +1473,3 @@ test "Macro stringizing escapes quotes and backslashes" {
     ),
   )
 }
-
