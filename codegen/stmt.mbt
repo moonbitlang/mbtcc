@@ -93,6 +93,19 @@ fn Context::current_continue_target(self : Context) -> @IR.BasicBlock raise {
 }
 
 ///|
+fn Context::get_label(self : Context, name : String) -> @IR.BasicBlock {
+  match self.labels.get(name) {
+    Some(bb) => bb
+    None => {
+      let func = self.current_func.unwrap()
+      let bb = func.addBasicBlock(name=name)
+      self.labels.set(name, bb)
+      bb
+    }
+  }
+}
+
+///|
 pub fn Context::emit_statement(
   self : Context,
   stmt : @parser.Statement,
@@ -120,8 +133,23 @@ pub fn Context::emit_statement(
     Switch(switch_stmt) => self.emit_switch_stmt(switch_stmt)
     DefaultCase(inner) => self.emit_default_label_in_switch(inner)
     Case(const_expr, inner) => self.emit_case_label_in_switch(const_expr, inner)
-    Labeled(_) => raise Unimplemented("Label emission not implemented yet")
-    Goto(_) => raise Unimplemented("Goto emission not implemented yet")
+    CaseRange(start, end, inner) =>
+      self.emit_case_range_label_in_switch(start, end, inner)
+    Labeled(label, stmt) => {
+      let bb = self.get_label(label)
+      if self.builder.getInsertBlock().getTerminator() is None {
+        self.builder.createBr(bb) |> ignore
+      }
+      self.builder.setInsertPoint(bb)
+      self.emit_statement(stmt)
+    }
+    Goto(label) => {
+      let bb = self.get_label(label)
+      self.builder.createBr(bb) |> ignore
+      let func = self.current_func.unwrap()
+      let next_bb = func.addBasicBlock(name="after_goto")
+      self.builder.setInsertPoint(next_bb)
+    }
   }
 }
 
@@ -131,7 +159,7 @@ fn Context::emit_statement_maybe_term(
   stmt : @parser.Statement,
 ) -> Bool raise {
   match stmt.kind {
-    Return(_) | ReturnVoid | Break | Continue => {
+    Return(_) | ReturnVoid | Break | Continue | Goto(_) => {
       self.emit_statement(stmt)
       true
     }

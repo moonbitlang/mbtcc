@@ -310,7 +310,7 @@ pub fn Context::parse_declaration(
     guard !(name is "") else {
       raise ParseError(rest[0], "typedef name cannot be empty")
     }
-    guard !self.is_name_has_been_defined(name) else {
+    guard !self.defined.contains_local(name) else {
       raise ParseError(rest[0], "redeclaration of type name: \{name}")
     }
     self.add_typedef(name, ctype)
@@ -364,7 +364,7 @@ pub fn Context::parse_init_declarator_list(
   guard !(name is "") else {
     raise ParseError(tokens[0], "declarator name cannot be empty")
   }
-  guard !self.is_name_has_been_defined(name) else {
+  guard !self.defined.contains_local(name) else {
     raise ParseError(tokens[0], "redeclaration of variable: \{name}")
   }
   self.add_var(name, ctype)
@@ -403,7 +403,7 @@ pub fn Context::parse_init_declarator_list(
       guard !(name is "") else {
         raise ParseError(tokens[0], "declarator name cannot be empty")
       }
-      guard !self.is_name_has_been_defined(name) else {
+      guard !self.defined.contains_local(name) else {
         raise ParseError(tokens[0], "redeclaration of variable: \{name}")
       }
       // 逗号分隔的后续 declarator 也需要加入变量环境（否则后续引用会被判定为未声明）
@@ -499,7 +499,7 @@ pub fn Context::parse_declarator(
     guard !self.is_type_name(name) else {
       raise ParseError(rest[0], "expected identifier, found type name")
     }
-    guard !(self.get_var_ctype(name) is Some(_)) else {
+    guard !self.defined.contains_local(name) else {
       raise ParseError(rest[0], "redeclaration of variable")
     }
     (name, rest)

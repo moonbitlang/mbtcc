@@ -48,18 +48,19 @@ fn Context::emit_switch_stmt(
   let top = self.switch_ctx_stack.pop().unwrap()
   for stmt in @either.collect_lefts(body_comp.items) {
     match stmt.kind {
-      Case(_, _) => {
+      Case(_, _) | CaseRange(_, _, _) => {
         let (labels, _payload) = unwind_case_chain(stmt)
-        for c in labels {
-          let v = case_value_as_int(c)
-          guard top.case_map.get(v) is None else {
-            raise SemanticError("Duplicate `case` label: \{v}")
+        for rng in labels {
+          let (start, end) = rng
+          for v = start; v <= end; v = v + 1 {
+            guard top.case_map.get(v) is None else {
+              raise SemanticError("Duplicate `case` label: \{v}")
+            }
+            let bb = func.addBasicBlock()
+            top.case_map.set(v, bb)
+            let ci32 = self.llvm_ctx.getConstInt32(v)
+            let _ = top.switch_inst.addCase(ci32, bb)
           }
-          let bb = func.addBasicBlock()
-          top.case_map.set(v, bb)
-          let ci32 = self.llvm_ctx.getConstInt32(v)
-          let _ = top.switch_inst.addCase(ci32, bb)
-
         }
       }
       DefaultCase(_) => top.has_default = true
@@ -83,26 +84,28 @@ fn Context::emit_switch_stmt(
 
   for item in body_comp.items {
     match item {
-      Left({ kind: Case(_, _), .. } as stmt) => {
+      Left({ kind: Case(_, _), .. } | { kind: CaseRange(_, _, _), .. } as stmt) => {
         let (labels, payload) = unwind_case_chain(stmt)
         guard labels.length() > 0 else {
           raise SemanticError("Internal error: empty case chain")
         }
 
         // 依次切换到每个 case label 的基本块；链式 case 会形成空块串联
-        for c in labels {
-          let v = case_value_as_int(c)
-          let bb = self.switch_ctx_stack[self.switch_ctx_stack.length() - 1].case_map
-            .get(v)
-            .unwrap()
-          if current_bb is Some(prev) {
-            maybe_fallthrough_to(self, prev, bb)
+        for rng in labels {
+          let (start, end) = rng
+          for v = start; v <= end; v = v + 1 {
+            let bb = self.switch_ctx_stack[self.switch_ctx_stack.length() - 1].case_map
+              .get(v)
+              .unwrap()
+            if current_bb is Some(prev) {
+              maybe_fallthrough_to(self, prev, bb)
+            }
+            self.builder.setInsertPoint(bb)
+            current_bb = Some(bb)
+            let top = self.switch_ctx_stack.pop().unwrap()
+            top.active = true
+            self.switch_ctx_stack.push(top)
           }
-          self.builder.setInsertPoint(bb)
-          current_bb = Some(bb)
-          let top = self.switch_ctx_stack.pop().unwrap()
-          top.active = true
-          self.switch_ctx_stack.push(top)
         }
 
         // 在最后一个 label 块里发射真正的语句
@@ -110,7 +113,7 @@ fn Context::emit_switch_stmt(
           if bb.getTerminator() is None {
             // payload 不应再是 case/default，否则说明 unwind 不完整
             match payload.kind {
-              Case(_, _) | DefaultCase(_) =>
+              Case(_, _) | CaseRange(_, _, _) | DefaultCase(_) =>
                 raise SemanticError("Invalid nested label in switch body")
               _ => {
                 self.emit_statement(payload)
@@ -132,7 +135,7 @@ fn Context::emit_switch_stmt(
         self.switch_ctx_stack.push(top)
         if default_bb.getTerminator() is None {
           match payload.kind {
-            Case(_, _) | DefaultCase(_) =>
+            Case(_, _) | CaseRange(_, _, _) | DefaultCase(_) =>
               raise SemanticError("Invalid nested label in switch body")
             _ => {
               self.emit_statement(payload)
@@ -228,6 +231,63 @@ fn Context::emit_case_label_in_switch(
 }
 
 ///|
+fn Context::emit_case_range_label_in_switch(
+  self : Context,
+  start_expr : @parser.ConstantExpr,
+  end_expr : @parser.ConstantExpr,
+  inner : @parser.Statement,
+) -> Unit raise {
+  guard self.switch_ctx_stack.length() > 0 else {
+    raise SemanticError("`case` used outside of switch")
+  }
+  let ctx = self.switch_ctx_stack.pop().unwrap()
+  let v1 = case_value_as_int(start_expr)
+  let v2 = case_value_as_int(end_expr)
+  let func = self.current_func.unwrap()
+
+  // Determine target block
+  let target_bb = match ctx.case_map.get(v1) {
+    Some(bb) => bb
+    None => func.addBasicBlock()
+  }
+
+  for v = v1; v <= v2; v = v + 1 {
+    match ctx.case_map.get(v) {
+      Some(bb) =>
+        if bb != target_bb {
+          raise SemanticError("Duplicate or overlapping case label: \{v}")
+        }
+      None => {
+        // Ensure consistent state: if v1 was present, all must be present
+        // If v1 was absent, all must be absent
+        // Exception: nested case range that overlaps with existing top-level case?
+        // That is duplicate.
+        // If v1 was absent (None), then target_bb is new.
+        // If v is present (Some), it maps to old BB. New BB != Old BB.
+        // So checking `bb != target_bb` handles this.
+        // But here we are in None branch.
+        
+        ctx.case_map.set(v, target_bb)
+        let ci32 = self.llvm_ctx.getConstInt32(v)
+        let _ = ctx.switch_inst.addCase(ci32, target_bb)
+      }
+    }
+  }
+
+  if ctx.active {
+    let from_bb = self.builder.getInsertBlock()
+    if from_bb.getTerminator() is None {
+      let _ = self.builder.createBr(target_bb)
+
+    }
+  }
+  self.builder.setInsertPoint(target_bb)
+  ctx.active = true
+  self.switch_ctx_stack.push(ctx)
+  self.emit_statement(inner)
+}
+
+///|
 fn Context::emit_default_label_in_switch(
   self : Context,
   inner : @parser.Statement,
@@ -273,15 +333,24 @@ fn case_value_as_int(c : @parser.ConstantExpr) -> Int raise {
 ///|
 fn unwind_case_chain(
   stmt : @parser.Statement,
-) -> (Array[@parser.ConstantExpr], @parser.Statement) {
-  let labels : Array[@parser.ConstantExpr] = Array::new()
+) -> (Array[(Int, Int)], @parser.Statement) raise {
+  let labels : Array[(Int, Int)] = Array::new()
   fn go(
     cur : @parser.Statement,
-    labels : Array[@parser.ConstantExpr],
-  ) -> @parser.Statement {
+    labels : Array[(Int, Int)],
+  ) -> @parser.Statement raise {
     match cur.kind {
       Case(const_expr, inner) => {
-        labels.push(const_expr)
+        let v = case_value_as_int(const_expr)
+        labels.push((v, v))
+        go(inner, labels)
+      }
+      CaseRange(start, end, inner) => {
+        let v1 = case_value_as_int(start)
+        let v2 = case_value_as_int(end)
+        if v1 <= v2 {
+          labels.push((v1, v2))
+        }
         go(inner, labels)
       }
       _ => cur

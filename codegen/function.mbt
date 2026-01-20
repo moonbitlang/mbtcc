@@ -28,6 +28,7 @@ pub fn Context::emit_function_def(
   }
   let llvm_func = self.llvm_mod.addFunction(func_type, name)
   self.current_func = Some(llvm_func)
+  self.labels = Map::new()
   // Create entry basic block
   let entry_bb = llvm_func.addBasicBlock(name="entry")
   self.builder.setInsertPoint(entry_bb)

@@ -178,6 +178,8 @@ fn Context::cast_value_to_ctype(
   } else if from_kind is Ptr(_) && to_kind is Ptr(_) {
     // 在当前实现里，所有指针类型的 LLVM 类型都统一为 `ptr`，因此不同指针类型之间转换是 no-op
     val
+  } else if from_kind is Array(_, _) && to_kind is Ptr(_) {
+    val
   } else if from_kind is Function(_, _, ..) && to_kind is Ptr(_) {
     // 函数在表达式中会退化为函数指针；MoonLLVM 里函数值可直接作为 ptr 使用
     val

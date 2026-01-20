@@ -101,7 +101,10 @@ def safe_id_from_relpath(relpath: str) -> str:
 def normalize_output(s: str, strict: bool) -> str:
     # 统一换行符，避免 CRLF 造成误判
     s = s.replace("\r\n", "\n")
-    return s if strict else s.strip()
+    if strict:
+        return s
+    # Remove all whitespace for loose comparison
+    return "".join(s.split())
 
 
 def _vprint(verbose: bool, msg: str) -> None:

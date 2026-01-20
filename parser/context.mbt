@@ -104,7 +104,21 @@ pub fn Context::is_type_tok(self : Context, tok : Token) -> Bool {
       | Bool
       | Struct
       | Union
-      | Enum => true
+      | Enum
+      | Auto
+      | Register
+      | Static
+      | Extern
+      | Typedef
+      | Thread
+      | ThreadLocal
+      | Const
+      | Volatile
+      | Restrict
+      | Atomic
+      | Inline
+      | Noreturn
+      | Alignas => true
       _ => false
     }
   } else if tok.kind is Identifier(name) {

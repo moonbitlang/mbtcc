@@ -61,6 +61,12 @@ pub fn Context::parse_compound_statement(
   let rest = loop tokens {
     [{ kind: Bracket('}'), .. }, .. rest] => break rest
     [tok, ..] as tokens if self.is_type_tok(tok) => {
+      // Handle ambiguity: identifier followed by ':' is a label, even if identifier is a type name
+      if tokens is [{ kind: Identifier(_), .. }, { kind: Colon, .. }, ..] {
+        let (stmt, rest) = self.parse_statement(tokens)
+        items.push(Either::Left(stmt))
+        continue rest
+      }
       let (decls, rest) = self.parse_declaration(tokens)
       decls.each(decl => items.push(Right(decl)))
       continue rest

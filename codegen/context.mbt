@@ -13,6 +13,7 @@ pub struct Context {
   continue_stack : Array[@IR.BasicBlock]
   // switch 语句 codegen 的临时上下文栈（支持嵌套 switch 与嵌套 case label）
   switch_ctx_stack : Array[SwitchCodegenCtx]
+  mut labels : Map[String, @IR.BasicBlock]
 }
 
 ///|
@@ -39,6 +40,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let break_stack = Array::new()
   let continue_stack = Array::new()
   let switch_ctx_stack = Array::new()
+  let labels = Map::new()
   Context::{
     llvm_ctx,
     llvm_mod,
@@ -52,6 +54,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     break_stack,
     continue_stack,
     switch_ctx_stack,
+    labels,
   }
 }
 

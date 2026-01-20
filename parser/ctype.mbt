@@ -435,6 +435,8 @@ pub fn CType::is_inc_ok(self : CType) -> Bool {
     LongLong => true
     ULong => true
     ULongLong => true
+    Float => true
+    Double => true
     Ptr(_) => true
     _ => false
   }

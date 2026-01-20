@@ -54,6 +54,35 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
       )
       "\{prefix}\n\{value_formatted}\n\{stmt_formatted}"
     }
+    CaseRange(start, end, stmt) => {
+      let prefix = if color {
+        @color.taint("case range statement", Magenta)
+      } else {
+        "case range statement"
+      }
+      let start_str = start.to_string(color~)
+      let end_str = end.to_string(color~)
+      let stmt_str = stmt.to_string(color~)
+      let start_lines = start_str.split("\n")
+      let start_formatted = format_lines(
+        start_lines,
+        head_with="├-start: ",
+        continue_with="│        ",
+      )
+      let end_lines = end_str.split("\n")
+      let end_formatted = format_lines(
+        end_lines,
+        head_with="├-end:   ",
+        continue_with="│        ",
+      )
+      let stmt_lines = stmt_str.split("\n")
+      let stmt_formatted = format_lines(
+        stmt_lines,
+        head_with="└-stmt:  ",
+        continue_with="         ",
+      )
+      "\{prefix}\n\{start_formatted}\n\{end_formatted}\n\{stmt_formatted}"
+    }
     DefaultCase(stmt) => {
       let prefix = if color {
         @color.taint("default case statement", Magenta)
@@ -146,6 +175,8 @@ pub enum StmtKind {
   Labeled(String, Statement)
   // CASE constant_expression : statement
   Case(ConstantExpr, Statement)
+  // CASE constant_expression ... constant_expression : statement
+  CaseRange(ConstantExpr, ConstantExpr, Statement)
   // DEFAULT : statement
   DefaultCase(Statement)
   Compound(CompoundStmt)
@@ -198,7 +229,7 @@ pub fn Context::parse_statement(
       { kind: Identifier(label), .. },
       { kind: Semi, .. },
       .. rest,
-    ] if self.is_label(label) => (StmtKind::Goto(label), rest)
+    ] => (StmtKind::Goto(label), rest)
     [{ kind: Keyword(Goto), .. }, .. rest] =>
       raise ParseError(rest[0], "Expected label name after 'goto'")
     [{ kind: Semi, .. }, .. rest] => (StmtKind::Noop, rest)
@@ -222,22 +253,35 @@ pub fn Context::parse_statement(
       let (do_while_stmt, rest) = self.parse_do_while_statement(tokens)
       (StmtKind::DoWhile(do_while_stmt), rest)
     }
-    [{ kind: Identifier(label), .. }, { kind: Colon, .. }, .. rest] if !self.is_name_has_been_defined(
-        label,
-      ) => {
+    [{ kind: Identifier(label), .. }, { kind: Colon, .. }, .. rest] => {
       let (stmt, rest) = self.parse_statement(rest)
       (StmtKind::Labeled(label, stmt), rest)
     }
     [{ kind: Keyword(Case), .. }, .. rest] => {
       let (const_expr, rest) = self.parse_constant_expr(rest)
-      guard rest is [{ kind: Colon, .. }, .. rest] else {
-        raise ParseError(
-          rest[0],
-          "Expected ':' after 'case' constant expression",
-        )
+      match rest {
+        [{ kind: Ellipsis, .. }, .. rest] => {
+          let (end_expr, rest) = self.parse_constant_expr(rest)
+          guard rest is [{ kind: Colon, .. }, .. rest] else {
+            raise ParseError(
+              rest[0],
+              "Expected ':' after 'case' range expression",
+            )
+          }
+          let (stmt, rest) = self.parse_statement(rest)
+          (StmtKind::CaseRange(const_expr, end_expr, stmt), rest)
+        }
+        [{ kind: Colon, .. }, .. rest] => {
+          let (stmt, rest) = self.parse_statement(rest)
+          (StmtKind::Case(const_expr, stmt), rest)
+        }
+        [tok, ..] =>
+          raise ParseError(
+            tok,
+            "Expected ':' or '...' after 'case' constant expression",
+          )
+        [] => raise ParseError(const_expr.tokens[0], "Unexpected end of input")
       }
-      let (stmt, rest) = self.parse_statement(rest)
-      (StmtKind::Case(const_expr, stmt), rest)
     }
     [{ kind: Keyword(Default), .. }, { kind: Colon, .. }, .. rest] => {
       let (stmt, rest) = self.parse_statement(rest)

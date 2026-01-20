@@ -296,11 +296,20 @@ fn Context::apply_inc_dec(
       self.builder.createGEP(current_val, elem_llvm_ty, indices)
     }
     _others => {
-      let one = self.llvm_ctx.getConstOne(current_val.getType())
-      if is_inc {
-        self.builder.createAdd(current_val, one)
+      if is_floating_kind(ctype.dataKind) {
+        let one = self.llvm_ctx.getConstOne(current_val.getType())
+        if is_inc {
+          self.builder.createFAdd(current_val, one)
+        } else {
+          self.builder.createFSub(current_val, one)
+        }
       } else {
-        self.builder.createSub(current_val, one)
+        let one = self.llvm_ctx.getConstOne(current_val.getType())
+        if is_inc {
+          self.builder.createAdd(current_val, one)
+        } else {
+          self.builder.createSub(current_val, one)
+        }
       }
     }
   }
