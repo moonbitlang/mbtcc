@@ -335,7 +335,7 @@ pub fn Context::parse_declaration(
     guard tokens is [{ kind: Semi, .. }, .. tokens] else {
       raise ParseError(
         tokens[0],
-        "expected ';' after declaration, while got \{tokens}",
+        "expected ';' after declaration",
       )
     }
     tokens
