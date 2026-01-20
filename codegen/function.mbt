@@ -9,6 +9,11 @@ pub fn Context::emit_function_def(
   if is_variadic {
     raise Unimplemented("Variadic functions are not supported yet")
   }
+  // Record function signature so calls can cast args to param types (even for static functions).
+  let func_sig = @parser.CType::default_with(
+    Function(params, ret_ty, is_variadic=false),
+  )
+  self.func_decls.set(name, func_sig)
   let param_types : Array[&@IR.Type] = Array::new()
   let param_names : Array[String] = Array::new()
   for param in params {

@@ -142,7 +142,7 @@ fn Context::get_lvalue_ptr_from_unary(
     PostfixExpr(postfix_expr) => self.get_lvalue_ptr_from_postfix(postfix_expr)
     Deref(inner) => {
       // `*p` is an lvalue; evaluate inner to obtain the target pointer
-      let ptr_val = self.emit_unary_expr(inner)
+      let ptr_val = self.emit_cast_expr(inner)
       (ptr_val, expr.ctype)
     }
     _ => raise SemanticError("Expression is not an assignable lvalue")
@@ -163,6 +163,7 @@ fn Context::get_lvalue_ptr_from_postfix(
           }
           (storage, prim_expr.ctype)
         }
+        Paren(inner) => self.get_lvalue_ptr_from_paren_expr(inner)
         _ => raise SemanticError("Primary expression is not assignable")
       }
     PostInc(_) | PostDec(_) =>
@@ -202,6 +203,74 @@ fn Context::get_lvalue_ptr_from_postfix(
       let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
       (field_ptr, fty)
     }
+  }
+}
+
+///|
+// For lvalues wrapped in parentheses, such as `(*p++)` in `(*p++)--`.
+fn Context::get_lvalue_ptr_from_paren_expr(
+  self : Context,
+  expr : @parser.Expr,
+) -> (&@IR.Value, @parser.CType) raise {
+  // Only support the common lvalue case: a single, non-ternary, non-assignment expression
+  // that ultimately is a UnaryExpr (e.g. Deref/Postfix/ArrayAccess/MemberAccess).
+  guard expr.assign_exprs.length() == 1 else {
+    raise SemanticError("Parenthesized expression is not an assignable lvalue")
+  }
+  let assign_expr = expr.assign_exprs[0]
+  guard assign_expr.kind is Conditional(cond_expr) else {
+    raise SemanticError("Parenthesized expression is not an assignable lvalue")
+  }
+  let unary = unwrap_unary_from_conditional(cond_expr) catch {
+    _ =>
+      raise SemanticError(
+        "Parenthesized expression is not an assignable lvalue",
+      )
+  }
+  self.get_lvalue_ptr_from_unary(unary)
+}
+
+///|
+fn unwrap_unary_from_conditional(
+  cond_expr : @parser.ConditionalExpr,
+) -> @parser.UnaryExpr raise {
+  // We only accept the "no-op wrapper" path down to UnaryExpr.
+  guard cond_expr.kind is LogicalOrExpr(lor) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard lor.kind is LogicalAndExpr(land) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard land.kind is InclusiveOrExpr(ior) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard ior.kind is ExclusiveOrExpr(xor) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard xor.kind is AndExpr(ae) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard ae.kind is EqualityExpr(eq) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard eq.kind is RelationalExpr(rel) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard rel.kind is ShiftExpr(sh) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard sh.kind is AddiExpr(add) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard add.kind is MultiExpr(mul) else {
+    raise SemanticError("not a plain expression")
+  }
+  guard mul.kind is CastExpr(cast) else {
+    raise SemanticError("not a plain expression")
+  }
+  match cast.kind {
+    UnaryExpr(u) => u
+    _ => raise SemanticError("not a plain expression")
   }
 }
 

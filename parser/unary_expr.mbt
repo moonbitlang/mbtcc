@@ -69,6 +69,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     PreDec(_) => "unary operator --"
     AddrOf(_) => "unary operator &"
     Deref(_) => "unary operator *"
+    Posate(_) => "unary operator +"
     Negate(_) => "unary operator -"
     BitNot(_) => "unary operator ~"
     LogicalNot(_) => "unary operator !"
@@ -115,6 +116,16 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
     Deref(inner) => {
+      let inner_str = inner.to_string(color~)
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
+      "\{prefix} \{ctype}\n" + "\{lines_formatted}"
+    }
+    Posate(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
       let lines_formatted = format_lines(
@@ -189,11 +200,14 @@ pub enum UnaryExprKind {
   PostfixExpr(PostfixExpr)
   PreInc(UnaryExpr)
   PreDec(UnaryExpr)
-  AddrOf(UnaryExpr)
-  Deref(UnaryExpr)
-  Negate(UnaryExpr)
-  BitNot(UnaryExpr)
-  LogicalNot(UnaryExpr)
+  // unary_operator cast_expression
+  AddrOf(CastExpr)
+  Deref(CastExpr)
+  // Unary plus: `+x`
+  Posate(CastExpr)
+  Negate(CastExpr)
+  BitNot(CastExpr)
+  LogicalNot(CastExpr)
   SizeofExpr(UnaryExpr)
   SizeofType(CType)
   Alignof(CType)
@@ -304,7 +318,7 @@ pub fn Context::parse_unary_expr(
     // TODO: Should parse cast expression, instead of unary expression
     // Address-of operator
     [{ kind: Operator("&"), .. }, .. rest] => {
-      let (inner_expr, rest) = self.parse_unary_expr(rest)
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
       let addr_ctype = inner_expr.ctype.ptr_to()
       let tokens = init_toks[0:rest.start_offset() - start_offset]
       let unary_expr = UnaryExpr::{
@@ -315,7 +329,7 @@ pub fn Context::parse_unary_expr(
       (unary_expr, rest)
     }
     [{ kind: Operator("*"), .. }, .. rest] => {
-      let (inner_expr, rest) = self.parse_unary_expr(rest)
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
       guard inner_expr.ctype.dataKind is Ptr(deref_ctype) else {
         let msg = "Type '\{inner_expr.ctype}' cannot be dereferenced"
         raise ParseError(tokens[0], msg)
@@ -328,8 +342,22 @@ pub fn Context::parse_unary_expr(
       }
       (unary_expr, rest)
     }
+    [{ kind: Operator("+"), .. }, .. rest] => {
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
+      guard inner_expr.ctype.is_numeric() else {
+        let msg = "Type '\{inner_expr.ctype}' cannot be used with unary '+'"
+        raise ParseError(tokens[0], msg)
+      }
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: Posate(inner_expr),
+        ctype: inner_expr.ctype,
+        tokens,
+      }
+      (unary_expr, rest)
+    }
     [{ kind: Operator("-"), .. }, .. rest] => {
-      let (inner_expr, rest) = self.parse_unary_expr(rest)
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
       guard inner_expr.ctype.is_numeric() else {
         let msg = "Type '\{inner_expr.ctype}' cannot be negated"
         raise ParseError(tokens[0], msg)
@@ -343,7 +371,7 @@ pub fn Context::parse_unary_expr(
       (unary_expr, rest)
     }
     [{ kind: Operator("~"), .. }, .. rest] => {
-      let (inner_expr, rest) = self.parse_unary_expr(rest)
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
       guard inner_expr.ctype.is_integral() else {
         let msg = "Type '\{inner_expr.ctype}' cannot be used with bitwise NOT operator"
         raise ParseError(tokens[0], msg)
@@ -357,15 +385,16 @@ pub fn Context::parse_unary_expr(
       (unary_expr, rest)
     }
     [{ kind: Operator("!"), .. }, .. rest] => {
-      let (inner_expr, rest) = self.parse_unary_expr(rest)
-      guard inner_expr.ctype.is_integral() else {
+      let (inner_expr, rest) = self.parse_cast_expr(rest)
+      // In C, logical NOT works on scalar types and yields `int`.
+      guard inner_expr.ctype.is_scalar() else {
         let msg = "Type '\{inner_expr.ctype}' cannot be used with logical NOT operator"
         raise ParseError(tokens[0], msg)
       }
       let tokens = init_toks[0:rest.start_offset() - start_offset]
       let unary_expr = UnaryExpr::{
         kind: LogicalNot(inner_expr),
-        ctype: inner_expr.ctype,
+        ctype: CType::int(),
         tokens,
       }
       (unary_expr, rest)
@@ -439,6 +468,7 @@ pub fn UnaryExpr::is_constant(self : Self) -> Bool {
     PreDec(_) => false
     AddrOf(_) => false
     Deref(_) => false
+    Posate(inner) => inner.is_constant()
     Negate(inner) => inner.is_constant()
     BitNot(inner) => inner.is_constant()
     LogicalNot(inner) => inner.is_constant()
@@ -453,6 +483,7 @@ pub fn UnaryExpr::is_constant(self : Self) -> Bool {
 pub fn UnaryExpr::eval_as_int(self : Self) -> Int raise ParseError {
   match self.kind {
     PostfixExpr(postfix_expr) => postfix_expr.eval_as_int()
+    Posate(inner) => inner.eval_as_int()
     Negate(inner) => -inner.eval_as_int()
     BitNot(inner) => inner.eval_as_int().lnot()
     LogicalNot(inner) => {
@@ -470,6 +501,7 @@ pub fn UnaryExpr::eval_as_int(self : Self) -> Int raise ParseError {
 pub fn UnaryExpr::eval_as_double(self : Self) -> Double raise ParseError {
   match self.kind {
     PostfixExpr(postfix_expr) => postfix_expr.eval_as_double()
+    Posate(inner) => inner.eval_as_double()
     Negate(inner) => -inner.eval_as_double()
     _ => {
       let msg = "Cannot evaluate unary expression as double"
@@ -484,7 +516,7 @@ pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
     PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
     Deref(_) => !self.ctype.is_const
     PreInc(_) | PreDec(_) => false
-    AddrOf(_) | Negate(_) | BitNot(_) | LogicalNot(_) => false
+    AddrOf(_) | Posate(_) | Negate(_) | BitNot(_) | LogicalNot(_) => false
     SizeofExpr(_) | SizeofType(_) | Alignof(_) => false
   }
 }
@@ -836,7 +868,7 @@ test "Unary Expr Error Test" {
 test "UnaryExpr Constant Eval Test" {
   // Test eval_as_int for unary expressions
   let code =
-    #|42 ; -10 ; ~5 ; !0 ; !1 ; 
+    #|42 ; +10 ; -10 ; ~5 ; !0 ; !1 ; 
     #|-100 ; ~0 ; !!5 ; -~3 ;
     #|x ; ++y ; --z ; *p ; &i ;
   let ctx = Context::new(code~, source_file="demo")
@@ -849,6 +881,12 @@ test "UnaryExpr Constant Eval Test" {
   // Parse and eval `42` (int literal wrapped in UnaryExpr)
   let (unary_expr, rest) = ctx.parse_unary_expr(ctx.tokens)
   inspect(unary_expr.eval_as_int(), content="42")
+  assert_true(unary_expr.is_constant())
+
+  // Parse and eval `+10` (unary plus)
+  let rest = next_check_point(rest)
+  let (unary_expr, rest) = ctx.parse_unary_expr(rest)
+  inspect(unary_expr.eval_as_int(), content="10")
   assert_true(unary_expr.is_constant())
 
   // Parse and eval `-10` (negation)

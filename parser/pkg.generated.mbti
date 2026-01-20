@@ -192,6 +192,7 @@ pub impl Show for ConditionalExpr
 pub enum ConditionalExprKind {
   LogicalOrExpr(LogicalOrExpr)
   ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)
+  GnuCondOmitThen(LogicalOrExpr, ConditionalExpr)
 }
 pub impl Eq for ConditionalExprKind
 
@@ -652,11 +653,12 @@ pub enum UnaryExprKind {
   PostfixExpr(PostfixExpr)
   PreInc(UnaryExpr)
   PreDec(UnaryExpr)
-  AddrOf(UnaryExpr)
-  Deref(UnaryExpr)
-  Negate(UnaryExpr)
-  BitNot(UnaryExpr)
-  LogicalNot(UnaryExpr)
+  AddrOf(CastExpr)
+  Deref(CastExpr)
+  Posate(CastExpr)
+  Negate(CastExpr)
+  BitNot(CastExpr)
+  LogicalNot(CastExpr)
   SizeofExpr(UnaryExpr)
   SizeofType(CType)
   Alignof(CType)

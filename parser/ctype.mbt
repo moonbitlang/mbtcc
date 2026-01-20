@@ -570,6 +570,16 @@ pub fn CType::get_field_ctype_by_ptr_acc(
 /// - `Some(CType)` - The common type for arithmetic operations
 /// - `None` - If types are incompatible (e.g., struct, void, pointer)
 pub fn CType::common_type(self : CType, other : CType) -> CType? {
+  // Pointer common type (for comparisons, etc.)
+  // We normalize to `void *` as a permissive common type.
+  match (self.dataKind, other.dataKind) {
+    (Ptr(_), Ptr(_)) => return Some(CType::default_with(Ptr(CType::void_())))
+    (Array(_, _), Ptr(_)) | (Ptr(_), Array(_, _)) =>
+      return Some(CType::default_with(Ptr(CType::void_())))
+    (Array(_, _), Array(_, _)) =>
+      return Some(CType::default_with(Ptr(CType::void_())))
+    _ => ()
+  }
   fn rank(kind : CTypeDataKind) -> Int? {
     match kind {
       Char => Some(1)
@@ -643,6 +653,17 @@ pub fn CType::additive_result_type(
   other : CType,
   op : String,
 ) -> CType? {
+  // Apply C's array-to-pointer decay for additive expressions.
+  // This enables e.g. `int a[3]; a + 1`.
+  fn decay_array_to_ptr(t : CType) -> CType {
+    match t.dataKind {
+      Array(inner, _) => inner.ptr_to()
+      _ => t
+    }
+  }
+
+  let self = decay_array_to_ptr(self)
+  let other = decay_array_to_ptr(other)
   match (self.dataKind, other.dataKind) {
     // pointer + integer => pointer (only for addition)
     (Ptr(_), _) if op is "+" && other.is_integral() => Some(self)
@@ -811,6 +832,21 @@ test "Additive Result Type Test" {
   match point_struct.additive_result_type(int_type, "+") {
     Some(_) => fail("struct + int should be invalid")
     None => ()
+  }
+
+  // Array decays to pointer in additive expressions
+  let int_arr = CType::default_with(Array(CType::int(), 3))
+  match int_arr.additive_result_type(int_type, "+") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("int[3] + int should decay to pointer")
+  }
+  match int_type.additive_result_type(int_arr, "+") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("int + int[3] should decay to pointer")
+  }
+  match int_arr.additive_result_type(int_type, "-") {
+    Some(result) => assert_true(result.dataKind is Ptr(_))
+    None => fail("int[3] - int should decay to pointer")
   }
 }
 

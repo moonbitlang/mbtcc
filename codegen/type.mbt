@@ -92,6 +92,11 @@ fn Context::cast_value_to_ctype(
   }
   let from_kind = from_ctype.dataKind
   let to_kind = to_ctype.dataKind
+  // Cast to void: evaluate for side effects, then discard the value.
+  // Return a dummy value to satisfy callers that expect an LLVM Value.
+  if to_kind is Void {
+    return self.llvm_ctx.getConstInt32(0).asValueEnum().asValueClass()
+  }
   // Numeric conversions
   if is_integral_kind(from_kind) && is_integral_kind(to_kind) {
     let target_ty = self.ctype_to_llvm_type(to_ctype)
@@ -142,10 +147,34 @@ fn Context::cast_value_to_ctype(
     let to_int_ty = self.ctype_to_llvm_type(to_ctype).tryAsIntType().unwrap()
     self.builder.createPtrToInt(val, to_int_ty)
   } else if is_integral_kind(from_kind) && to_kind is Ptr(_) {
-    println(
-      "Compiler ICE: int to pointer cast '\{from_ctype}' -> '\{to_ctype}' not supported",
-    )
-    panic()
+    // int -> pointer
+    // LLVM requires an integer value of appropriate width; we normalize to i64 for now.
+    let i64_ty = self.llvm_ctx.getInt64Ty()
+    let i64_tc = i64_ty.asTypeEnum().asTypeClass()
+    let from_ty = val.getType().tryAsIntType().unwrap()
+    let from_width = from_ty.getBitWidth()
+    let v64 = if from_width == 64 {
+      val
+    } else if from_width < 64 {
+      if from_width == 1 || is_unsigned_kind(from_kind) {
+        self.builder.createZExt(val, i64_ty)
+      } else {
+        self.builder.createSExt(val, i64_ty)
+      }
+    } else {
+      self.builder.createTrunc(val, i64_ty)
+    }
+    // Avoid constant-folding to `null` due to incomplete ConstantInt::inttoptr support
+    // in the current MoonLLVM API by materializing constants into an instruction.
+    let v64 = match v64.tryAsConstant() {
+      Some(_) => {
+        let tmp = self.builder.createAlloca(i64_tc)
+        let _ = self.builder.createStore(v64, tmp)
+        self.builder.createLoad(i64_tc, tmp)
+      }
+      None => v64
+    }
+    self.builder.createIntToPtr(v64)
   } else if from_kind is Ptr(_) && to_kind is Ptr(_) {
     // 在当前实现里，所有指针类型的 LLVM 类型都统一为 `ptr`，因此不同指针类型之间转换是 no-op
     val

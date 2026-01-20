@@ -28,23 +28,40 @@ priv enum Macro {
 // Stringizing operator: `#param` in function-like macro replacement list.
 // We approximate C's stringizing by concatenating original token spellings
 // (Token.raw) and escaping `\` and `"` (similar to chibicc's approach).
-fn stringize_macro_arg(arg_tokens : Array[Token]) -> String {
+fn stringize_macro_arg(code : StringView, arg_tokens : Array[Token]) -> String {
   if arg_tokens.is_empty() {
     return ""
   }
   let sb = StringBuilder::new()
-  for tok in arg_tokens {
-    // Use original spelling if possible (raw preserves suffix like 1L/1UL).
-    // For string literal tokens, prefer `tok.kind` printing which includes quotes
-    // and the necessary escaping (so `#x` where x is a string literal behaves like C).
-    match tok.kind {
-      String(_) => sb.write_string(tok.kind.to_string())
-      _ => sb.write_string(tok.raw)
+  // C stringizing: replace each run of whitespace between tokens with a single space.
+  // We approximate this by looking at the original source slice between token spans
+  // via `tok.idx` + `tok.raw.length()`.
+  //
+  // If `code` is unavailable (empty) or the indices are out of range, we fall back
+  // to concatenating token spellings without spaces.
+  for i in 0..<arg_tokens.length() {
+    let tok = arg_tokens[i]
+    sb.write_string(tok.raw)
+    if i + 1 < arg_tokens.length() && code.length() > 0 {
+      let next = arg_tokens[i + 1]
+      let gap_start = tok.idx + tok.raw.length()
+      let gap_end = next.idx
+      if gap_end > gap_start && gap_end <= code.length() && gap_start >= 0 {
+        let gap = code.view(start_offset=gap_start, end_offset=gap_end)
+        // If there was any whitespace between tokens, output a single space.
+        let mut has_ws = false
+        for ch in gap {
+          if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+            has_ws = true
+            break
+          }
+        }
+        if has_ws {
+          sb.write_string(" ")
+        }
+      }
     }
   }
-  // Note: We intentionally do NOT escape `\` or `"` here. `stringize` produces
-  // the token spelling, and the resulting `TokenKind::String` will escape again
-  // when printed/serialized, which matches C stringizing behavior.
   sb.to_string()
 }
 
@@ -189,7 +206,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     // Handle conditional inclusion - if
     // e.g. `#if expr`
     [{ kind: Hash, .. }, { kind: Keyword(If), line, .. }, .. rest] => {
-      let (val, rest) = eval_const_expr(line, rest)
+      let (val, rest) = eval_const_expr(code[:], line, rest)
       let included = val != 0
       let cond_incl = CondInclState::{ kind: Then, included }
       cond_incl_stack.push(cond_incl)
@@ -238,7 +255,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
         let rest = skip_cond_incl(rest)
         continue rest
       }
-      let (val, rest) = eval_const_expr(line, rest)
+      let (val, rest) = eval_const_expr(code[:], line, rest)
       let included = val != 0
       prev_state.included = included
       let rest = if included { rest } else { skip_cond_incl(rest) }
@@ -280,7 +297,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     }
     // Expand object-like macro
     [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
-      let (new_toks, rest) = replace_identifier(name, rest)
+      let (new_toks, rest) = replace_identifier(code[:], name, rest)
       new_tokens.append(new_toks)
       continue rest
     }
@@ -301,13 +318,14 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
 
 ///|
 fn eval_const_expr(
+  code : StringView,
   line : Int,
   tokens : ArrayView[Token],
 ) -> (Int64, ArrayView[Token]) raise PreprecessError {
   let (const_expr_tokens, rest) = collect_num_tokens_until_new_line(
     line, tokens,
   )
-  let const_expr_tokens = expand_macro_for_tokens(const_expr_tokens)
+  let const_expr_tokens = expand_macro_for_tokens(code, const_expr_tokens)
   const_expr_tokens.push(@lexer.dummy_eof())
   let (const_expr, _) = parse_constant_expr(const_expr_tokens)
   let val = const_expr.eval().to_int64()
@@ -332,12 +350,13 @@ fn collect_tokens_until_new_line(
 
 ///|
 fn expand_macro_for_tokens(
+  code : StringView,
   tokens : Array[Token],
 ) -> Array[Token] raise PreprecessError {
   let new_tokens : Array[Token] = Array::new()
   loop tokens[:] {
     [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
-      let (expanded_toks, rest) = replace_identifier(name, rest)
+      let (expanded_toks, rest) = replace_identifier(code, name, rest)
       new_tokens.append(expanded_toks)
       continue rest
     }
@@ -432,6 +451,7 @@ fn skip_line(line : Int, tokens : ArrayView[Token]) -> ArrayView[Token] {
 
 ///|
 fn replace_identifier(
+  code : StringView,
   id : String,
   rest_tokens : ArrayView[Token],
 ) -> (Array[Token], ArrayView[Token]) raise PreprecessError {
@@ -525,7 +545,7 @@ fn replace_identifier(
       { kind: Identifier(var_name), .. },
       .. rest,
     ] if args.get(var_name) is Some(arg_tokens) => {
-      let s = stringize_macro_arg(arg_tokens).to_string()
+      let s = stringize_macro_arg(code, arg_tokens).to_string()
       new_tokens.push(@lexer.string_token_like(hash_tok, s))
       continue rest
     }

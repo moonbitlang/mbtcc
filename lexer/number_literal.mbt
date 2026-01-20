@@ -7,6 +7,33 @@ fn Context::lex_number_literal(
   col : Int,
   idx : Int,
 ) -> (Token, StringView) {
+  fn parse_u64_base(s : StringView, base : UInt) -> (UInt64, String) {
+    let mut acc : UInt64 = 0UL
+    for c in s {
+      let digit : UInt? = match c {
+        '0'..='9' => Some((c.to_int() - '0'.to_int()).reinterpret_as_uint())
+        'a'..='f' =>
+          Some((c.to_int() - 'a'.to_int() + 10).reinterpret_as_uint())
+        'A'..='F' =>
+          Some((c.to_int() - 'A'.to_int() + 10).reinterpret_as_uint())
+        _ => None
+      }
+      guard digit is Some(d) else {
+        return (0UL, "Invalid digit in integer literal")
+      }
+      if d >= base {
+        return (0UL, "Invalid digit in integer literal")
+      }
+      let b = base.to_uint64()
+      let d64 = d.to_uint64()
+      if acc > (0xffffffffffffffffUL - d64) / b {
+        return (0UL, "Integer literal overflow")
+      }
+      acc = acc * b + d64
+    }
+    (acc, "")
+  }
+
   lexmatch code with longest {
     // Case 1. Hexadecimal floating-point literal
     (
@@ -89,22 +116,18 @@ fn Context::lex_number_literal(
       rest
     ) => {
       let raw_str_builder = StringBuilder::new()
+      raw_str_builder.write_string("0x")
       raw_str_builder.write_string(h.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = try @strconv.parse_uint(h, base=16) catch {
-        _ => (0U, "Invalid hexadecimal integer literal")
-      } noraise {
-        n => (n, "")
-      }
+      let (number64, err_msg) = parse_u64_base(h, 16U)
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" =>
-          TokenKind::ULongLong(number.to_uint64())
-        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
-        "ll" | "LL" => TokenKind::LongLong(number.to_int64())
-        "u" | "U" => TokenKind::UInt(number)
-        "l" | "L" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
+        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number64)
+        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number64)
+        "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
+        "u" | "U" => TokenKind::UInt(number64.to_uint())
+        "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
+        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -120,22 +143,18 @@ fn Context::lex_number_literal(
       rest
     ) => {
       let raw_str_builder = StringBuilder::new()
+      raw_str_builder.write_string("0b")
       raw_str_builder.write_string(b.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = try @strconv.parse_uint(b, base=2) catch {
-        _ => (0U, "Invalid binary integer literal")
-      } noraise {
-        n => (n, "")
-      }
+      let (number64, err_msg) = parse_u64_base(b, 2U)
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" =>
-          TokenKind::ULongLong(number.to_uint64())
-        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
-        "ll" | "LL" => TokenKind::LongLong(number.to_int64())
-        "u" | "U" => TokenKind::UInt(number)
-        "l" | "L" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
+        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number64)
+        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number64)
+        "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
+        "u" | "U" => TokenKind::UInt(number64.to_uint())
+        "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
+        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -153,19 +172,14 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(o.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = try @strconv.parse_uint(o, base=8) catch {
-        _ => (0U, "Invalid octal integer literal")
-      } noraise {
-        n => (n, "")
-      }
+      let (number64, err_msg) = parse_u64_base(o, 8U)
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" =>
-          TokenKind::ULongLong(number.to_uint64())
-        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
-        "ll" | "LL" => TokenKind::LongLong(number.to_int64())
-        "u" | "U" => TokenKind::UInt(number)
-        "l" | "L" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
+        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number64)
+        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number64)
+        "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
+        "u" | "U" => TokenKind::UInt(number64.to_uint())
+        "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
+        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -183,19 +197,14 @@ fn Context::lex_number_literal(
       raw_str_builder.write_string(d.to_string())
       raw_str_builder.write_string(s.to_string())
       let raw_str = raw_str_builder.to_string()
-      let (number, err_msg) = try @strconv.parse_uint(d, base=10) catch {
-        _ => (0U, "Invalid decimal integer literal")
-      } noraise {
-        n => (n, "")
-      }
+      let (number64, err_msg) = parse_u64_base(d, 10U)
       let token_kind = match s.to_lower() {
-        "ull" | "llu" | "ULL" | "LLU" =>
-          TokenKind::ULongLong(number.to_uint64())
-        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number.to_uint64())
-        "ll" | "LL" => TokenKind::LongLong(number.to_int64())
-        "u" | "U" => TokenKind::UInt(number)
-        "l" | "L" => TokenKind::Long(number.to_int64())
-        _ => TokenKind::Int(number.reinterpret_as_int())
+        "ull" | "llu" | "ULL" | "LLU" => TokenKind::ULongLong(number64)
+        "ul" | "lu" | "UL" | "LU" => TokenKind::ULong(number64)
+        "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
+        "u" | "U" => TokenKind::UInt(number64.to_uint())
+        "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
+        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {

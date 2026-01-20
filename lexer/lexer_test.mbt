@@ -246,7 +246,7 @@ test "Tokenize String Literal Test" {
   inspect(
     tokens[4].kind,
     content=(
-      #|"Escaped quote: " inside"
+      #|"Escaped quote: \" inside"
     ),
   )
   inspect(

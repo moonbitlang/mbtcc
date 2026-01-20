@@ -15,17 +15,23 @@ fn Context::emit_unary_expr(
       let (_, new_val) = self.apply_inc_dec(ptr, ctype, is_inc=false)
       new_val
     }
-    AddrOf(expr) => {
-      let (ptr, _) = self.get_lvalue_ptr_from_unary(expr)
-      ptr
-    }
+    AddrOf(expr) =>
+      // & operand must be an lvalue. We accept lvalues that come from a unary expression.
+      match expr.kind {
+        UnaryExpr(u) => {
+          let (ptr, _) = self.get_lvalue_ptr_from_unary(u)
+          ptr
+        }
+        _ => raise SemanticError("Expression is not an assignable lvalue")
+      }
     Deref(inner) => {
-      let ptr_val = self.emit_unary_expr(inner)
+      let ptr_val = self.emit_cast_expr(inner)
       let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
       self.builder.createLoad(llvm_ty, ptr_val)
     }
+    Posate(inner) => self.emit_cast_expr(inner)
     Negate(expr) => {
-      let val = self.emit_unary_expr(expr)
+      let val = self.emit_cast_expr(expr)
       if val.getType().isFloatingPointTy() {
         self.builder.createFNeg(val)
       } else {
@@ -34,11 +40,11 @@ fn Context::emit_unary_expr(
       }
     }
     BitNot(expr) => {
-      let val = self.emit_unary_expr(expr)
+      let val = self.emit_cast_expr(expr)
       self.builder.createNot(val)
     }
     LogicalNot(expr) => {
-      let val = self.emit_unary_expr(expr)
+      let val = self.emit_cast_expr(expr)
       let cond = self.to_bool(val) // i1: x != 0
       let inv = self.builder.createXor(cond, self.llvm_ctx.getConstTrue())
       self.builder.createZExt(inv, self.llvm_ctx.getInt32Ty())

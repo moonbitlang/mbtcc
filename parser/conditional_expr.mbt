@@ -82,6 +82,29 @@ pub fn ConditionalExpr::to_string(self : Self, color? : Bool = true) -> String {
       )
       "\{prefix}\n\{cond_formatted}\n\{then_formatted}\n\{else_formatted}"
     }
+    GnuCondOmitThen(cond, else_expr) => {
+      let prefix = if color {
+        @color.taint("conditional expr: ?: ", Magenta) +
+        @color.taint("(\{self.ctype})", Green)
+      } else {
+        "conditional expr: ?: " + "(\{self.ctype})"
+      }
+      let cond_str = cond.to_string(color~)
+      let else_str = else_expr.to_string(color~)
+      let cond_lines = cond_str.split("\n")
+      let cond_formatted = format_lines(
+        cond_lines,
+        head_with="├-cond: ",
+        continue_with="│       ",
+      )
+      let else_lines = else_str.split("\n")
+      let else_formatted = format_lines(
+        else_lines,
+        head_with="└-else: ",
+        continue_with="        ",
+      )
+      "\{prefix}\n\{cond_formatted}\n\{else_formatted}"
+    }
   }
 }
 
@@ -90,6 +113,9 @@ pub fn ConditionalExpr::to_string(self : Self, color? : Bool = true) -> String {
 pub enum ConditionalExprKind {
   LogicalOrExpr(LogicalOrExpr)
   ConditionalExpr(LogicalOrExpr, Expr, ConditionalExpr)
+  // GNU extension: `cond ?: else` (omitted then-expression).
+  // Semantically `cond ? cond : else` but `cond` is evaluated only once.
+  GnuCondOmitThen(LogicalOrExpr, ConditionalExpr)
 } derive(Eq)
 
 ///|
@@ -170,17 +196,53 @@ pub fn Context::parse_conditional_expr(
     }
     return (cond_expr, rest)
   }
+  // GNU extension: `cond ?: else` (omitted then-expression).
+  // Semantically `cond ? cond : else`, but `cond` is evaluated only once.
+  if rest is [{ kind: Colon, .. }, .. rest] {
+    let (else_expr, rest) = self.parse_conditional_expr(rest)
+    let then_ctype = logical_or_expr.ctype
+    // Type rule (permissive, aligned with existing `cond ? expr : (void)expr` handling).
+    let ctype = match (then_ctype.dataKind, else_expr.ctype.dataKind) {
+      (Void, _) | (_, Void) => CType::void_()
+      _ =>
+        match CType::common_type(then_ctype, else_expr.ctype) {
+          Some(t) => t
+          None =>
+            raise ParseError(
+              init_tokens[0],
+              "Incompatible types in conditional expression",
+            )
+        }
+    }
+    let cond_expr = ConditionalExpr::{
+      kind: GnuCondOmitThen(logical_or_expr, else_expr),
+      ctype,
+      tokens: init_tokens[0:rest.start_offset() - start_offset],
+    }
+    return (cond_expr, rest)
+  }
+
+  // Standard conditional operator: `cond ? then : else`
   let (then_expr, rest) = self.parse_expr(rest)
   guard rest is [{ kind: Colon, .. }, .. rest] else {
     raise ParseError(rest[0], "Expected ':' in conditional expression")
   }
   let (else_expr, rest) = self.parse_conditional_expr(rest)
-  let ctype = CType::common_type(then_expr.ctype, else_expr.ctype)
-  guard ctype is Some(ctype) else {
-    raise ParseError(
-      init_tokens[0],
-      "Incompatible types in conditional expression",
-    )
+  // Type rule:
+  // - Standard C requires then/else to have compatible types.
+  // - But chibicc tests rely on accepting `cond ? expr : (void)expr` as an expression-statement.
+  //   We treat it as `void` if either branch is void (a permissive rule).
+  let ctype = match (then_expr.ctype.dataKind, else_expr.ctype.dataKind) {
+    (Void, _) | (_, Void) => CType::void_()
+    _ =>
+      match CType::common_type(then_expr.ctype, else_expr.ctype) {
+        Some(t) => t
+        None =>
+          raise ParseError(
+            init_tokens[0],
+            "Incompatible types in conditional expression",
+          )
+      }
   }
   let cond_expr = ConditionalExpr::{
     kind: ConditionalExpr(logical_or_expr, then_expr, else_expr),
@@ -208,6 +270,8 @@ pub fn ConditionalExpr::is_constant(self : Self) -> Bool {
     LogicalOrExpr(expr) => expr.is_constant()
     ConditionalExpr(cond, then_expr, else_expr) =>
       cond.is_constant() && then_expr.is_constant() && else_expr.is_constant()
+    GnuCondOmitThen(cond, else_expr) =>
+      cond.is_constant() && else_expr.is_constant()
   }
 }
 
@@ -219,6 +283,14 @@ pub fn ConditionalExpr::eval_as_int(self : Self) -> Int raise ParseError {
       let cond_val = cond.eval_as_int()
       if cond_val != 0 {
         then_expr.eval_as_int()
+      } else {
+        else_expr.eval_as_int()
+      }
+    }
+    GnuCondOmitThen(cond, else_expr) => {
+      let cond_val = cond.eval_as_int()
+      if cond_val != 0 {
+        cond_val
       } else {
         else_expr.eval_as_int()
       }
@@ -380,6 +452,17 @@ test "Conditional Expr Parse Test" {
     re_cond_expr == cond_expr &&
     re_rest is [],
   )
+}
+
+///|
+test "Conditional Expr Void Branch Permissive Test" {
+  // Accept `cond ? expr : (void)expr` as void-typed conditional expression
+  let code =
+    #|1 ? -2 : (void)-1 ;
+  let ctx = Context::new(code~, source_file="demo")
+  let (expr, rest) = ctx.parse_conditional_expr(ctx.tokens)
+  assert_true(rest is [{ kind: Semi, .. }, ..])
+  inspect("\{expr.ctype}", content="void")
 }
 
 ///|

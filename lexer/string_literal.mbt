@@ -11,44 +11,47 @@ fn Context::lex_string_literal(
   let mut err_msg = ""
   let raw_str_builder = StringBuilder::new()
   let str_builder = StringBuilder::new()
+  // Preserve original token spelling in `raw` (including surrounding quotes and escapes),
+  // while storing the decoded string value in `TokenKind::String`.
+  raw_str_builder.write_char('"')
   let rest = loop code {
     ['"', .. rest_str] => {
       raw_str_builder.write_char('"')
       break rest_str
     }
     [.. "\\0", .. rest_str] => {
-      raw_str_builder.write_char('\u0000')
+      raw_str_builder.write_string("\\0")
       str_builder.write_char('\u0000')
       continue rest_str
     }
     [.. "\\n", .. rest_str] => {
-      raw_str_builder.write_char('\n')
+      raw_str_builder.write_string("\\n")
       str_builder.write_char('\n')
       continue rest_str
     }
     [.. "\\t", .. rest_str] => {
-      raw_str_builder.write_char('\t')
+      raw_str_builder.write_string("\\t")
       str_builder.write_char('\t')
       continue rest_str
     }
     [.. "\\r", .. rest_str] => {
-      raw_str_builder.write_char('\r')
+      raw_str_builder.write_string("\\r")
       str_builder.write_char('\r')
       continue rest_str
     }
     [.. "\\\"", .. rest_str] => {
-      raw_str_builder.write_char('"')
+      raw_str_builder.write_string("\\\"")
       str_builder.write_char('"')
       continue rest_str
     }
     [.. "\\\\", .. rest_str] => {
-      raw_str_builder.write_char('\\')
+      raw_str_builder.write_string("\\\\")
       str_builder.write_char('\\')
       continue rest_str
     }
     [.. "\\\'", .. rest_str] => {
       raw_str_builder.write_string("\\\'")
-      str_builder.write_string("\\\'")
+      str_builder.write_char('\'')
       continue rest_str
     }
     ['\n', .. rest_str] => {
@@ -66,7 +69,6 @@ fn Context::lex_string_literal(
     }
   }
   let str = str_builder.to_string()
-  raw_str_builder.write_string(str) // exclude surrounding quotes
   let toeken_kind = TokenKind::String(str) // remove surrounding quotes
   let raw_str = raw_str_builder.to_string()
   let token = Token::new(
