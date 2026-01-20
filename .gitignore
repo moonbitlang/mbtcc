@@ -12,3 +12,6 @@ Agents2.md
 _build/
 _build
 target
+
+.gemini/
+gha-creds-*.json
