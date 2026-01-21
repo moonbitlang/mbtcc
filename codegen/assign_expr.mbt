@@ -295,7 +295,7 @@ fn Context::apply_inc_dec(
       indices.push(step)
       self.builder.createGEP(current_val, elem_llvm_ty, indices)
     }
-    _others => {
+    _others =>
       if is_floating_kind(ctype.dataKind) {
         let one = self.llvm_ctx.getConstOne(current_val.getType())
         if is_inc {
@@ -311,7 +311,6 @@ fn Context::apply_inc_dec(
           self.builder.createSub(current_val, one)
         }
       }
-    }
   }
   let _ = self.builder.createStore(updated_val, lvalue_ptr)
   (current_val, updated_val)

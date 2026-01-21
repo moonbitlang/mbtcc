@@ -98,7 +98,7 @@ fn Context::get_label(self : Context, name : String) -> @IR.BasicBlock {
     Some(bb) => bb
     None => {
       let func = self.current_func.unwrap()
-      let bb = func.addBasicBlock(name=name)
+      let bb = func.addBasicBlock(name~)
       self.labels.set(name, bb)
       bb
     }

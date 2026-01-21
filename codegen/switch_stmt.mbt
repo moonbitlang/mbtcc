@@ -60,6 +60,7 @@ fn Context::emit_switch_stmt(
             top.case_map.set(v, bb)
             let ci32 = self.llvm_ctx.getConstInt32(v)
             let _ = top.switch_inst.addCase(ci32, bb)
+
           }
         }
       }
@@ -250,7 +251,6 @@ fn Context::emit_case_range_label_in_switch(
     Some(bb) => bb
     None => func.addBasicBlock()
   }
-
   for v = v1; v <= v2; v = v + 1 {
     match ctx.case_map.get(v) {
       Some(bb) =>
@@ -266,14 +266,14 @@ fn Context::emit_case_range_label_in_switch(
         // If v is present (Some), it maps to old BB. New BB != Old BB.
         // So checking `bb != target_bb` handles this.
         // But here we are in None branch.
-        
+
         ctx.case_map.set(v, target_bb)
         let ci32 = self.llvm_ctx.getConstInt32(v)
         let _ = ctx.switch_inst.addCase(ci32, target_bb)
+
       }
     }
   }
-
   if ctx.active {
     let from_bb = self.builder.getInsertBlock()
     if from_bb.getTerminator() is None {

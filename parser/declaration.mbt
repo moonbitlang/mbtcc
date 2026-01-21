@@ -333,10 +333,7 @@ pub fn Context::parse_declaration(
   )
   let tokens = if skip_semi {
     guard tokens is [{ kind: Semi, .. }, .. tokens] else {
-      raise ParseError(
-        tokens[0],
-        "expected ';' after declaration",
-      )
+      raise ParseError(tokens[0], "expected ';' after declaration")
     }
     tokens
   } else {

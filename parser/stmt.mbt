@@ -277,8 +277,7 @@ pub fn Context::parse_statement(
         }
         [tok, ..] =>
           raise ParseError(
-            tok,
-            "Expected ':' or '...' after 'case' constant expression",
+            tok, "Expected ':' or '...' after 'case' constant expression",
           )
         [] => raise ParseError(const_expr.tokens[0], "Unexpected end of input")
       }

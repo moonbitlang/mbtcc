@@ -34,6 +34,7 @@ pub struct Context {
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
   switch_ctx_stack : Array[SwitchCodegenCtx]
+  mut labels : Map[String, @IR.BasicBlock]
 }
 pub fn Context::ctype_kind_to_llvm_type(Self, @parser.CTypeDataKind) -> &@IR.Type raise
 pub fn Context::ctype_to_llvm_type(Self, @parser.CType) -> &@IR.Type raise

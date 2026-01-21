@@ -594,6 +594,7 @@ pub impl Show for Statement
 pub enum StmtKind {
   Labeled(String, Statement)
   Case(ConditionalExpr, Statement)
+  CaseRange(ConditionalExpr, ConditionalExpr, Statement)
   DefaultCase(Statement)
   Compound(CompoundStmt)
   Expr(Expr)
