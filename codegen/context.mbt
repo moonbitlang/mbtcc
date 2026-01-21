@@ -222,6 +222,57 @@ pub fn Context::emit_typedef(
 }
 
 ///|
+fn Context::emit_initializer(
+  self : Context,
+  init : @parser.Initializer,
+  ty : @parser.CType,
+) -> &@IR.Constant raise CodeGenError {
+  match init.kind {
+    AssignExpr(expr) => self.emit_initializer_assign_expr(expr, ty)
+    InitializerList(_) =>
+      raise Unimplemented("Array/Struct initializers not supported")
+    Designation(_, _) =>
+      raise Unimplemented("Designated initializers not supported")
+  }
+}
+
+fn Context::emit_initializer_assign_expr(
+  self : Context,
+  expr : @parser.AssignExpr,
+  ty : @parser.CType,
+) -> &@IR.Constant raise CodeGenError {
+  if ty.is_integral() {
+    let val = expr.eval_as_int() catch {
+      _ => raise SemanticError("Non-constant initializer")
+    }
+    let llvm_ty = self.ctype_to_llvm_type(ty) catch {
+      err => raise IllegalLLVMUsage("\{err}")
+    }
+    match llvm_ty.tryAsIntTypeEnum() {
+      Some(int_ty) => {
+        let const_val = self.llvm_ctx.getConstInt64(val.to_int64())
+        let width = int_ty.getBitWidth()
+        let res = if width == 64 {
+          const_val
+        } else if width < 64 {
+          const_val.trunc(int_ty.asIntegerTypeClass()) catch {
+            err => raise IllegalLLVMUsage("Truncate failed: \{err}")
+          }
+        } else {
+          const_val.sext(int_ty.asIntegerTypeClass()) catch {
+            err => raise IllegalLLVMUsage("SExt failed: \{err}")
+          }
+        }
+        res as &@IR.Constant
+      }
+      None => raise SemanticError("Type mismatch in initializer")
+    }
+  } else {
+    raise Unimplemented("Only integer global initializers supported")
+  }
+}
+
+///|
 pub fn Context::emit_global_variable_decl(
   self : Context,
   ctype : @parser.CType,
@@ -232,16 +283,54 @@ pub fn Context::emit_global_variable_decl(
   is_register~ : Bool,
   is_thread_local~ : Bool,
 ) -> Unit raise CodeGenError {
-  // emit global variable declaration
-  ignore(self)
-  ignore(ctype)
-  ignore(name)
-  ignore(initializer)
-  ignore(is_static)
-  ignore(is_extern)
   ignore(is_register)
   ignore(is_thread_local)
-  raise Unimplemented(
-    "Global variable declaration emission not implemented yet",
-  )
+  let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
+    err => raise IllegalLLVMUsage("\{err}")
+  }
+  let linkage : @IR.Linkage = if is_static { Internal } else { External }
+  let init_const : &@IR.Constant? = match initializer {
+    Some(init) => Some(self.emit_initializer(init, ctype))
+    None =>
+      if is_extern {
+        None
+      } else {
+        let zero = self.llvm_ctx.getConstZero(llvm_ty) catch {
+          err => raise IllegalLLVMUsage("Zero init failed: \{err}")
+        }
+        Some(zero)
+      }
+  }
+
+  if is_extern && init_const.is_empty() {
+    match self.llvm_mod.globals.get(name) {
+      Some(_) => return
+      None => ()
+    }
+  }
+  try {
+    let gvar_val = match init_const {
+      Some(c) => {
+        let gvar = self.llvm_mod.addGlobalVariable(
+          llvm_ty,
+          name,
+          initializer=c,
+          linkage?=Some(linkage),
+        )
+        gvar.asValueEnum().asValueClass()
+      }
+      None => {
+        let gvar = self.llvm_mod.addGlobalVariable(
+          llvm_ty,
+          name,
+          linkage?=Some(linkage),
+        )
+        gvar.asValueEnum().asValueClass()
+      }
+    }
+    self.var_env.set(name, gvar_val)
+    self.var_types.set(name, ctype)
+  } catch {
+    err => raise IllegalLLVMUsage("Failed to add global variable: \{err}")
+  }
 }

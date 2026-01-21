@@ -282,12 +282,20 @@ fn Context::parse_array_abstract_declarator(
       continue rest
     }
   }
+
+  let (element_ty, rest) = self.parse_type_suffix(
+    rest,
+    base_ty,
+    init_tokens,
+    decay_array_to_ptr=false,
+  )
+
   if is_static_array || (!decay_array_to_ptr && size is Some(_)) {
     guard size is Some(sz) else {
       raise ParseError(tokens[0], "Static array must have a size")
     }
     let ctype = CType::{
-      dataKind: Array(base_ty, sz),
+      dataKind: Array(element_ty, sz),
       is_const,
       is_volatile,
       is_restrict,
@@ -297,7 +305,7 @@ fn Context::parse_array_abstract_declarator(
     (ctype, rest)
   } else {
     let ctype = CType::{
-      dataKind: Ptr(base_ty),
+      dataKind: Ptr(element_ty),
       is_const,
       is_volatile,
       is_restrict,

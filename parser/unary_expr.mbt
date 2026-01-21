@@ -330,9 +330,13 @@ pub fn Context::parse_unary_expr(
     }
     [{ kind: Operator("*"), .. }, .. rest] => {
       let (inner_expr, rest) = self.parse_cast_expr(rest)
-      guard inner_expr.ctype.dataKind is Ptr(deref_ctype) else {
-        let msg = "Type '\{inner_expr.ctype}' cannot be dereferenced"
-        raise ParseError(tokens[0], msg)
+      let deref_ctype = match inner_expr.ctype.dataKind {
+        Ptr(deref_ctype) => deref_ctype
+        Array(deref_ctype, _) => deref_ctype
+        _ => {
+          let msg = "Type '\{inner_expr.ctype}' cannot be dereferenced"
+          raise ParseError(tokens[0], msg)
+        }
       }
       let tokens = tokens[0:rest.start_offset() - start_offset]
       let unary_expr = UnaryExpr::{
