@@ -6,6 +6,7 @@ pub fn Context::ctype_kind_to_llvm_type(
   let { llvm_ctx, .. } = self
   match dataKind {
     Void => (llvm_ctx.getVoidTy() : &@IR.Type)
+    Bool => llvm_ctx.getInt8Ty()
     Char => llvm_ctx.getInt8Ty()
     UChar => llvm_ctx.getInt8Ty()
     Int16 => llvm_ctx.getInt16Ty()
@@ -20,13 +21,23 @@ pub fn Context::ctype_kind_to_llvm_type(
     Double => llvm_ctx.getDoubleTy()
     LongDouble => llvm_ctx.getFP128Ty()
     Ptr(_) => llvm_ctx.getPtrTy()
-    Struct(name, _) =>
-      match llvm_ctx.getStructTypeByName(name) {
-        Some(ty) => ty
-        None =>
-          raise IllegalLLVMUsage(
-            "Struct type '\{name}' not found in LLVM context",
-          )
+    Struct(name, fields) =>
+      if name == "" {
+        let elem_tys : Array[&@IR.Type] = Array::new()
+        for f in fields {
+          let { ctype, .. } = f
+          let llvm_ty = self.ctype_to_llvm_type(ctype)
+          elem_tys.push(llvm_ty)
+        }
+        llvm_ctx.getStructType(elem_tys, name~, isPacked=false)
+      } else {
+        match llvm_ctx.getStructTypeByName(name) {
+          Some(ty) => ty
+          None =>
+            raise IllegalLLVMUsage(
+              "Struct type '\{name}' not found in LLVM context",
+            )
+        }
       }
     Array(ty, size) => {
       let elem_ty = self.ctype_to_llvm_type(ty)
@@ -56,6 +67,7 @@ pub fn Context::ctype_to_llvm_type(
 ///|
 fn is_integral_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
+    Bool => true
     Char | UChar => true
     Int16 | UInt16 => true
     Int | UInt => true
@@ -75,7 +87,7 @@ fn is_floating_kind(kind : @parser.CTypeDataKind) -> Bool {
 ///|
 fn is_unsigned_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
-    UChar | UInt16 | UInt | ULong | ULongLong => true
+    Bool | UChar | UInt16 | UInt | ULong | ULongLong => true
     _ => false
   }
 }
@@ -92,6 +104,10 @@ fn Context::cast_value_to_ctype(
   }
   let from_kind = from_ctype.dataKind
   let to_kind = to_ctype.dataKind
+  if to_kind is Bool {
+    let cond = self.to_bool(val)
+    return self.builder.createZExt(cond, self.llvm_ctx.getInt8Ty())
+  }
   // Cast to void: evaluate for side effects, then discard the value.
   // Return a dummy value to satisfy callers that expect an LLVM Value.
   if to_kind is Void {

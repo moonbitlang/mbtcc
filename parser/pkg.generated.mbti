@@ -96,6 +96,7 @@ pub(all) struct CType {
   mut tokens : ArrayView[@lexer.Token]
 }
 pub fn CType::additive_result_type(Self, Self, String) -> Self?
+pub fn CType::bool() -> Self
 pub fn CType::char() -> Self
 pub fn CType::common_type(Self, Self) -> Self?
 pub fn CType::const_with(CTypeDataKind) -> Self
@@ -127,6 +128,7 @@ pub impl Show for CType
 
 pub(all) enum CTypeDataKind {
   Void
+  Bool
   Char
   UChar
   Int16

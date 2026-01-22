@@ -282,14 +282,12 @@ fn Context::parse_array_abstract_declarator(
       continue rest
     }
   }
-
   let (element_ty, rest) = self.parse_type_suffix(
     rest,
     base_ty,
     init_tokens,
     decay_array_to_ptr=false,
   )
-
   if is_static_array || (!decay_array_to_ptr && size is Some(_)) {
     guard size is Some(sz) else {
       raise ParseError(tokens[0], "Static array must have a size")
@@ -385,6 +383,10 @@ fn Context::parse_function_declarator(
         init_tokens,
         decay_array_to_ptr=true,
       )
+      let param_ty = match param_ty.dataKind {
+        Function(_, _, ..) => param_ty.ptr_to()
+        _ => param_ty
+      }
       parameter_types.push((param_ty, param_name))
       continue rest
     }
@@ -437,6 +439,10 @@ fn Context::parse_decl_spec(
   let rest = loop tokens {
     [{ kind: Keyword(Void), .. }, .. rest] => {
       data_ty = Some(Void)
+      continue rest
+    }
+    [{ kind: Keyword(Bool), .. }, .. rest] => {
+      data_ty = Some(Bool)
       continue rest
     }
     [{ kind: Keyword(Char), .. }, .. rest] => {
@@ -582,6 +588,8 @@ fn Context::parse_decl_spec(
       is_auto = true
       continue rest
     }
+    [{ kind: Keyword(Inline), .. }, .. rest] => continue rest
+    [{ kind: Keyword(Noreturn), .. }, .. rest] => continue rest
     // struct, union, enum not implemented yet
     [{ kind: Keyword(Struct | Union), .. }, ..] as tokens => {
       let (dataKind, rest) = self.parse_struct_or_union_decl(tokens)
@@ -605,6 +613,9 @@ fn Context::parse_decl_spec(
         let msg = "Expected type specifier but found none"
         raise ParseError(tokens[0], msg)
       }
+  }
+  if base_kind is Bool && (is_unsigned || is_signed) {
+    raise ParseError(init_tokens[0], "Cannot apply signed/unsigned to _Bool")
   }
   let storage_class = StorageClass::{
     is_static,

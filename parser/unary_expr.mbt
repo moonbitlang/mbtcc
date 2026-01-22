@@ -333,6 +333,7 @@ pub fn Context::parse_unary_expr(
       let deref_ctype = match inner_expr.ctype.dataKind {
         Ptr(deref_ctype) => deref_ctype
         Array(deref_ctype, _) => deref_ctype
+        Function(_, _, ..) => inner_expr.ctype
         _ => {
           let msg = "Type '\{inner_expr.ctype}' cannot be dereferenced"
           raise ParseError(tokens[0], msg)

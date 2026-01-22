@@ -28,6 +28,7 @@ pub fn Context::emit_function_def(
   }
   let llvm_func = self.llvm_mod.addFunction(func_type, name)
   self.current_func = Some(llvm_func)
+  self.current_ret_ty = Some(ret_ty)
   self.labels = Map::new()
   // Create entry basic block
   let entry_bb = llvm_func.addBasicBlock(name="entry")
@@ -55,11 +56,12 @@ pub fn Context::emit_function_def(
     match ret_ty.dataKind {
       Void => self.builder.createRetVoid() |> ignore
       _ => {
-        let msg = "Function '\{name}' must return a value of type '\{ret_ty}'"
-        raise SemanticError("\{msg}")
+        let zero = self.llvm_ctx.getConstZero(self.ctype_to_llvm_type(ret_ty))
+        self.builder.createRet(zero) |> ignore
       }
     }
   }
   self.exit_scope()
   self.current_func = None
+  self.current_ret_ty = None
 }

@@ -274,6 +274,13 @@ pub fn Context::parse_external_declaration(
         self.add_var(param_name, param_type)
       }
     }
+    let func_name_len = name.length() + 1
+    let func_name_elem_ty = CType::const_with(Char)
+    let func_name_ty = CType::default_with(
+      Array(func_name_elem_ty, func_name_len),
+    )
+    self.add_var("__func__", func_name_ty)
+    self.add_var("__FUNCTION__", func_name_ty)
     // Parse compound statement (function body)
     let (body, rest) = self.parse_compound_statement(rest)
     self.pop_scope()

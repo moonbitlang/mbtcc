@@ -4,10 +4,12 @@ pub fn Context::emit_local_decl(
   decl : @parser.Declaration,
 ) -> Unit raise {
   match decl.kind {
-    VariableDeclaration(ty, name, init_expr, is_static~, ..) => {
-      ignore(is_static)
-      self.emit_local_variable(ty, name, init_expr) |> ignore
-    }
+    VariableDeclaration(ty, name, init_expr, is_static~, ..) =>
+      if is_static {
+        self.emit_static_local_variable(ty, name, init_expr) |> ignore
+      } else {
+        self.emit_local_variable(ty, name, init_expr) |> ignore
+      }
     TypeDeclaration(ty) => {
       ignore(ty)
       raise Unimplemented("Local Type declaration not implemented yet")
@@ -43,6 +45,34 @@ fn Context::emit_local_variable(
       self.emit_initializer_list_to_ptr(alloca, ty, initializers)
     _ => raise Unimplemented("Initializer kind not implemented yet")
   }
+}
+
+///|
+fn Context::emit_static_local_variable(
+  self : Context,
+  ty : @parser.CType,
+  name : String,
+  init_expr : @parser.Initializer?,
+) -> Unit raise {
+  guard self.current_func is Some(func) else {
+    raise SemanticError("Static local used outside of a function")
+  }
+  let func_name = func.getNameOrSlotStr()
+  let global_name = "\{func_name}__\{name}__static"
+  let llvm_ty = self.ctype_to_llvm_type(ty)
+  let init_const = match init_expr {
+    Some(init_expr) => self.emit_initializer(init_expr, ty)
+    None => self.llvm_ctx.getConstZero(llvm_ty)
+  }
+  let gvar = self.llvm_mod.addGlobalVariable(
+    llvm_ty,
+    global_name,
+    initializer=init_const,
+    linkage?=Some(Internal),
+  )
+  let gvar_val = gvar.asValueEnum().asValueClass()
+  self.var_env.set(name, gvar_val)
+  self.var_types.set(name, ty)
 }
 
 ///|
@@ -114,7 +144,11 @@ pub fn Context::emit_statement(
     ReturnVoid => self.builder.createRetVoid() |> ignore
     Return(expr) => {
       let value = self.emit_expr(expr)
-      let _ = self.builder.createRet(value)
+      guard self.current_ret_ty is Some(ret_ty) else {
+        raise SemanticError("Return used outside of a function")
+      }
+      let casted = self.cast_value_to_ctype(value, expr.ctype, ret_ty)
+      let _ = self.builder.createRet(casted)
 
     }
     Compound(comp) => self.emit_compound_stmt(comp)

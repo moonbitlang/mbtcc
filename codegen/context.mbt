@@ -9,6 +9,7 @@ pub struct Context {
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
+  mut current_ret_ty : @parser.CType?
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
   // switch 语句 codegen 的临时上下文栈（支持嵌套 switch 与嵌套 case label）
@@ -37,6 +38,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
   let current_func = None
+  let current_ret_ty = None
   let break_stack = Array::new()
   let continue_stack = Array::new()
   let switch_ctx_stack = Array::new()
@@ -51,6 +53,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     var_env,
     var_types,
     current_func,
+    current_ret_ty,
     break_stack,
     continue_stack,
     switch_ctx_stack,
@@ -214,11 +217,10 @@ pub fn Context::emit_typedef(
   ty : @parser.CType,
   name : String,
 ) -> Unit raise CodeGenError {
-  // emit typedef declaration
+  // Typedefs are compile-time only; no LLVM emission needed.
   ignore(self)
   ignore(ty)
   ignore(name)
-  raise Unimplemented("Typedef emission not implemented yet")
 }
 
 ///|
@@ -236,6 +238,7 @@ fn Context::emit_initializer(
   }
 }
 
+///|
 fn Context::emit_initializer_assign_expr(
   self : Context,
   expr : @parser.AssignExpr,
@@ -301,7 +304,6 @@ pub fn Context::emit_global_variable_decl(
         Some(zero)
       }
   }
-
   if is_extern && init_const.is_empty() {
     match self.llvm_mod.globals.get(name) {
       Some(_) => return

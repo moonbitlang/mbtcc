@@ -60,6 +60,13 @@ fn Context::emit_stmt_expr(
 
 ///|
 fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
+  if name == "__func__" || name == "__FUNCTION__" {
+    guard self.current_func is Some(func) else {
+      raise SemanticError("`__func__` used outside of a function")
+    }
+    let func_name = func.getNameOrSlotStr()
+    return self.builder.createGlobalString(func_name)
+  }
   match self.var_env.get(name) {
     Some(val) =>
       // Check if we have type information for this variable

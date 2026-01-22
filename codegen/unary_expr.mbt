@@ -26,8 +26,13 @@ fn Context::emit_unary_expr(
       }
     Deref(inner) => {
       let ptr_val = self.emit_cast_expr(inner)
-      let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
-      self.builder.createLoad(llvm_ty, ptr_val)
+      match expr.ctype.dataKind {
+        Function(_, _, ..) => ptr_val
+        _ => {
+          let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
+          self.builder.createLoad(llvm_ty, ptr_val)
+        }
+      }
     }
     Posate(inner) => self.emit_cast_expr(inner)
     Negate(expr) => {

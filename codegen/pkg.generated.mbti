@@ -31,6 +31,7 @@ pub struct Context {
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
   mut current_func : @IR.Function?
+  mut current_ret_ty : @parser.CType?
   break_stack : Array[@IR.BasicBlock]
   continue_stack : Array[@IR.BasicBlock]
   switch_ctx_stack : Array[SwitchCodegenCtx]

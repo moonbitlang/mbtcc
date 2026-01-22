@@ -157,12 +157,17 @@ fn Context::get_lvalue_ptr_from_postfix(
   match expr.kind {
     PrimExpr(prim_expr) =>
       match prim_expr.kind {
-        Ident(name) => {
-          guard self.var_env.get(name) is Some(storage) else {
-            raise SemanticError("Undefined identifier '\{name}'")
+        Ident(name) =>
+          match self.var_env.get(name) {
+            Some(storage) => (storage, prim_expr.ctype)
+            None => {
+              guard self.func_decls.get(name) is Some(_) else {
+                raise SemanticError("Undefined identifier '\{name}'")
+              }
+              let func = self.get_or_declare_function(name)
+              (func, prim_expr.ctype)
+            }
           }
-          (storage, prim_expr.ctype)
-        }
         Paren(inner) => self.get_lvalue_ptr_from_paren_expr(inner)
         _ => raise SemanticError("Primary expression is not assignable")
       }

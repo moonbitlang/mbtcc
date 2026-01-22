@@ -314,6 +314,7 @@ fn Context::emit_default_label_in_switch(
 ///|
 fn is_switchable_kind(kind : @parser.CTypeDataKind) -> Bool {
   match kind {
+    Bool => true
     Char | UChar => true
     Int16 | UInt16 => true
     Int | UInt => true

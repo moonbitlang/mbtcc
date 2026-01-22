@@ -132,6 +132,9 @@ pub(all) enum CTypeDataKind {
   // void
   Void
 
+  // _Bool
+  Bool
+
   // char
   Char
 
@@ -207,6 +210,7 @@ pub impl Show for CTypeDataKind with output(self, logger) {
 
   let s = match self {
     Void => "void"
+    Bool => "_Bool"
     Char => "char"
     UChar => "unsigned char"
     Int16 => "short"
@@ -303,6 +307,9 @@ pub fn CType::const_with(kind : CTypeDataKind) -> CType {
 let void_ty : CType = CType::default_with(Void)
 
 ///|
+let bool_ty : CType = CType::default_with(Bool)
+
+///|
 let char_ty : CType = CType::default_with(Char)
 
 ///|
@@ -344,6 +351,11 @@ let double_ty : CType = CType::default_with(Double)
 ///|
 pub fn CType::void_() -> CType {
   void_ty
+}
+
+///|
+pub fn CType::bool() -> CType {
+  bool_ty
 }
 
 ///|
@@ -425,6 +437,7 @@ pub fn CType::struct_type(name : String, fields : Array[StructField]) -> CType {
 #alias(is_dec_ok)
 pub fn CType::is_inc_ok(self : CType) -> Bool {
   match self.dataKind {
+    Bool => true
     Char => true
     UChar => true
     Int16 => true
@@ -445,6 +458,7 @@ pub fn CType::is_inc_ok(self : CType) -> Bool {
 ///|
 pub fn CType::is_numeric(self : CType) -> Bool {
   match self.dataKind {
+    Bool => true
     Char => true
     UChar => true
     Int16 => true
@@ -464,6 +478,7 @@ pub fn CType::is_numeric(self : CType) -> Bool {
 ///|
 pub fn CType::is_integral(self : CType) -> Bool {
   match self.dataKind {
+    Bool => true
     Char => true
     UChar => true
     Int16 => true
@@ -485,6 +500,7 @@ pub fn CType::is_integral(self : CType) -> Bool {
 pub fn CType::is_scalar(self : CType) -> Bool {
   match self.dataKind {
     // Arithmetic types
+    Bool => true
     Char => true
     UChar => true
     Int16 => true
@@ -582,8 +598,18 @@ pub fn CType::common_type(self : CType, other : CType) -> CType? {
       return Some(CType::default_with(Ptr(CType::void_())))
     _ => ()
   }
+  fn promote_integer(ty : CType) -> CType {
+    match ty.dataKind {
+      Bool | Char | UChar | Int16 | UInt16 => CType::int()
+      _ => ty
+    }
+  }
+
+  let self = promote_integer(self)
+  let other = promote_integer(other)
   fn rank(kind : CTypeDataKind) -> Int? {
     match kind {
+      Bool => Some(0)
       Char => Some(1)
       UChar => Some(1)
       Int16 => Some(2)
@@ -602,7 +628,7 @@ pub fn CType::common_type(self : CType, other : CType) -> CType? {
 
   fn is_unsigned(kind : CTypeDataKind) -> Bool {
     match kind {
-      UChar | UInt16 | UInt | ULong | ULongLong => true
+      Bool | UChar | UInt16 | UInt | ULong | ULongLong => true
       _ => false
     }
   }

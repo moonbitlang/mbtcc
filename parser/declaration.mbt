@@ -304,7 +304,7 @@ pub fn Context::parse_declaration(
       init_tokens,
       decay_array_to_ptr=false,
     )
-    guard rest is [{ kind: Semi, .. }, .. rest] else {
+    guard rest is [{ kind: Semi, .. }, .. rest2] else {
       raise ParseError(rest[0], "expected ';' after typedef")
     }
     guard !(name is "") else {
@@ -314,9 +314,15 @@ pub fn Context::parse_declaration(
       raise ParseError(rest[0], "redeclaration of type name: \{name}")
     }
     self.add_typedef(name, ctype)
-    let decl_tokens = init_tokens[0:rest.start_offset() - start_offset]
+    let decl_end = if skip_semi {
+      rest2.start_offset()
+    } else {
+      rest.start_offset()
+    }
+    let decl_tokens = init_tokens[0:decl_end - start_offset]
     let decl_kind = DeclarationKind::TypeDef(ctype, name)
     let decl = Declaration::{ kind: decl_kind, tokens: decl_tokens }
+    let rest = if skip_semi { rest2 } else { rest }
     return ([decl], rest)
   }
   let (base_ty, storage, tokens) = self.parse_decl_spec(tokens)
