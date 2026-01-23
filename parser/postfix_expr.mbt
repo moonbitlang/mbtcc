@@ -282,10 +282,19 @@ pub fn Context::parse_postfix_expr(
         Array(elem_ty, _) => elem_ty
         Ptr(elem_ty) => elem_ty
         _ =>
-          raise ParseError(
-            tok,
-            "Type '\{postfix_expr.ctype}' cannot be used with array subscript",
-          )
+          match index_expr.ctype.dataKind {
+            Array(elem_ty, _) | Ptr(elem_ty) => {
+              if !postfix_expr.ctype.is_integral() {
+                raise ParseError(tok, "Array subscript index must be integer")
+              }
+              elem_ty
+            }
+            _ =>
+              raise ParseError(
+                tok,
+                "Type '\{postfix_expr.ctype}' cannot be used with array subscript",
+              )
+          }
       }
       postfix_expr = PostfixExpr::{
         kind: ArrayAccess(postfix_expr, index_expr),

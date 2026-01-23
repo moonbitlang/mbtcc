@@ -15,14 +15,14 @@ fn Context::emit_array_access_ptr(
   arr_expr : @parser.PostfixExpr,
   idx_expr : @parser.Expr,
 ) -> (&@IR.Value, @parser.CType) raise {
-  let idx_raw = self.emit_expr(idx_expr)
-  let idx_i32 = self.cast_value_to_ctype(
-    idx_raw,
-    idx_expr.ctype,
-    @parser.CType::int(),
-  )
   match arr_expr.ctype.dataKind {
     Ptr(elem_ty) => {
+      let idx_raw = self.emit_expr(idx_expr)
+      let idx_i32 = self.cast_value_to_ctype(
+        idx_raw,
+        idx_expr.ctype,
+        @parser.CType::int(),
+      )
       let base_ptr = self.emit_postfix_expr(arr_expr)
       let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
       let indices : Array[&@IR.Value] = Array::new()
@@ -31,6 +31,12 @@ fn Context::emit_array_access_ptr(
       (elem_ptr, elem_ty)
     }
     Array(elem_ty, _) => {
+      let idx_raw = self.emit_expr(idx_expr)
+      let idx_i32 = self.cast_value_to_ctype(
+        idx_raw,
+        idx_expr.ctype,
+        @parser.CType::int(),
+      )
       let (base_ptr, _) = self.get_lvalue_ptr_from_postfix(arr_expr)
       let arr_llvm_ty = self.ctype_to_llvm_type(arr_expr.ctype)
       let zero = self.llvm_ctx.getConstInt32(0)
@@ -41,7 +47,40 @@ fn Context::emit_array_access_ptr(
       (elem_ptr, elem_ty)
     }
     _ =>
-      raise SemanticError("Array subscript target is not an array or pointer")
+      match idx_expr.ctype.dataKind {
+        Ptr(elem_ty) => {
+          let idx_raw = self.emit_postfix_expr(arr_expr)
+          let idx_i32 = self.cast_value_to_ctype(
+            idx_raw,
+            arr_expr.ctype,
+            @parser.CType::int(),
+          )
+          let base_ptr = self.emit_expr(idx_expr)
+          let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(idx_i32)
+          let elem_ptr = self.builder.createGEP(base_ptr, elem_llvm_ty, indices)
+          (elem_ptr, elem_ty)
+        }
+        Array(elem_ty, _) => {
+          let idx_raw = self.emit_postfix_expr(arr_expr)
+          let idx_i32 = self.cast_value_to_ctype(
+            idx_raw,
+            arr_expr.ctype,
+            @parser.CType::int(),
+          )
+          let (base_ptr, _) = self.get_lvalue_ptr_from_paren_expr(idx_expr)
+          let arr_llvm_ty = self.ctype_to_llvm_type(idx_expr.ctype)
+          let zero = self.llvm_ctx.getConstInt32(0)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(zero)
+          indices.push(idx_i32)
+          let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+          (elem_ptr, elem_ty)
+        }
+        _ =>
+          raise SemanticError("Array subscript target is not an array or pointer")
+      }
   }
 }
 

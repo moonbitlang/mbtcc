@@ -28,6 +28,14 @@ fn Context::emit_unary_expr(
       let ptr_val = self.emit_cast_expr(inner)
       match expr.ctype.dataKind {
         Function(_, _, ..) => ptr_val
+        Array(_, _) => {
+          let arr_llvm_ty = self.ctype_to_llvm_type(expr.ctype)
+          let zero = self.llvm_ctx.getConstInt32(0)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(zero)
+          indices.push(zero)
+          self.builder.createGEP(ptr_val, arr_llvm_ty, indices)
+        }
         _ => {
           let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
           self.builder.createLoad(llvm_ty, ptr_val)

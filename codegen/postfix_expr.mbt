@@ -7,8 +7,20 @@ fn Context::emit_postfix_expr(
     PrimExpr(expr) => self.emit_prim_expr(expr)
     ArrayAccess(expr, idx_expr) => {
       let (elem_ptr, elem_ty) = self.emit_array_access_ptr(expr, idx_expr)
-      let llvm_ty = self.ctype_to_llvm_type(elem_ty)
-      self.builder.createLoad(llvm_ty, elem_ptr)
+      match elem_ty.dataKind {
+        Array(_, _) => {
+          let arr_llvm_ty = self.ctype_to_llvm_type(elem_ty)
+          let zero = self.llvm_ctx.getConstInt32(0)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(zero)
+          indices.push(zero)
+          self.builder.createGEP(elem_ptr, arr_llvm_ty, indices)
+        }
+        _ => {
+          let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+          self.builder.createLoad(llvm_ty, elem_ptr)
+        }
+      }
     }
     FuncCall(func_expr, arg_exprs) => self.emit_func_call(func_expr, arg_exprs)
     MemberAccess(expr, member_name) => {
