@@ -205,13 +205,17 @@ pub fn Context::parse_conditional_expr(
     let ctype = match (then_ctype.dataKind, else_expr.ctype.dataKind) {
       (Void, _) | (_, Void) => CType::void_()
       _ =>
-        match CType::common_type(then_ctype, else_expr.ctype) {
-          Some(t) => t
-          None =>
-            raise ParseError(
-              init_tokens[0],
-              "Incompatible types in conditional expression",
-            )
+        if then_ctype == else_expr.ctype {
+          then_ctype
+        } else {
+          match CType::common_type(then_ctype, else_expr.ctype) {
+            Some(t) => t
+            None =>
+              raise ParseError(
+                init_tokens[0],
+                "Incompatible types in conditional expression",
+              )
+          }
         }
     }
     let cond_expr = ConditionalExpr::{
@@ -235,13 +239,17 @@ pub fn Context::parse_conditional_expr(
   let ctype = match (then_expr.ctype.dataKind, else_expr.ctype.dataKind) {
     (Void, _) | (_, Void) => CType::void_()
     _ =>
-      match CType::common_type(then_expr.ctype, else_expr.ctype) {
-        Some(t) => t
-        None =>
-          raise ParseError(
-            init_tokens[0],
-            "Incompatible types in conditional expression",
-          )
+      if then_expr.ctype == else_expr.ctype {
+        then_expr.ctype
+      } else {
+        match CType::common_type(then_expr.ctype, else_expr.ctype) {
+          Some(t) => t
+          None =>
+            raise ParseError(
+              init_tokens[0],
+              "Incompatible types in conditional expression",
+            )
+        }
       }
   }
   let cond_expr = ConditionalExpr::{

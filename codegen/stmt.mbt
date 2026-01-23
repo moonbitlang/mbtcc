@@ -9,10 +9,9 @@ pub fn Context::emit_local_decl(
         self.emit_static_local_variable(ty, name, init_expr) |> ignore
       } else {
         self.emit_local_variable(ty, name, init_expr) |> ignore
-      }
+    }
     TypeDeclaration(ty) => {
-      ignore(ty)
-      raise Unimplemented("Local Type declaration not implemented yet")
+      self.emit_type_decl(ty)
     }
     // local `typedef` is a no-op in LLVM
     // we already handled it in the parser phase

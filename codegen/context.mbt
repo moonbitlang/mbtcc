@@ -8,6 +8,8 @@ pub struct Context {
   prog : @parser.Program
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
+  mut tag_env : @env.Env[String, @IR.StructType]
+  mut struct_name_counter : Int
   mut current_func : @IR.Function?
   mut current_ret_ty : @parser.CType?
   break_stack : Array[@IR.BasicBlock]
@@ -37,6 +39,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let func_defs = Map::new()
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
+  let tag_env = @env.Env::new()
+  let struct_name_counter = 0
   let current_func = None
   let current_ret_ty = None
   let break_stack = Array::new()
@@ -52,6 +56,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     prog,
     var_env,
     var_types,
+    tag_env,
+    struct_name_counter,
     current_func,
     current_ret_ty,
     break_stack,
@@ -74,8 +80,10 @@ pub fn Context::emit(self : Context) -> @IR.Module raise {
 fn Context::enter_scope(self : Context) -> Unit {
   let env = @env.Env::new(parent=Some(self.var_env))
   let types = @env.Env::new(parent=Some(self.var_types))
+  let tags = @env.Env::new(parent=Some(self.tag_env))
   self.var_env = env
   self.var_types = types
+  self.tag_env = tags
 }
 
 ///|
@@ -88,8 +96,13 @@ fn Context::exit_scope(self : Context) -> Unit {
     println("Compiler ICE: Attempted to exit scope with no parent.")
     panic()
   }
+  guard self.tag_env.parent is Some(tags) else {
+    println("Compiler ICE: Attempted to exit scope with no parent.")
+    panic()
+  }
   self.var_env = env
   self.var_types = types
+  self.tag_env = tags
 }
 
 ///|
@@ -188,24 +201,12 @@ pub fn Context::emit_type_decl(
 ) -> Unit raise CodeGenError {
   match type_decl.dataKind {
     Struct(name, fields) => {
-      if name != "" {
-        match self.llvm_ctx.getStructTypeByName(name) {
-          Some(_) => return
-          None => ()
-        }
+      if name == "" {
+        return
       }
-      let elem_tys : Array[&@IR.Type] = Array::new()
-      for f in fields {
-        let { ctype, .. } = f
-        let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
-          err => raise IllegalLLVMUsage("\{err}")
-        }
-        elem_tys.push(llvm_ty)
-      }
-      let _ = self.llvm_ctx.getStructType(elem_tys, name~, isPacked=false) catch {
+      let _ = self.ctype_to_llvm_type(type_decl) catch {
         err => raise IllegalLLVMUsage("\{err}")
       }
-
     }
     _ => raise Unimplemented("Type declaration emission not implemented yet")
   }

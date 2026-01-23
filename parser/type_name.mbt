@@ -747,7 +747,30 @@ fn Context::parse_struct_or_union_decl(
     self.add_tag(name, dataKind)
     return (dataKind, tokens)
   }
-  let (members, rest) = self.parse_struct_union_members(tokens)
+  let mut existing_fields : Array[StructField]? = None
+  if name != "" {
+    if self.tags.contains_local(name) {
+      match self.get_tag_ctype(name) {
+        Some(Struct(_, fields)) if kw is Struct => existing_fields = Some(fields)
+        Some(Union(_, fields)) if kw is Union => existing_fields = Some(fields)
+        Some(_) => ()
+        None => ()
+      }
+    } else {
+      let fields = Array::new()
+      let dataKind = match kw {
+        Struct => CTypeDataKind::Struct(name, fields)
+        _ => CTypeDataKind::Union(name, fields)
+      }
+      self.add_tag(name, dataKind)
+      existing_fields = Some(fields)
+    }
+  }
+  let members = match existing_fields {
+    Some(fields) => fields
+    None => Array::new()
+  }
+  let (members, rest) = self.parse_struct_union_members(tokens, members)
   guard rest is [{ kind: Bracket('}'), .. }, .. rest] else {
     println("Compile ICE: Expected '}' to close struct/union declaration")
     panic()
@@ -766,8 +789,8 @@ fn Context::parse_struct_or_union_decl(
 fn Context::parse_struct_union_members(
   self : Context,
   tokens : ArrayView[Token],
+  members : Array[StructField],
 ) -> (Array[StructField], ArrayView[Token]) raise ParseError {
-  let members : Array[StructField] = Array::new()
   self.push_scope()
   let mut tokens = tokens
   while !(tokens is [{ kind: Bracket('}'), .. }, ..]) {

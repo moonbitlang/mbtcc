@@ -22,21 +22,33 @@ pub fn Context::ctype_kind_to_llvm_type(
     LongDouble => llvm_ctx.getFP128Ty()
     Ptr(_) => llvm_ctx.getPtrTy()
     Struct(name, fields) =>
-      if name == "" {
+      if name == "" && fields.length() == 0 {
+        llvm_ctx.getArrayType(llvm_ctx.getInt8Ty(), 0).asTypeEnum().asTypeClass()
+      } else if name == "" {
         let elem_tys : Array[&@IR.Type] = Array::new()
         for f in fields {
           let { ctype, .. } = f
           let llvm_ty = self.ctype_to_llvm_type(ctype)
           elem_tys.push(llvm_ty)
         }
-        llvm_ctx.getStructType(elem_tys, name~, isPacked=false)
+        llvm_ctx.getStructType(elem_tys, isPacked=false)
       } else {
-        match llvm_ctx.getStructTypeByName(name) {
+        match self.tag_env.get(name) {
           Some(ty) => ty
-          None =>
-            raise IllegalLLVMUsage(
-              "Struct type '\{name}' not found in LLVM context",
-            )
+          None => {
+            let elem_tys : Array[&@IR.Type] = Array::new()
+            for f in fields {
+              let { ctype, .. } = f
+              let llvm_ty = self.ctype_to_llvm_type(ctype)
+              elem_tys.push(llvm_ty)
+            }
+            let id = self.struct_name_counter
+            self.struct_name_counter = id + 1
+            let llvm_name = "\{name}.\{id}"
+            let ty = llvm_ctx.getStructType(elem_tys, name=llvm_name, isPacked=false)
+            self.tag_env.set(name, ty)
+            ty
+          }
         }
       }
     Array(ty, size) => {

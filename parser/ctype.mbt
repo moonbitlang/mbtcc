@@ -62,7 +62,36 @@ pub struct StorageClass {
 
 ///|
 pub impl Eq for CType with equal(self, other) {
-  self.dataKind == other.dataKind &&
+  fn data_kind_eq(a : CTypeDataKind, b : CTypeDataKind) -> Bool {
+    match (a, b) {
+      (Struct(name_a, fields_a), Struct(name_b, fields_b)) =>
+        if name_a != "" || name_b != "" {
+          name_a == name_b
+        } else {
+          fields_a == fields_b
+        }
+      (Union(name_a, fields_a), Union(name_b, fields_b)) =>
+        if name_a != "" || name_b != "" {
+          name_a == name_b
+        } else {
+          fields_a == fields_b
+        }
+      (Enum(name_a, variants_a), Enum(name_b, variants_b)) =>
+        if name_a != "" || name_b != "" {
+          name_a == name_b
+        } else {
+          variants_a == variants_b
+        }
+      (Ptr(t1), Ptr(t2)) => t1 == t2
+      (Array(t1, n1), Array(t2, n2)) => n1 == n2 && t1 == t2
+      (Function(p1, r1, is_variadic= isv1),
+        Function(p2, r2, is_variadic= isv2)) =>
+        p1 == p2 && r1 == r2 && isv1 == isv2
+      _ => a == b
+    }
+  }
+
+  data_kind_eq(self.dataKind, other.dataKind) &&
   self.is_const == other.is_const &&
   self.is_volatile == other.is_volatile &&
   self.is_restrict == other.is_restrict &&

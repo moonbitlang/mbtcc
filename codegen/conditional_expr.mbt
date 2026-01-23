@@ -84,6 +84,8 @@ fn Context::emit_select_expr(
     else_expr.ctype.dataKind is Void
   let result_ty = if result_is_void {
     None
+  } else if then_expr.ctype == else_expr.ctype {
+    Some(then_expr.ctype)
   } else {
     @parser.CType::common_type(then_expr.ctype, else_expr.ctype)
   }
