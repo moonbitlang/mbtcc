@@ -12,9 +12,9 @@
   ],
   "link" : {
     "native" : {
-      "cc" : "$CC",
-      "cc-flags": "$CC_FLAGS -w",
-      "cc-link-flags" : "$CC_LINK_FLAGS"
+      "cc" : "clang",
+      "cc-flags": "-I/opt/homebrew/Cellar/llvm@18/18.1.8/include  -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -w",
+      "cc-link-flags" : "-L/opt/homebrew/Cellar/llvm@18/18.1.8/lib -Wl,-search_paths_first -Wl,-headerpad_max_install_names -lLLVM-18 -lpthread -ldl -lm -lstdc++"
     }
   }
 }

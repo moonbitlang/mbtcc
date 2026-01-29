@@ -1,0 +1,9 @@
+{
+  "import": [
+    "Kaida-Amethyst/mbtcc/parser",
+    "Kaida-Amethyst/mbtcc/env",
+    "Kaida-Amethyst/either",
+    "Kaida-Amethyst/MoonLLVM/IR",
+  ],
+  "warn-list" : "+prefer_readonly_array+prefer_fixed_array"
+}
