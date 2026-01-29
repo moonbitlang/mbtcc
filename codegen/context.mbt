@@ -208,6 +208,8 @@ pub fn Context::emit_type_decl(
         err => raise IllegalLLVMUsage("\{err}")
       }
     }
+    Enum(_, _) => ()
+    Union(_, _) => ()
     _ => raise Unimplemented("Type declaration emission not implemented yet")
   }
 }

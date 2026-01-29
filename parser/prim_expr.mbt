@@ -260,10 +260,14 @@ pub fn Context::parse_prim_expr(
     [{ kind: Char(c), .. }, .. rest] => (Char(c), rest)
     [{ kind: Identifier(name), .. }, .. rest] if self.is_var_name(name) =>
       (Ident(name), rest)
-    [{ kind: Identifier(name), .. }, ..] => {
-      let msg = "Identifier '\{name}' is not defined as a variable"
-      raise ParseError(tokens[0], msg)
-    }
+    [{ kind: Identifier(name), .. }, .. rest] =>
+      match self.get_enum_member(name) {
+        Some((_, value)) => (Int(value), rest)
+        None => {
+          let msg = "Identifier '\{name}' is not defined as a variable"
+          raise ParseError(tokens[0], msg)
+        }
+      }
     [{ kind: String(_), .. }, ..] as tokens => {
       let strs : Array[String] = Array::new()
       let rest_tokens = loop tokens {

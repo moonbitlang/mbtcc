@@ -186,6 +186,17 @@ pub fn Context::get_typename_ctype(self : Context, name : String) -> CType? {
 }
 
 ///|
+pub fn Context::get_enum_member(
+  self : Context,
+  name : String,
+) -> (CTypeDataKind, Int)? {
+  match self.defined.get(name) {
+    Some(EnumMember(ty, value)) => Some((ty, value))
+    _ => None
+  }
+}
+
+///|
 pub fn Context::get_tag_ctype(self : Context, name : String) -> CTypeDataKind? {
   self.tags.get(name)
 }
