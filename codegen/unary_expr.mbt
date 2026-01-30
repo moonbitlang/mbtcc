@@ -74,5 +74,27 @@ fn Context::emit_unary_expr(
       ignore(ty)
       raise Unimplemented("Alignof type codegen is not implemented yet")
     }
+    BuiltinVaArg(list_expr, ty) => {
+      let (list_ptr, _) = self.get_lvalue_ptr_from_unary(list_expr)
+      let llvm_ty = self.ctype_to_llvm_type(ty)
+      if is_aggregate_type(ty) {
+        let cur = (self.builder.createLoad(self.llvm_ctx.getPtrTy(), list_ptr) : &@IR.Value)
+        let size = self.ctype_sizeof_bytes(ty)
+        let size_val = self.llvm_ctx.getConstInt64(size)
+        let step = ((size + 7) / 8) * 8
+        let step_val = self.llvm_ctx.getConstInt64(step)
+        let idxs : Array[&@IR.Value] = Array::new()
+        idxs.push(step_val)
+        let next = (self.builder.createGEP(cur, self.llvm_ctx.getInt8Ty(), idxs) : &@IR.Value)
+        self.builder.createStore(next, list_ptr) |> ignore
+        let tmp = self.builder.createAlloca(llvm_ty)
+        let dl = self.llvm_mod.getDataLayout()
+        let align = dl.getTypeAlignment(llvm_ty)
+        self.builder.createMemCpy(tmp, align, cur, 8, size_val) |> ignore
+        (self.builder.createLoad(llvm_ty, tmp) : &@IR.Value)
+      } else {
+        self.builder.createVAArg(list_ptr, llvm_ty)
+      }
+    }
   }
 }

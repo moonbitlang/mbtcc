@@ -33,6 +33,30 @@ fn Context::lex_number_literal(
     }
     (acc, "")
   }
+  fn int_literal_no_suffix(n : UInt64, is_decimal : Bool) -> TokenKind {
+    let int_max : UInt64 = 0x7fffffffUL
+    let uint_max : UInt64 = 0xffffffffUL
+    let long_max : UInt64 = 0x7fffffffffffffffUL
+    if is_decimal {
+      if n <= int_max {
+        TokenKind::Int(n.to_uint().reinterpret_as_int())
+      } else if n <= long_max {
+        TokenKind::Long(n.reinterpret_as_int64())
+      } else {
+        TokenKind::ULongLong(n)
+      }
+    } else {
+      if n <= int_max {
+        TokenKind::Int(n.to_uint().reinterpret_as_int())
+      } else if n <= uint_max {
+        TokenKind::UInt(n.to_uint())
+      } else if n <= long_max {
+        TokenKind::Long(n.reinterpret_as_int64())
+      } else {
+        TokenKind::ULong(n)
+      }
+    }
+  }
 
   lexmatch code with longest {
     // Case 1. Hexadecimal floating-point literal
@@ -127,7 +151,7 @@ fn Context::lex_number_literal(
         "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
         "u" | "U" => TokenKind::UInt(number64.to_uint())
         "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
-        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
+        _ => int_literal_no_suffix(number64, false)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -154,7 +178,7 @@ fn Context::lex_number_literal(
         "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
         "u" | "U" => TokenKind::UInt(number64.to_uint())
         "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
-        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
+        _ => int_literal_no_suffix(number64, false)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -179,7 +203,7 @@ fn Context::lex_number_literal(
         "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
         "u" | "U" => TokenKind::UInt(number64.to_uint())
         "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
-        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
+        _ => int_literal_no_suffix(number64, false)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {
@@ -204,7 +228,7 @@ fn Context::lex_number_literal(
         "ll" | "LL" => TokenKind::LongLong(number64.reinterpret_as_int64())
         "u" | "U" => TokenKind::UInt(number64.to_uint())
         "l" | "L" => TokenKind::Long(number64.reinterpret_as_int64())
-        _ => TokenKind::Int(number64.to_uint().reinterpret_as_int())
+        _ => int_literal_no_suffix(number64, true)
       }
       let token = Token::new(token_kind, source_file, line, col, idx, raw_str)
       if !err_msg.is_empty() {

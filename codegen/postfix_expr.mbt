@@ -112,6 +112,134 @@ fn Context::emit_func_call(
   func_expr : @parser.PostfixExpr,
   arg_exprs : Array[@parser.AssignExpr],
 ) -> &@IR.Value raise {
+  fn extract_unary_from_assign_expr(
+    expr : @parser.AssignExpr,
+  ) -> @parser.UnaryExpr? {
+    match expr.kind {
+      Conditional(cond) =>
+        match cond.kind {
+          LogicalOrExpr(or_expr) =>
+            match or_expr.kind {
+              LogicalAndExpr(and_expr) =>
+                match and_expr.kind {
+                  InclusiveOrExpr(ior_expr) =>
+                    match ior_expr.kind {
+                      ExclusiveOrExpr(xor_expr) =>
+                        match xor_expr.kind {
+                          AndExpr(and2_expr) =>
+                            match and2_expr.kind {
+                              EqualityExpr(eq_expr) =>
+                                match eq_expr.kind {
+                                  RelationalExpr(rel_expr) =>
+                                    match rel_expr.kind {
+                                      ShiftExpr(shift_expr) =>
+                                        match shift_expr.kind {
+                                          AddiExpr(add_expr) =>
+                                            match add_expr.kind {
+                                              MultiExpr(mul_expr) =>
+                                                match mul_expr.kind {
+                                                  CastExpr(cast_expr) =>
+                                                    match cast_expr.kind {
+                                                      UnaryExpr(unary_expr) =>
+                                                        Some(unary_expr)
+                                                      _ => None
+                                                    }
+                                                  _ => None
+                                                }
+                                              _ => None
+                                            }
+                                          _ => None
+                                        }
+                                      _ => None
+                                    }
+                                  _ => None
+                                }
+                              _ => None
+                            }
+                          _ => None
+                        }
+                      _ => None
+                    }
+                  _ => None
+                }
+              _ => None
+            }
+          _ => None
+        }
+      _ => None
+    }
+  }
+  fn get_va_list_ptr(
+    self : Context,
+    arg0 : @parser.AssignExpr,
+  ) -> &@IR.Value raise {
+    let unary = match extract_unary_from_assign_expr(arg0) {
+      Some(u) => u
+      None => raise SemanticError("va_list argument must be an lvalue")
+    }
+    let (ptr, _) = self.get_lvalue_ptr_from_unary(unary)
+    ptr
+  }
+  fn coerce_vararg_aggregate(
+    self : Context,
+    val : &@IR.Value,
+    ty : @parser.CType,
+  ) -> &@IR.Value raise {
+    let size = self.ctype_sizeof_bytes(ty)
+    let slots = ((size + 7) / 8).to_int()
+    let i64_ty = self.llvm_ctx.getInt64Ty()
+    let coerce_ty = if slots == 1 {
+      (i64_ty : &@IR.Type)
+    } else {
+      (self.llvm_ctx.getArrayType(i64_ty, slots) : &@IR.Type)
+    }
+    let tmp = self.builder.createAlloca(self.ctype_to_llvm_type(ty))
+    match val.getType().asTypeEnum() {
+      PointerType(_) => self.store_aggregate_value(tmp, ty, val)
+      _ => self.builder.createStore(val, tmp) |> ignore
+    }
+    let tmp_ptr = self.builder.createBitCast(tmp, self.llvm_ctx.getPtrTy())
+    (self.builder.createLoad(coerce_ty, tmp_ptr) : &@IR.Value)
+  }
+  match func_expr.kind {
+    PrimExpr({ kind: Ident(name), .. }) if name == "__builtin_va_start" => {
+      guard arg_exprs.length() >= 1 else {
+        raise SemanticError("__builtin_va_start requires at least one argument")
+      }
+      let ap_ptr = get_va_list_ptr(self, arg_exprs[0])
+      if arg_exprs.length() >= 2 {
+        // Evaluate last argument for side effects
+        self.emit_assign_expr(arg_exprs[1]) |> ignore
+      }
+      let void_ty = self.llvm_ctx.getVoidTy()
+      let ptr_ty = self.llvm_ctx.getPtrTy()
+      let fty = self.llvm_ctx.getFunctionType(void_ty, [ptr_ty], isVarArg=false)
+      let fname = "llvm.va_start.p0"
+      let func = match self.llvm_mod.getFunction(fname) {
+        Some(f) => f
+        None => self.llvm_mod.addFunction(fty, fname)
+      }
+      let args : Array[&@IR.Value] = [ap_ptr]
+      return (self.builder.createCall(func, args) : &@IR.Value)
+    }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__builtin_va_end" => {
+      guard arg_exprs.length() >= 1 else {
+        raise SemanticError("__builtin_va_end requires at least one argument")
+      }
+      let ap_ptr = get_va_list_ptr(self, arg_exprs[0])
+      let void_ty = self.llvm_ctx.getVoidTy()
+      let ptr_ty = self.llvm_ctx.getPtrTy()
+      let fty = self.llvm_ctx.getFunctionType(void_ty, [ptr_ty], isVarArg=false)
+      let fname = "llvm.va_end.p0"
+      let func = match self.llvm_mod.getFunction(fname) {
+        Some(f) => f
+        None => self.llvm_mod.addFunction(fty, fname)
+      }
+      let args : Array[&@IR.Value] = [ap_ptr]
+      return (self.builder.createCall(func, args) : &@IR.Value)
+    }
+    _ => ()
+  }
   let func_value = self.emit_postfix_expr(func_expr)
   // The function value should be a Function
   // TODO: Handle function pointers later
@@ -132,20 +260,26 @@ fn Context::emit_func_call(
           let (param_ty, _) = params[i]
           self.cast_value_to_ctype(raw, arg_expr.ctype, param_ty)
         } else if is_variadic {
-          match arg_expr.ctype.dataKind {
-            Char | UChar | Int16 | UInt16 =>
-              self.cast_value_to_ctype(
-                raw,
-                arg_expr.ctype,
-                @parser.CType::int(),
-              )
-            Float =>
-              self.cast_value_to_ctype(
-                raw,
-                arg_expr.ctype,
-                @parser.CType::double(),
-              )
-            _ => raw
+          if arg_expr.ctype.dataKind is Array(_, _) {
+            raw
+          } else if is_aggregate_type(arg_expr.ctype) {
+            coerce_vararg_aggregate(self, raw, arg_expr.ctype)
+          } else {
+            match arg_expr.ctype.dataKind {
+              Char | UChar | Int16 | UInt16 =>
+                self.cast_value_to_ctype(
+                  raw,
+                  arg_expr.ctype,
+                  @parser.CType::int(),
+                )
+              Float =>
+                self.cast_value_to_ctype(
+                  raw,
+                  arg_expr.ctype,
+                  @parser.CType::double(),
+                )
+              _ => raw
+            }
           }
         } else {
           raw
@@ -181,20 +315,26 @@ fn Context::emit_func_call(
           let (pty, _) = param_tys[i]
           self.cast_value_to_ctype(raw, arg_expr.ctype, pty)
         } else if is_variadic {
-          match arg_expr.ctype.dataKind {
-            Char | UChar | Int16 | UInt16 =>
-              self.cast_value_to_ctype(
-                raw,
-                arg_expr.ctype,
-                @parser.CType::int(),
-              )
-            Float =>
-              self.cast_value_to_ctype(
-                raw,
-                arg_expr.ctype,
-                @parser.CType::double(),
-              )
-            _ => raw
+          if arg_expr.ctype.dataKind is Array(_, _) {
+            raw
+          } else if is_aggregate_type(arg_expr.ctype) {
+            coerce_vararg_aggregate(self, raw, arg_expr.ctype)
+          } else {
+            match arg_expr.ctype.dataKind {
+              Char | UChar | Int16 | UInt16 =>
+                self.cast_value_to_ctype(
+                  raw,
+                  arg_expr.ctype,
+                  @parser.CType::int(),
+                )
+              Float =>
+                self.cast_value_to_ctype(
+                  raw,
+                  arg_expr.ctype,
+                  @parser.CType::double(),
+                )
+              _ => raw
+            }
           }
         } else {
           raw

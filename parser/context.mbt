@@ -24,7 +24,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
   let { code, source_file, tokens, err_toks } = lexer_ctx
   // TODO: Add error handling
   ignore(err_toks)
-  Context::{
+  let ctx = Context::{
     code,
     source_file,
     tokens,
@@ -33,6 +33,13 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
     errs: Array::new(),
     prog: Program::new(),
   }
+  // Builtins used by stdarg.h
+  let builtin_fn_ty = CType::default_with(
+    Function(Array::new(), CType::void_(), is_variadic=true),
+  )
+  ctx.add_var("__builtin_va_start", builtin_fn_ty)
+  ctx.add_var("__builtin_va_end", builtin_fn_ty)
+  ctx
 }
 
 ///|

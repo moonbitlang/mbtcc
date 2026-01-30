@@ -76,6 +76,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     SizeofExpr(_) => "sizeof expression"
     SizeofType(_) => "sizeof type"
     Alignof(_) => "alignof"
+    BuiltinVaArg(_, _) => "__builtin_va_arg"
   }
   let prefix = if color { @color.taint(prefix, Magenta) } else { prefix }
   let ctype = if color {
@@ -191,6 +192,21 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
       }
       "\{prefix} \{ctype}\n└-type name: \{type_str}"
     }
+    BuiltinVaArg(inner, ty) => {
+      let inner_str = inner.to_string(color~)
+      let type_str = if color {
+        @color.taint("\{ty}", Green)
+      } else {
+        "\{ty}"
+      }
+      let lines = inner_str.split("\n")
+      let lines_formatted = format_lines(
+        lines,
+        head_with="└-",
+        continue_with="   ",
+      )
+      "\{prefix} \{ctype}\n\{lines_formatted}\n└-type name: \{type_str}"
+    }
   }
   s
 }
@@ -211,6 +227,7 @@ pub enum UnaryExprKind {
   SizeofExpr(UnaryExpr)
   SizeofType(CType)
   Alignof(CType)
+  BuiltinVaArg(UnaryExpr, CType)
 } derive(Eq)
 
 ///|
@@ -287,6 +304,27 @@ pub fn Context::parse_unary_expr(
   let init_toks = tokens
   let start_offset = tokens.start_offset()
   match tokens {
+    [
+      { kind: Identifier("__builtin_va_arg"), .. },
+      { kind: Bracket('('), .. },
+      .. rest
+    ] => {
+      let (list_expr, rest) = self.parse_unary_expr(rest)
+      guard rest is [{ kind: Comma, .. }, .. rest2] else {
+        raise ParseError(rest[0], "Expected ',' after __builtin_va_arg list")
+      }
+      let (ty, rest3) = self.parse_type_name(rest2)
+      guard rest3 is [{ kind: Bracket(')'), .. }, .. rest4] else {
+        raise ParseError(rest3[0], "Expected ')' after __builtin_va_arg")
+      }
+      let tokens = init_toks[0:rest4.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: BuiltinVaArg(list_expr, ty),
+        ctype: ty,
+        tokens,
+      }
+      (unary_expr, rest4)
+    }
     [{ kind: Operator("++"), .. }, .. rest] => {
       let (inner_expr, rest) = self.parse_unary_expr(rest)
       guard inner_expr.ctype.is_inc_ok() else {
@@ -481,6 +519,7 @@ pub fn UnaryExpr::is_constant(self : Self) -> Bool {
     SizeofExpr(_) => false
     SizeofType(_) => false
     Alignof(_) => false
+    BuiltinVaArg(_, _) => false
   }
 }
 
@@ -522,7 +561,7 @@ pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
     Deref(_) => !self.ctype.is_const
     PreInc(_) | PreDec(_) => false
     AddrOf(_) | Posate(_) | Negate(_) | BitNot(_) | LogicalNot(_) => false
-    SizeofExpr(_) | SizeofType(_) | Alignof(_) => false
+    SizeofExpr(_) | SizeofType(_) | Alignof(_) | BuiltinVaArg(_, _) => false
   }
 }
 
