@@ -214,7 +214,7 @@ fn Context::emit_func_call(
       let void_ty = self.llvm_ctx.getVoidTy()
       let ptr_ty = self.llvm_ctx.getPtrTy()
       let fty = self.llvm_ctx.getFunctionType(void_ty, [ptr_ty], isVarArg=false)
-      let fname = "llvm.va_start.p0"
+      let fname = "llvm.va_start"
       let func = match self.llvm_mod.getFunction(fname) {
         Some(f) => f
         None => self.llvm_mod.addFunction(fty, fname)
@@ -230,7 +230,7 @@ fn Context::emit_func_call(
       let void_ty = self.llvm_ctx.getVoidTy()
       let ptr_ty = self.llvm_ctx.getPtrTy()
       let fty = self.llvm_ctx.getFunctionType(void_ty, [ptr_ty], isVarArg=false)
-      let fname = "llvm.va_end.p0"
+      let fname = "llvm.va_end"
       let func = match self.llvm_mod.getFunction(fname) {
         Some(f) => f
         None => self.llvm_mod.addFunction(fty, fname)

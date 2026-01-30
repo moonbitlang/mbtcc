@@ -493,14 +493,18 @@ fn Context::parse_decl_spec(
       data_ty = Some(Double)
       continue rest
     }
-    [{ kind: Identifier(name), .. }, .. rest] if self.get_typename_ctype(name)
+    [{ kind: Identifier(name), .. }, .. rest] as tokens if self.get_typename_ctype(name)
       is Some(ty) => {
-      data_ty = Some(ty.dataKind)
-      is_const = ty.is_const
-      is_volatile = ty.is_volatile
-      is_restrict = ty.is_restrict
-      is_atomic = ty.is_atomic
-      continue rest
+      if data_ty is None && !is_unsigned && !is_signed {
+        data_ty = Some(ty.dataKind)
+        is_const = ty.is_const
+        is_volatile = ty.is_volatile
+        is_restrict = ty.is_restrict
+        is_atomic = ty.is_atomic
+        continue rest
+      }
+      // Typedef name after a concrete type specifier should be a declarator.
+      break tokens
     }
     [{ kind: Keyword(Signed), .. } as tok, .. rest] => {
       guard !is_unsigned else {
@@ -812,7 +816,11 @@ fn Context::parse_struct_union_members(
     let mut continue_declarator = true
     while continue_declarator {
       let (member_ty, member_name, new_rest) = self.parse_declarator(
-        base_ty, storage, rest, this_init_tokens,
+        base_ty,
+        storage,
+        rest,
+        this_init_tokens,
+        allow_typedef_name=true,
       )
       rest = new_rest
       let (bit_width, new_rest) = if rest is [{ kind: Colon, .. }, .. rest2] {

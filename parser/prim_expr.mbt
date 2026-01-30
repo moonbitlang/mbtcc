@@ -434,6 +434,19 @@ pub fn Context::parse_prim_expr(
         }
       }
     }
+    Ident(name) =>
+      match self.get_var_ctype(name) {
+        Some(ctype) => ctype
+        None =>
+          match self.get_enum_member(name) {
+            Some(_) => CType::int()
+            None =>
+              raise ParseError(
+                tokens[0],
+                "Undefined identifier '\{name}' in expression",
+              )
+          }
+      }
     _ => self.get_literal_ctype(prim_expr_kind)
   }
   let prim_expr = PrimExpr::{ kind: prim_expr_kind, ctype, tokens: tok_view }

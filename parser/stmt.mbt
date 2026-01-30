@@ -229,7 +229,10 @@ pub fn Context::parse_statement(
       { kind: Identifier(label), .. },
       { kind: Semi, .. },
       .. rest,
-    ] => (StmtKind::Goto(label), rest)
+    ] => {
+      self.add_label(label)
+      (StmtKind::Goto(label), rest)
+    }
     [{ kind: Keyword(Goto), .. }, .. rest] =>
       raise ParseError(rest[0], "Expected label name after 'goto'")
     [{ kind: Semi, .. }, .. rest] => (StmtKind::Noop, rest)

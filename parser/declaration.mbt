@@ -565,6 +565,7 @@ pub fn Context::parse_init_declarator_list(
   if self.defined.contains_local(name) {
     match self.defined.get(name) {
       Some(Variable(_)) => ()
+      Some(Label) => ()
       _ =>
         raise ParseError(tokens[0], "redeclaration of variable: \{name}")
     }
@@ -615,6 +616,7 @@ pub fn Context::parse_init_declarator_list(
     if self.defined.contains_local(name) {
       match self.defined.get(name) {
         Some(Variable(_)) => ()
+        Some(Label) => ()
         _ =>
           raise ParseError(tokens[0], "redeclaration of variable: \{name}")
       }
@@ -672,6 +674,7 @@ pub fn Context::parse_declarator(
   tokens : ArrayView[Token],
   init_tokens : ArrayView[Token],
   decay_array_to_ptr? : Bool = false,
+  allow_typedef_name? : Bool = false,
 ) -> (CType, String, ArrayView[Token]) raise ParseError {
   let (ty, rest) = self.parse_pointers(tokens, base_ty, init_tokens)
   // 参考 chibicc：遇到 '(' 时先“试探性”解析括号内 declarator，
@@ -716,7 +719,7 @@ pub fn Context::parse_declarator(
     }
   }
   let (name, rest) = if rest is [{ kind: Identifier(name), .. }, .. rest] {
-    if self.defined.contains_local(name) {
+    if !allow_typedef_name && self.defined.contains_local(name) {
       match self.defined.get(name) {
         Some(TypeDef(_)) =>
           raise ParseError(rest[0], "expected identifier, found type name")

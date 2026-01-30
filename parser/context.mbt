@@ -7,6 +7,8 @@ pub struct Context {
   mut defined : Env[String, SymbolKind]
   // enum, struct, union  type tags
   mut tags : Env[String, CTypeDataKind]
+  // Labels live in a separate namespace from identifiers
+  labels : Env[String, Bool]
   errs : Array[ParseError]
   prog : Program
 }
@@ -30,6 +32,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
     tokens,
     defined: Env::new(),
     tags: Env::new(),
+    labels: Env::new(),
     errs: Array::new(),
     prog: Program::new(),
   }
@@ -74,7 +77,7 @@ pub fn Context::add_var(self : Context, name : String, ctype : CType) -> Unit {
 
 ///|
 pub fn Context::add_label(self : Context, name : String) -> Unit {
-  self.defined.set(name, Label)
+  self.labels.set(name, true)
 }
 
 ///|
@@ -146,10 +149,7 @@ pub fn Context::is_keyword_or_type_name(self : Self, tok : Token) -> Bool {
 
 ///|
 pub fn Context::is_label(self : Context, name : String) -> Bool {
-  match self.defined.get(name) {
-    Some(Label) => true
-    _ => false
-  }
+  self.labels.contains_global(name)
 }
 
 ///|
