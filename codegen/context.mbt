@@ -144,15 +144,25 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
                 match ty.dataKind {
                   Array(_, _) => self.emit_string_literal_to_array(gptr, ty, s, wide)
                   _ => {
-                    let v = self.emit_assign_expr(ae)
-                    let v = self.cast_value_to_ctype(v, ae.ctype, ty)
-                    self.builder.createStore(v, gptr) |> ignore
+                    if ty.dataKind is Struct(_, _) || ty.dataKind is Union(_, _) {
+                      let v = self.emit_assign_expr(ae)
+                      self.store_aggregate_value(gptr, ty, v)
+                    } else {
+                      let v = self.emit_assign_expr(ae)
+                      let v = self.cast_value_to_ctype(v, ae.ctype, ty)
+                      self.builder.createStore(v, gptr) |> ignore
+                    }
                   }
                 }
               None => {
-                let v = self.emit_assign_expr(ae)
-                let v = self.cast_value_to_ctype(v, ae.ctype, ty)
-                self.builder.createStore(v, gptr) |> ignore
+                if ty.dataKind is Struct(_, _) || ty.dataKind is Union(_, _) {
+                  let v = self.emit_assign_expr(ae)
+                  self.store_aggregate_value(gptr, ty, v)
+                } else {
+                  let v = self.emit_assign_expr(ae)
+                  let v = self.cast_value_to_ctype(v, ae.ctype, ty)
+                  self.builder.createStore(v, gptr) |> ignore
+                }
               }
             }
           }

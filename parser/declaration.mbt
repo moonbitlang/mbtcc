@@ -225,12 +225,17 @@ fn array_len_from_inits(inits : Array[Initializer]) -> Int raise ParseError {
       Designation(desig, _) => {
         let idx_opt = match desig {
           Index(const_expr) => Some(const_expr.eval_as_int())
+          Range(_, end_expr) => Some(end_expr.eval_as_int())
           DesignatorList(desigs) => {
             let mut found : Int? = None
             for d in desigs {
               match d {
                 Index(const_expr) => {
                   found = Some(const_expr.eval_as_int())
+                  break
+                }
+                Range(_, end_expr) => {
+                  found = Some(end_expr.eval_as_int())
                   break
                 }
                 _ => ()
@@ -250,6 +255,125 @@ fn array_len_from_inits(inits : Array[Initializer]) -> Int raise ParseError {
       }
       _ => {
         if next_idx > max_idx { max_idx = next_idx }
+        next_idx = next_idx + 1
+      }
+    }
+  }
+  if max_idx < 0 { 0 } else { max_idx + 1 }
+}
+
+fn is_aggregate_type(ty : CType) -> Bool {
+  match ty.dataKind {
+    Array(_, _) | Struct(_, _) | Union(_, _) => true
+    _ => false
+  }
+}
+
+fn consume_flat_inits_for_type(
+  ty : CType,
+  inits : Array[Initializer],
+  start : Int,
+) -> Int raise ParseError {
+  if start >= inits.length() {
+    return start
+  }
+  let init = inits[start]
+  match init.kind {
+    Designation(_, _) | InitializerList(_) => return start + 1
+    _ => ()
+  }
+  match ty.dataKind {
+    Struct(_, fields) => {
+      let mut idx = start
+      for f in fields {
+        let next_idx = consume_flat_inits_for_type(f.ctype, inits, idx)
+        if next_idx == idx {
+          break
+        }
+        idx = next_idx
+      }
+      if idx == start { start + 1 } else { idx }
+    }
+    Array(elem_ty, size) => {
+      match init.kind {
+        AssignExpr(_) if string_literal_len(init) is Some(_) => {
+          return start + 1
+        }
+        _ => ()
+      }
+      let mut idx = start
+      let mut i = 0
+      while i < size {
+        let next_idx = consume_flat_inits_for_type(elem_ty, inits, idx)
+        if next_idx == idx {
+          break
+        }
+        idx = next_idx
+        i = i + 1
+      }
+      if idx == start { start + 1 } else { idx }
+    }
+    Union(_, fields) => {
+      if fields.length() == 0 {
+        start + 1
+      } else {
+        let next_idx = consume_flat_inits_for_type(fields[0].ctype, inits, start)
+        if next_idx == start { start + 1 } else { next_idx }
+      }
+    }
+    _ => start + 1
+  }
+}
+
+fn array_len_from_inits_with_elem(
+  elem_ty : CType,
+  inits : Array[Initializer],
+) -> Int raise ParseError {
+  let mut next_idx = 0
+  let mut max_idx = -1
+  let mut i = 0
+  while i < inits.length() {
+    let init = inits[i]
+    match init.kind {
+      Designation(desig, _) => {
+        let idx_opt = match desig {
+          Index(const_expr) => Some(const_expr.eval_as_int())
+          Range(_, end_expr) => Some(end_expr.eval_as_int())
+          DesignatorList(desigs) => {
+            let mut found : Int? = None
+            for d in desigs {
+              match d {
+                Index(const_expr) => {
+                  found = Some(const_expr.eval_as_int())
+                  break
+                }
+                Range(_, end_expr) => {
+                  found = Some(end_expr.eval_as_int())
+                  break
+                }
+                _ => ()
+              }
+            }
+            found
+          }
+          _ => None
+        }
+        match idx_opt {
+          Some(idx) => {
+            if idx > max_idx { max_idx = idx }
+            next_idx = idx + 1
+          }
+          None => ()
+        }
+        i = i + 1
+      }
+      _ => {
+        if next_idx > max_idx { max_idx = next_idx }
+        if is_aggregate_type(elem_ty) {
+          i = consume_flat_inits_for_type(elem_ty, inits, i)
+        } else {
+          i = i + 1
+        }
         next_idx = next_idx + 1
       }
     }
@@ -287,6 +411,8 @@ pub(all) enum Designator {
   // Must Check if it is the constant expression
   // e.g. `[5] = 10`
   Index(ConstantExpr)
+  // e.g. `[1 ... 5] = 9`
+  Range(ConstantExpr, ConstantExpr)
   // e.g. `[1][2] = value`
   DesignatorList(Array[Designator])
 } derive(Eq)
@@ -296,6 +422,7 @@ pub impl Show for Designator with output(self, logger) {
   match self {
     Field(name) => logger.write_string(".\{name}")
     Index(expr) => logger.write_string("[\{expr}]")
+    Range(start, end) => logger.write_string("[\{start} ... \{end}]")
     DesignatorList(designators) =>
       for designator in designators {
         logger.write_string("\{designator}")
@@ -319,12 +446,23 @@ pub fn Context::parse_designator(
     }
     [{ kind: Bracket('['), .. }, .. tokens] => {
       let (expr, rest) = self.parse_constant_expr(tokens)
-      guard rest is [{ kind: Bracket(']'), .. }, .. rest] else {
-        raise ParseError(rest[0], "expected ']' in designator")
+      match rest {
+        [{ kind: Ellipsis, .. }, .. rest2] => {
+          let (end_expr, rest3) = self.parse_constant_expr(rest2)
+          guard rest3 is [{ kind: Bracket(']'), .. }, .. rest4] else {
+            raise ParseError(rest3[0], "expected ']' in designator")
+          }
+          let designator = Designator::Range(expr, end_expr)
+          designators.push(designator)
+          continue rest4
+        }
+        [{ kind: Bracket(']'), .. }, .. rest2] => {
+          let designator = Designator::Index(expr)
+          designators.push(designator)
+          continue rest2
+        }
+        _ => raise ParseError(rest[0], "expected ']' in designator")
       }
-      let designator = Designator::Index(expr)
-      designators.push(designator)
-      continue rest
     }
     tokens => break tokens
   }
@@ -440,7 +578,7 @@ pub fn Context::parse_init_declarator_list(
   }
   let ctype = match (ctype.dataKind, initializer) {
     (Array(elem, 0), Some({ kind: InitializerList(inits), .. })) =>
-      CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits(inits)) }
+      CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits_with_elem(elem, inits)) }
     (Array(elem, 0), Some(init)) if string_literal_len(init) is Some(len) =>
       CType::{ ..ctype, dataKind: Array(elem, len) }
     _ => ctype
@@ -486,7 +624,7 @@ pub fn Context::parse_init_declarator_list(
         let (initializer, tokens) = self.parse_initializer(tokens)
         let ctype = match (ctype.dataKind, initializer) {
           (Array(elem, 0), { kind: InitializerList(inits), .. }) =>
-            CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits(inits)) }
+            CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits_with_elem(elem, inits)) }
           (Array(elem, 0), init) if string_literal_len(init) is Some(len) =>
             CType::{ ..ctype, dataKind: Array(elem, len) }
           _ => ctype

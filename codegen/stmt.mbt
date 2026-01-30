@@ -61,15 +61,25 @@ fn Context::emit_local_variable(
           match ty.dataKind {
             Array(_, _) => self.emit_string_literal_to_array(alloca, ty, s, wide)
             _ => {
-              let value = self.emit_assign_expr(assign_expr)
-              let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
-              self.builder.createStore(value, alloca) |> ignore
+              if ty.dataKind is Struct(_, _) || ty.dataKind is Union(_, _) {
+                let value = self.emit_assign_expr(assign_expr)
+                self.store_aggregate_value(alloca, ty, value)
+              } else {
+                let value = self.emit_assign_expr(assign_expr)
+                let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
+                self.builder.createStore(value, alloca) |> ignore
+              }
             }
           }
         None => {
-          let value = self.emit_assign_expr(assign_expr)
-          let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
-          self.builder.createStore(value, alloca) |> ignore
+          if ty.dataKind is Struct(_, _) || ty.dataKind is Union(_, _) {
+            let value = self.emit_assign_expr(assign_expr)
+            self.store_aggregate_value(alloca, ty, value)
+          } else {
+            let value = self.emit_assign_expr(assign_expr)
+            let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
+            self.builder.createStore(value, alloca) |> ignore
+          }
         }
       }
     }
@@ -112,16 +122,19 @@ fn Context::emit_static_local_variable(
   let func_name = func.getName()
   let global_name = "\{func_name}__\{name}__static"
   let llvm_ty = self.ctype_to_llvm_type(ty)
-  let init_const = match init_expr {
-    Some(init_expr) => self.emit_initializer(init_expr, ty)
-    None => self.const_zero_constant(llvm_ty)
-  }
+  let init_const = self.const_zero_constant(llvm_ty)
   let gvar = self.llvm_mod.addGlobalVariable(
     llvm_ty,
     global_name,
     initializer=init_const,
     linkage?=Some(InternalLinkage),
   )
+  self.globals.set(global_name, gvar)
+  self.global_types.set(global_name, ty)
+  match init_expr {
+    Some(init) => self.global_inits.push((global_name, ty, init))
+    None => ()
+  }
   let gvar_val : &@IR.Value = gvar
   self.var_env.set(name, gvar_val)
   self.var_types.set(name, ty)

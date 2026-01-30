@@ -48,7 +48,7 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       idx += 1
       continue rest
     }
-    [' ' | '\t' | '\r', .. rest] => {
+    [' ' | '\t' | '\r' | '\f', .. rest] => {
       idx += 1
       col += 1
       continue rest
