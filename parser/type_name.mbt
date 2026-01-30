@@ -288,9 +288,13 @@ fn Context::parse_array_abstract_declarator(
     init_tokens,
     decay_array_to_ptr=false,
   )
-  if is_static_array || (!decay_array_to_ptr && size is Some(_)) {
-    guard size is Some(sz) else {
+  if is_static_array || !decay_array_to_ptr {
+    guard size is Some(_) || !is_static_array else {
       raise ParseError(tokens[0], "Static array must have a size")
+    }
+    let sz = match size {
+      Some(v) => v
+      None => 0
     }
     let ctype = CType::{
       dataKind: Array(element_ty, sz),

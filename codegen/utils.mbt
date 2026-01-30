@@ -1,0 +1,258 @@
+///|
+#callsite(autofill(loc))
+fn[T] codegen_unreachable(loc~ : SourceLoc, msg? : String = "") -> T {
+  println("Compiler ICE: reached unreachable code: \{loc}")
+  if !msg.is_empty() {
+    println("  - \{msg}")
+  }
+  panic()
+}
+
+///|
+fn Context::const_zero_constant(
+  self : Context,
+  ty : &@IR.Type,
+) -> &@IR.Constant raise CodeGenError {
+  match ty.asTypeEnum() {
+    Int1Type(_) => self.llvm_ctx.getConstFalse() as &@IR.Constant
+    Int8Type(_) => self.llvm_ctx.getConstInt8(0) as &@IR.Constant
+    Int16Type(_) => self.llvm_ctx.getConstInt16(0) as &@IR.Constant
+    Int32Type(_) => self.llvm_ctx.getConstInt32(0) as &@IR.Constant
+    Int64Type(_) => self.llvm_ctx.getConstInt64(0) as &@IR.Constant
+    FloatType(_) =>
+      self.llvm_ctx.getConstZeroFloat(isNegative=false) as &@IR.Constant
+    DoubleType(_) =>
+      self.llvm_ctx.getConstZeroDouble(isNegative=false) as &@IR.Constant
+    FP128Type(_) =>
+      self.llvm_ctx.getConstZeroFP128(isNegative=false) as &@IR.Constant
+    PointerType(ptr_ty) => self.llvm_ctx.getConstPointerNull(ptr_ty)
+    ArrayType(arr_ty) => {
+      let elem_ty = arr_ty.getElementType()
+      let count = arr_ty.getElementCount()
+      let elems : Array[&@IR.Constant] = Array::new()
+      for _ in 0..<count {
+        elems.push(self.const_zero_constant(elem_ty))
+      }
+      self.llvm_ctx.getConstArray(elem_ty, elems)
+    }
+    StructType(sty) => {
+      let elems : Array[&@IR.Constant] = Array::new()
+      for elem_ty in sty.elements() {
+        elems.push(self.const_zero_constant(elem_ty))
+      }
+      if sty.isLiteral() {
+        self.llvm_ctx.getConstStruct(elems)
+      } else {
+        self.llvm_ctx.getConstNamedStruct(sty, elems)
+      }
+    }
+    _ => raise Unimplemented("Zero constant for type '\{ty}' not supported")
+  }
+}
+
+///|
+fn Context::const_zero_value(
+  self : Context,
+  ty : &@IR.Type,
+) -> &@IR.Value raise CodeGenError {
+  self.const_zero_constant(ty)
+}
+
+///|
+fn Context::const_one_value(
+  self : Context,
+  ty : &@IR.Type,
+) -> &@IR.Value raise CodeGenError {
+  match ty.asTypeEnum() {
+    Int1Type(_) => self.llvm_ctx.getConstTrue() as &@IR.Value
+    Int8Type(_) => self.llvm_ctx.getConstInt8(1) as &@IR.Value
+    Int16Type(_) => self.llvm_ctx.getConstInt16(1) as &@IR.Value
+    Int32Type(_) => self.llvm_ctx.getConstInt32(1) as &@IR.Value
+    Int64Type(_) => self.llvm_ctx.getConstInt64(1) as &@IR.Value
+    FloatType(_) => self.llvm_ctx.getConstFloat(1.0) as &@IR.Value
+    DoubleType(_) => self.llvm_ctx.getConstDouble(1.0) as &@IR.Value
+    FP128Type(_) => self.llvm_ctx.getConstFP128(1.0) as &@IR.Value
+    _ => raise Unimplemented("One constant for type '\{ty}' not supported")
+  }
+}
+
+///|
+/// Compute `arr[idx]` element address (for both lvalue and rvalue load)
+fn Context::emit_array_access_ptr(
+  self : Context,
+  arr_expr : @parser.PostfixExpr,
+  idx_expr : @parser.Expr,
+) -> (&@IR.Value, @parser.CType) raise {
+  match arr_expr.ctype.dataKind {
+    Ptr(elem_ty) => {
+      let idx_raw = self.emit_expr(idx_expr)
+      let idx_i32 = self.cast_value_to_ctype(
+        idx_raw,
+        idx_expr.ctype,
+        @parser.CType::int(),
+      )
+      let base_ptr = self.emit_postfix_expr(arr_expr)
+      let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(idx_i32)
+      let elem_ptr = self.builder.createGEP(base_ptr, elem_llvm_ty, indices)
+      (elem_ptr, elem_ty)
+    }
+    Array(elem_ty, _) => {
+      let idx_raw = self.emit_expr(idx_expr)
+      let idx_i32 = self.cast_value_to_ctype(
+        idx_raw,
+        idx_expr.ctype,
+        @parser.CType::int(),
+      )
+      let (base_ptr, _) = self.get_lvalue_ptr_from_postfix(arr_expr)
+      let arr_llvm_ty = self.ctype_to_llvm_type(arr_expr.ctype)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(zero)
+      indices.push(idx_i32)
+      let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+      (elem_ptr, elem_ty)
+    }
+    _ =>
+      match idx_expr.ctype.dataKind {
+        Ptr(elem_ty) => {
+          let idx_raw = self.emit_postfix_expr(arr_expr)
+          let idx_i32 = self.cast_value_to_ctype(
+            idx_raw,
+            arr_expr.ctype,
+            @parser.CType::int(),
+          )
+          let base_ptr = self.emit_expr(idx_expr)
+          let elem_llvm_ty = self.ctype_to_llvm_type(elem_ty)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(idx_i32)
+          let elem_ptr = self.builder.createGEP(base_ptr, elem_llvm_ty, indices)
+          (elem_ptr, elem_ty)
+        }
+        Array(elem_ty, _) => {
+          let idx_raw = self.emit_postfix_expr(arr_expr)
+          let idx_i32 = self.cast_value_to_ctype(
+            idx_raw,
+            arr_expr.ctype,
+            @parser.CType::int(),
+          )
+          let (base_ptr, _) = self.get_lvalue_ptr_from_paren_expr(idx_expr)
+          let arr_llvm_ty = self.ctype_to_llvm_type(idx_expr.ctype)
+          let zero = self.llvm_ctx.getConstInt32(0)
+          let indices : Array[&@IR.Value] = Array::new()
+          indices.push(zero)
+          indices.push(idx_i32)
+          let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+          (elem_ptr, elem_ty)
+        }
+        _ =>
+          raise SemanticError("Array subscript target is not an array or pointer")
+      }
+  }
+}
+
+///|
+fn struct_field_index_and_type(
+  ty : @parser.CType,
+  field_name : String,
+) -> (Int, @parser.CType) raise {
+  let fields = match ty.dataKind {
+    Struct(_, fields) => fields
+    Union(_, fields) => fields
+    _ => raise SemanticError("Type '\{ty}' has no fields")
+  }
+  for i in 0..<fields.length() {
+    let { name, ctype, .. } = fields[i]
+    if name == field_name {
+      return (i, ctype)
+    }
+  }
+  raise SemanticError("Type '\{ty}' has no field named '\{field_name}'")
+}
+
+///|
+fn Context::ctype_sizeof_bytes(
+  self : Context,
+  ty : @parser.CType,
+) -> Int64 raise {
+  // 直接使用 LLVM DataLayout 计算真实布局尺寸（含对齐/padding/平台指针宽度等）
+  let llvm_ty = self.ctype_to_llvm_type(ty) catch {
+    _ => raise Unimplemented("sizeof on unsupported type '\{ty}'")
+  }
+  let dl = self.llvm_mod.getDataLayout()
+  dl.getTypeAllocSize(llvm_ty).to_int64()
+}
+
+///|
+fn Context::emit_initializer_list_to_ptr(
+  self : Context,
+  base_ptr : &@IR.Value,
+  ty : @parser.CType,
+  inits : Array[@parser.Initializer],
+) -> Unit raise {
+  match ty.dataKind {
+    Array(elem_ty, size) => {
+      let arr_llvm_ty = self.ctype_to_llvm_type(ty)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      let mut i = 0
+      while i < size {
+        let v = if i < inits.length() {
+          match inits[i].kind {
+            AssignExpr(ae) => {
+              let raw = self.emit_assign_expr(ae)
+              self.cast_value_to_ctype(raw, ae.ctype, elem_ty)
+            }
+            InitializerList(inner) => {
+              // 嵌套 initializer list：用临时 alloca 写入再 load（简化）
+              let tmp = self.builder.createAlloca(
+                self.ctype_to_llvm_type(elem_ty),
+              )
+              self.emit_initializer_list_to_ptr(tmp, elem_ty, inner)
+              (self.builder.createLoad(self.ctype_to_llvm_type(elem_ty), tmp) : &@IR.Value)
+            }
+            _ =>
+              raise Unimplemented(
+                "Initializer kind not supported in array init",
+              )
+          }
+        } else {
+          self.const_zero_value(self.ctype_to_llvm_type(elem_ty))
+        }
+        let idx = self.llvm_ctx.getConstInt32(i)
+        let indices : Array[&@IR.Value] = Array::new()
+        indices.push(zero)
+        indices.push(idx)
+        let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+        let _ = self.builder.createStore(v, elem_ptr)
+        i = i + 1
+      }
+    }
+    Struct(_, fields) => {
+      let st_llvm_ty = self.ctype_to_llvm_type(ty)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      let mut i = 0
+      while i < fields.length() && i < inits.length() {
+        let { ctype: fty, .. } = fields[i]
+        let indices : Array[&@IR.Value] = Array::new()
+        indices.push(zero)
+        indices.push(self.llvm_ctx.getConstInt32(i))
+        let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+        match inits[i].kind {
+          AssignExpr(ae) => {
+            let raw = self.emit_assign_expr(ae)
+            let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
+            let _ = self.builder.createStore(v, field_ptr)
+
+          }
+          InitializerList(inner) =>
+            self.emit_initializer_list_to_ptr(field_ptr, fty, inner)
+          _ =>
+            raise Unimplemented("Initializer kind not supported in struct init")
+        }
+        i = i + 1
+      }
+    }
+    _ => raise Unimplemented("Initializer list not implemented yet")
+  }
+}

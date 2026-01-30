@@ -66,6 +66,25 @@ fn stringize_macro_arg(code : StringView, arg_tokens : Array[Token]) -> String {
 }
 
 ///|
+fn has_ws_between(code : StringView, a : Token, b : Token) -> Bool {
+  if code.length() == 0 {
+    return false
+  }
+  let start = a.idx + a.raw.length()
+  let end = b.idx
+  if end <= start || start < 0 || end > code.length() {
+    return false
+  }
+  let gap = code.view(start_offset=start, end_offset=end)
+  for ch in gap {
+    if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+      return true
+    }
+  }
+  false
+}
+
+///|
 let macros : Map[String, Macro] = Map::new()
 
 ///|
@@ -150,10 +169,10 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
     [
       { kind: Hash, .. },
       { kind: Identifier("define"), .. },
-      { kind: Identifier(def_name), line, .. },
-      { kind: Bracket('('), .. },
+      { kind: Identifier(def_name), line, .. } as name_tok,
+      { kind: Bracket('('), .. } as paren_tok,
       .. rest,
-    ] => {
+    ] if !has_ws_between(code[:], name_tok, paren_tok) => {
       let params : Array[String] = Array::new()
       let mut va_arg_name : String? = None
       let rest = loop rest {

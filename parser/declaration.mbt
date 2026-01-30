@@ -367,10 +367,13 @@ pub fn Context::parse_init_declarator_list(
   guard !(name is "") else {
     raise ParseError(tokens[0], "declarator name cannot be empty")
   }
-  guard !self.defined.contains_local(name) else {
-    raise ParseError(tokens[0], "redeclaration of variable: \{name}")
+  if self.defined.contains_local(name) {
+    match (self.defined.get(name), ctype.dataKind) {
+      (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
+      _ =>
+        raise ParseError(tokens[0], "redeclaration of variable: \{name}")
+    }
   }
-  self.add_var(name, ctype)
   let (initializer, tokens) = if tokens
     is [{ kind: AssignOp("="), .. }, .. tokens] {
     let (initializer, tokens) = self.parse_initializer(tokens)
@@ -378,6 +381,12 @@ pub fn Context::parse_init_declarator_list(
   } else {
     (None, tokens)
   }
+  let ctype = match (ctype.dataKind, initializer) {
+    (Array(elem, 0), Some({ kind: InitializerList(inits), .. })) =>
+      CType::{ ..ctype, dataKind: Array(elem, inits.length()) }
+    _ => ctype
+  }
+  self.add_var(name, ctype)
   let decl_tokens = init_tokens[0:tokens.start_offset() -
     init_tokens.start_offset()]
   let { is_static, is_extern, is_register, is_thread_local } = storage
@@ -406,14 +415,22 @@ pub fn Context::parse_init_declarator_list(
       guard !(name is "") else {
         raise ParseError(tokens[0], "declarator name cannot be empty")
       }
-      guard !self.defined.contains_local(name) else {
-        raise ParseError(tokens[0], "redeclaration of variable: \{name}")
+      if self.defined.contains_local(name) {
+        match (self.defined.get(name), ctype.dataKind) {
+          (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
+          _ =>
+            raise ParseError(tokens[0], "redeclaration of variable: \{name}")
+        }
       }
-      // 逗号分隔的后续 declarator 也需要加入变量环境（否则后续引用会被判定为未声明）
-      self.add_var(name, ctype)
       let (decl_kind, tokens) = if tokens
         is [{ kind: AssignOp("="), .. }, .. tokens] {
         let (initializer, tokens) = self.parse_initializer(tokens)
+        let ctype = match (ctype.dataKind, initializer) {
+          (Array(elem, 0), { kind: InitializerList(inits), .. }) =>
+            CType::{ ..ctype, dataKind: Array(elem, inits.length()) }
+          _ => ctype
+        }
+        self.add_var(name, ctype)
         let kind = VariableDeclaration(
           ctype,
           is_static~,
@@ -425,6 +442,7 @@ pub fn Context::parse_init_declarator_list(
         )
         (kind, tokens)
       } else {
+        self.add_var(name, ctype)
         let kind = VariableDeclaration(
           ctype,
           is_static~,
@@ -502,9 +520,6 @@ pub fn Context::parse_declarator(
     guard !self.is_type_name(name) else {
       raise ParseError(rest[0], "expected identifier, found type name")
     }
-    guard !self.defined.contains_local(name) else {
-      raise ParseError(rest[0], "redeclaration of variable")
-    }
     (name, rest)
   } else {
     ("", rest)
@@ -515,6 +530,12 @@ pub fn Context::parse_declarator(
     init_tokens,
     decay_array_to_ptr~,
   )
+  if name != "" && self.defined.contains_local(name) {
+    match (self.defined.get(name), ctype.dataKind) {
+      (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
+      _ => raise ParseError(rest[0], "redeclaration of variable")
+    }
+  }
   (ctype, name, rest)
 }
 
