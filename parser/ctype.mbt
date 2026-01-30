@@ -500,6 +500,7 @@ pub fn CType::is_numeric(self : CType) -> Bool {
     ULongLong => true
     Float => true
     Double => true
+    Enum(_, _) => true
     _ => false
   }
 }
@@ -518,14 +519,15 @@ pub fn CType::is_integral(self : CType) -> Bool {
     LongLong => true
     ULong => true
     ULongLong => true
+    Enum(_, _) => true
     _ => false
   }
 }
 
 ///|
 /// Check if the type is a scalar type.
-/// Scalar types include arithmetic types (integers and floats) and pointer types.
-/// This excludes void, struct, union, and enum types.
+/// Scalar types include arithmetic types (integers and floats), enum types,
+/// and pointer types. This excludes void, struct, and union types.
 pub fn CType::is_scalar(self : CType) -> Bool {
   match self.dataKind {
     // Arithmetic types
@@ -543,13 +545,13 @@ pub fn CType::is_scalar(self : CType) -> Bool {
     Float => true
     Double => true
     LongDouble => true
+    Enum(_, _) => true
     // Pointer types
     Ptr(_) => true
     // Not scalar
     Void => false
     Struct(_, _) => false
     Union(_, _) => false
-    Enum(_, _) => false
     Array(_, _) => false
     Function(_) => false
   }
@@ -630,6 +632,7 @@ pub fn CType::common_type(self : CType, other : CType) -> CType? {
   fn promote_integer(ty : CType) -> CType {
     match ty.dataKind {
       Bool | Char | UChar | Int16 | UInt16 => CType::int()
+      Enum(_, _) => CType::int()
       _ => ty
     }
   }

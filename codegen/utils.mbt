@@ -159,13 +159,30 @@ fn struct_field_index_and_type(
 ) -> (Int, @parser.CType) raise {
   let fields = match ty.dataKind {
     Struct(_, fields) => fields
-    Union(_, fields) => fields
     _ => raise SemanticError("Type '\{ty}' has no fields")
   }
   for i in 0..<fields.length() {
     let { name, ctype, .. } = fields[i]
     if name == field_name {
       return (i, ctype)
+    }
+  }
+  raise SemanticError("Type '\{ty}' has no field named '\{field_name}'")
+}
+
+///|
+fn union_field_type(
+  ty : @parser.CType,
+  field_name : String,
+) -> @parser.CType raise {
+  let fields = match ty.dataKind {
+    Union(_, fields) => fields
+    _ => raise SemanticError("Type '\{ty}' is not a union")
+  }
+  for i in 0..<fields.length() {
+    let { name, ctype, .. } = fields[i]
+    if name == field_name {
+      return ctype
     }
   }
   raise SemanticError("Type '\{ty}' has no field named '\{field_name}'")
@@ -191,68 +208,221 @@ fn Context::emit_initializer_list_to_ptr(
   ty : @parser.CType,
   inits : Array[@parser.Initializer],
 ) -> Unit raise {
+  fn apply_designator(
+    self : Context,
+    base_ptr : &@IR.Value,
+    base_ty : @parser.CType,
+    designator : @parser.Designator,
+  ) -> (&@IR.Value, @parser.CType) raise {
+    match designator {
+      Field(name) =>
+        match base_ty.dataKind {
+          Struct(_, _) => {
+            let (idx, fty) = struct_field_index_and_type(base_ty, name)
+            let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
+            let zero = self.llvm_ctx.getConstInt32(0)
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(self.llvm_ctx.getConstInt32(idx))
+            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+            (field_ptr, fty)
+          }
+          Union(_, _) => {
+            let fty = union_field_type(base_ty, name)
+            (base_ptr, fty)
+          }
+          _ => raise SemanticError("Designator '.\{name}' on non-aggregate type")
+        }
+      Index(const_expr) => {
+        guard base_ty.dataKind is Array(elem_ty, _) else {
+          raise SemanticError("Index designator on non-array type")
+        }
+        let idx = const_expr.eval_as_int()
+        let arr_llvm_ty = self.ctype_to_llvm_type(base_ty)
+        let zero = self.llvm_ctx.getConstInt32(0)
+        let indices : Array[&@IR.Value] = Array::new()
+        indices.push(zero)
+        indices.push(self.llvm_ctx.getConstInt32(idx))
+        let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+        (elem_ptr, elem_ty)
+      }
+      DesignatorList(desigs) => {
+        let mut ptr = base_ptr
+        let mut cur_ty = base_ty
+        for d in desigs {
+          let (p, t) = apply_designator(self, ptr, cur_ty, d)
+          ptr = p
+          cur_ty = t
+        }
+        (ptr, cur_ty)
+      }
+    }
+  }
   match ty.dataKind {
     Array(elem_ty, size) => {
+      // Zero-initialize all elements first
       let arr_llvm_ty = self.ctype_to_llvm_type(ty)
       let zero = self.llvm_ctx.getConstInt32(0)
-      let mut i = 0
-      while i < size {
-        let v = if i < inits.length() {
-          match inits[i].kind {
-            AssignExpr(ae) => {
-              let raw = self.emit_assign_expr(ae)
-              self.cast_value_to_ctype(raw, ae.ctype, elem_ty)
-            }
-            InitializerList(inner) => {
-              // 嵌套 initializer list：用临时 alloca 写入再 load（简化）
-              let tmp = self.builder.createAlloca(
-                self.ctype_to_llvm_type(elem_ty),
-              )
-              self.emit_initializer_list_to_ptr(tmp, elem_ty, inner)
-              (self.builder.createLoad(self.ctype_to_llvm_type(elem_ty), tmp) : &@IR.Value)
-            }
-            _ =>
-              raise Unimplemented(
-                "Initializer kind not supported in array init",
-              )
-          }
-        } else {
-          self.const_zero_value(self.ctype_to_llvm_type(elem_ty))
-        }
-        let idx = self.llvm_ctx.getConstInt32(i)
+      let mut zi = 0
+      while zi < size {
+        let idx = self.llvm_ctx.getConstInt32(zi)
         let indices : Array[&@IR.Value] = Array::new()
         indices.push(zero)
         indices.push(idx)
         let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
-        let _ = self.builder.createStore(v, elem_ptr)
-        i = i + 1
+        let z = self.const_zero_value(self.ctype_to_llvm_type(elem_ty))
+        let _ = self.builder.createStore(z, elem_ptr)
+        zi = zi + 1
+      }
+      let mut next_idx = 0
+      for init in inits {
+        match init.kind {
+          Designation(desig, inner) => {
+            let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
+            self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+          }
+          AssignExpr(ae) => {
+            if next_idx >= size {
+              continue
+            }
+            let raw = self.emit_assign_expr(ae)
+            let v = self.cast_value_to_ctype(raw, ae.ctype, elem_ty)
+            let idx = self.llvm_ctx.getConstInt32(next_idx)
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(idx)
+            let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+            let _ = self.builder.createStore(v, elem_ptr)
+            next_idx = next_idx + 1
+          }
+          InitializerList(inner) => {
+            if next_idx >= size {
+              continue
+            }
+            let tmp = self.builder.createAlloca(
+              self.ctype_to_llvm_type(elem_ty),
+            )
+            self.emit_initializer_list_to_ptr(tmp, elem_ty, inner)
+            let v =
+              (self.builder.createLoad(self.ctype_to_llvm_type(elem_ty), tmp) : &@IR.Value)
+            let idx = self.llvm_ctx.getConstInt32(next_idx)
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(idx)
+            let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+            let _ = self.builder.createStore(v, elem_ptr)
+            next_idx = next_idx + 1
+          }
+          _ =>
+            raise Unimplemented(
+              "Initializer kind not supported in array init",
+            )
+        }
       }
     }
     Struct(_, fields) => {
       let st_llvm_ty = self.ctype_to_llvm_type(ty)
       let zero = self.llvm_ctx.getConstInt32(0)
-      let mut i = 0
-      while i < fields.length() && i < inits.length() {
+      // Zero-initialize all fields first
+      for i in 0..<fields.length() {
         let { ctype: fty, .. } = fields[i]
         let indices : Array[&@IR.Value] = Array::new()
         indices.push(zero)
         indices.push(self.llvm_ctx.getConstInt32(i))
         let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-        match inits[i].kind {
+        let z = self.const_zero_value(self.ctype_to_llvm_type(fty))
+        let _ = self.builder.createStore(z, field_ptr)
+      }
+      let mut next_idx = 0
+      for init in inits {
+        match init.kind {
+          Designation(desig, inner) => {
+            let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
+            self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+            // Advance sequential index if possible (best-effort)
+            match desig {
+              Field(name) => {
+                for j in 0..<fields.length() {
+                  if fields[j].name == name {
+                    next_idx = j + 1
+                    break
+                  }
+                }
+              }
+              _ => ()
+            }
+          }
           AssignExpr(ae) => {
+            if next_idx >= fields.length() {
+              continue
+            }
+            let { ctype: fty, .. } = fields[next_idx]
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(self.llvm_ctx.getConstInt32(next_idx))
+            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
             let raw = self.emit_assign_expr(ae)
             let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
             let _ = self.builder.createStore(v, field_ptr)
-
+            next_idx = next_idx + 1
           }
-          InitializerList(inner) =>
+          InitializerList(inner) => {
+            if next_idx >= fields.length() {
+              continue
+            }
+            let { ctype: fty, .. } = fields[next_idx]
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(self.llvm_ctx.getConstInt32(next_idx))
+            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
             self.emit_initializer_list_to_ptr(field_ptr, fty, inner)
+            next_idx = next_idx + 1
+          }
           _ =>
             raise Unimplemented("Initializer kind not supported in struct init")
         }
-        i = i + 1
       }
     }
-    _ => raise Unimplemented("Initializer list not implemented yet")
+    Union(_, fields) => {
+      guard fields.length() > 0 else { return }
+      // Zero-initialize the union storage first
+      let z = self.const_zero_value(self.ctype_to_llvm_type(ty))
+      let _ = self.builder.createStore(z, base_ptr)
+      if inits.length() == 0 {
+        return
+      }
+      match inits[0].kind {
+        Designation(desig, inner) => {
+          let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
+          self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+        }
+        AssignExpr(ae) => {
+          let fty = fields[0].ctype
+          let raw = self.emit_assign_expr(ae)
+          let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
+          let _ = self.builder.createStore(v, base_ptr)
+        }
+        InitializerList(inner) => {
+          let fty = fields[0].ctype
+          self.emit_initializer_list_to_ptr(base_ptr, fty, inner)
+        }
+        _ => raise Unimplemented("Initializer kind not supported in union init")
+      }
+    }
+    _ => {
+      // Scalar or other non-aggregate types: accept a single assign expr
+      guard inits.length() > 0 else { return }
+      match inits[0].kind {
+        AssignExpr(ae) => {
+          let raw = self.emit_assign_expr(ae)
+          let v = self.cast_value_to_ctype(raw, ae.ctype, ty)
+          let _ = self.builder.createStore(v, base_ptr)
+        }
+        InitializerList(inner) =>
+          self.emit_initializer_list_to_ptr(base_ptr, ty, inner)
+        _ =>
+          raise Unimplemented("Initializer list not implemented yet")
+      }
+    }
   }
 }

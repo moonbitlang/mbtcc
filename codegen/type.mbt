@@ -57,10 +57,92 @@ pub fn Context::ctype_kind_to_llvm_type(
     }
     // Enums are represented as 32-bit integers in LLVM
     Enum(_) => llvm_ctx.getInt32Ty()
-    Union(_) =>
-      raise IllegalLLVMUsage(
-        "Union types are not directly representable in LLVM types",
-      )
+    Union(name, fields) => {
+      // Represent union as a struct with the max-alignment field + padding.
+      fn round_up(v : Int, align : Int) -> Int {
+        if align <= 1 {
+          v
+        } else {
+          let r = v % align
+          if r == 0 { v } else { v + (align - r) }
+        }
+      }
+      if name != "" {
+        match self.tag_env.get(name) {
+          Some(ty) => ty
+          None => {
+            let dl = self.llvm_mod.getDataLayout()
+            let mut max_size = 0
+            let mut max_align = 1
+            let mut align_ty : &@IR.Type = llvm_ctx.getInt8Ty()
+            let mut align_ty_size = 1
+            for f in fields {
+              let { ctype, .. } = f
+              let f_ty = self.ctype_to_llvm_type(ctype)
+              let f_size = dl.getTypeAllocSize(f_ty)
+              let f_align = dl.getTypeAlignment(f_ty)
+              if f_size > max_size {
+                max_size = f_size
+              }
+              if f_align > max_align {
+                max_align = f_align
+                align_ty = f_ty
+                align_ty_size = f_size
+              }
+            }
+            let union_size = round_up(max_size, max_align)
+            let pad = if union_size > align_ty_size {
+              union_size - align_ty_size
+            } else {
+              0
+            }
+            let elem_tys : Array[&@IR.Type] = Array::new()
+            elem_tys.push(align_ty)
+            if pad > 0 {
+              elem_tys.push(llvm_ctx.getArrayType(llvm_ctx.getInt8Ty(), pad))
+            }
+            let id = self.struct_name_counter
+            self.struct_name_counter = id + 1
+            let llvm_name = "\{name}.\{id}"
+            let ty = llvm_ctx.getStructType(elem_tys, name=llvm_name, isPacked=false)
+            self.tag_env.set(name, ty)
+            ty
+          }
+        }
+      } else {
+        let dl = self.llvm_mod.getDataLayout()
+        let mut max_size = 0
+        let mut max_align = 1
+        let mut align_ty : &@IR.Type = llvm_ctx.getInt8Ty()
+        let mut align_ty_size = 1
+        for f in fields {
+          let { ctype, .. } = f
+          let f_ty = self.ctype_to_llvm_type(ctype)
+          let f_size = dl.getTypeAllocSize(f_ty)
+          let f_align = dl.getTypeAlignment(f_ty)
+          if f_size > max_size {
+            max_size = f_size
+          }
+          if f_align > max_align {
+            max_align = f_align
+            align_ty = f_ty
+            align_ty_size = f_size
+          }
+        }
+        let union_size = round_up(max_size, max_align)
+        let pad = if union_size > align_ty_size {
+          union_size - align_ty_size
+        } else {
+          0
+        }
+        let elem_tys : Array[&@IR.Type] = Array::new()
+        elem_tys.push(align_ty)
+        if pad > 0 {
+          elem_tys.push(llvm_ctx.getArrayType(llvm_ctx.getInt8Ty(), pad))
+        }
+        llvm_ctx.getStructType(elem_tys, isPacked=false)
+      }
+    }
     Function(_) =>
       raise IllegalLLVMUsage(
         "Function types are not directly representable in LLVM types",
@@ -84,6 +166,7 @@ fn is_integral_kind(kind : @parser.CTypeDataKind) -> Bool {
     Int16 | UInt16 => true
     Int | UInt => true
     Long | ULong | LongLong | ULongLong => true
+    Enum(_) => true
     _ => false
   }
 }
