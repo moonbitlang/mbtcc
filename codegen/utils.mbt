@@ -97,6 +97,229 @@ fn Context::const_int_for_ctype(
 }
 
 ///|
+struct BitFieldInfo {
+  name : String
+  ctype : @parser.CType
+  bit_offset : Int
+  bit_width : Int
+}
+
+///|
+enum StructSlot {
+  Normal(String, @parser.CType)
+  Bitfield(@parser.CType, Array[BitFieldInfo])
+  AlignMarker(@parser.CType)
+}
+
+///|
+struct FieldAccess {
+  ptr : &@IR.Value
+  ctype : @parser.CType
+  bit_offset : Int?
+  bit_width : Int?
+  container_ctype : @parser.CType?
+}
+
+///|
+fn Context::bitfield_container_bits(
+  self : Context,
+  ty : @parser.CType,
+) -> Int raise {
+  let llvm_ty = self.ctype_to_llvm_type(ty)
+  let dl = self.llvm_mod.getDataLayout()
+  (dl.getTypeAllocSize(llvm_ty) * 8)
+}
+
+///|
+fn Context::struct_layout_slots(
+  self : Context,
+  fields : Array[@parser.StructField],
+) -> Array[StructSlot] raise {
+  let slots : Array[StructSlot] = Array::new()
+  let mut cur_container : @parser.CType? = None
+  let mut cur_bits = 0
+  let mut bit_offset = 0
+  let mut bitfields : Array[BitFieldInfo] = Array::new()
+
+  fn flush_container(
+    slots : Array[StructSlot],
+    cur_container : @parser.CType?,
+    bitfields : Array[BitFieldInfo],
+    bit_offset : Int,
+  ) -> Unit {
+    match cur_container {
+      Some(cty) if bitfields.length() > 0 || bit_offset > 0 =>
+        slots.push(StructSlot::Bitfield(cty, bitfields))
+      _ => ()
+    }
+  }
+
+  for f in fields {
+    let { name, ctype, bit_width } = f
+    match bit_width {
+      None => {
+        flush_container(slots, cur_container, bitfields, bit_offset)
+        cur_container = None
+        bitfields = Array::new()
+        bit_offset = 0
+        slots.push(StructSlot::Normal(name, ctype))
+      }
+      Some(w) => {
+        if w == 0 {
+          flush_container(slots, cur_container, bitfields, bit_offset)
+          cur_container = None
+          bitfields = Array::new()
+          bit_offset = 0
+          slots.push(StructSlot::AlignMarker(ctype))
+          continue
+        }
+        let container_bits = self.bitfield_container_bits(ctype)
+        if cur_container is None || cur_container.unwrap() != ctype ||
+          bit_offset + w > container_bits {
+          flush_container(slots, cur_container, bitfields, bit_offset)
+          cur_container = Some(ctype)
+          bitfields = Array::new()
+          bit_offset = 0
+          cur_bits = container_bits
+        }
+        if name != "" {
+          bitfields.push(BitFieldInfo::{
+            name,
+            ctype,
+            bit_offset,
+            bit_width: w,
+          })
+        }
+        bit_offset = bit_offset + w
+        if bit_offset == cur_bits {
+          flush_container(slots, cur_container, bitfields, bit_offset)
+          cur_container = None
+          bitfields = Array::new()
+          bit_offset = 0
+        }
+      }
+    }
+  }
+  flush_container(slots, cur_container, bitfields, bit_offset)
+  slots
+}
+
+///|
+fn Context::struct_slot_llvm_types(
+  self : Context,
+  slots : Array[StructSlot],
+) -> Array[&@IR.Type] raise {
+  let elem_tys : Array[&@IR.Type] = Array::new()
+  for slot in slots {
+    match slot {
+      Normal(_, cty) => elem_tys.push(self.ctype_to_llvm_type(cty))
+      Bitfield(cty, _) => elem_tys.push(self.ctype_to_llvm_type(cty))
+      AlignMarker(cty) => {
+        let elem = self.ctype_to_llvm_type(cty)
+        elem_tys.push(self.llvm_ctx.getArrayType(elem, 0))
+      }
+    }
+  }
+  elem_tys
+}
+
+///|
+fn Context::get_field_access(
+  self : Context,
+  base_ptr : &@IR.Value,
+  base_ty : @parser.CType,
+  field_name : String,
+) -> FieldAccess raise {
+  match base_ty.dataKind {
+    Struct(_, fields) => {
+      let slots = self.struct_layout_slots(fields)
+      let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      for i in 0..<slots.length() {
+        match slots[i] {
+          Normal(name, cty) => {
+            let indices : Array[&@IR.Value] = Array::new()
+            indices.push(zero)
+            indices.push(self.llvm_ctx.getConstInt32(i))
+            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+            if name == field_name {
+              return FieldAccess::{
+                ptr: field_ptr,
+                ctype: cty,
+                bit_offset: None,
+                bit_width: None,
+                container_ctype: None,
+              }
+            }
+            if name == "" &&
+              (cty.dataKind is Struct(_, _) || cty.dataKind is Union(_, _)) {
+              let inner = self.get_field_access(field_ptr, cty, field_name) catch {
+                _ => continue
+              }
+              return inner
+            }
+          }
+          Bitfield(cty, bitfields) => {
+            for bf in bitfields {
+              if bf.name == field_name {
+                let indices : Array[&@IR.Value] = Array::new()
+                indices.push(zero)
+                indices.push(self.llvm_ctx.getConstInt32(i))
+                let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+                return FieldAccess::{
+                  ptr: field_ptr,
+                  ctype: bf.ctype,
+                  bit_offset: Some(bf.bit_offset),
+                  bit_width: Some(bf.bit_width),
+                  container_ctype: Some(cty),
+                }
+              }
+            }
+          }
+          AlignMarker(_) => ()
+        }
+      }
+      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
+    }
+    Union(_, fields) => {
+      for f in fields {
+        let { name, ctype: fty, bit_width } = f
+        if name == field_name {
+          match bit_width {
+            Some(w) => {
+              return FieldAccess::{
+                ptr: base_ptr,
+                ctype: fty,
+                bit_offset: Some(0),
+                bit_width: Some(w),
+                container_ctype: Some(fty),
+              }
+            }
+            None =>
+              return FieldAccess::{
+                ptr: base_ptr,
+                ctype: fty,
+                bit_offset: None,
+                bit_width: None,
+                container_ctype: None,
+              }
+          }
+        }
+        if name == "" &&
+          (fty.dataKind is Struct(_, _) || fty.dataKind is Union(_, _)) {
+          let inner = self.get_field_access(base_ptr, fty, field_name) catch {
+            _ => continue
+          }
+          return inner
+        }
+      }
+      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
+    }
+    _ => raise SemanticError("Type '\{base_ty}' has no fields")
+  }
+}
+
+///|
 fn string_literal_from_initializer(
   init : @parser.Initializer,
 ) -> (String, Bool)? {
@@ -245,46 +468,11 @@ fn Context::get_field_ptr_and_type(
   base_ty : @parser.CType,
   field_name : String,
 ) -> (&@IR.Value, @parser.CType) raise {
-  match base_ty.dataKind {
-    Struct(_, fields) => {
-      let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
-      let zero = self.llvm_ctx.getConstInt32(0)
-      for i in 0..<fields.length() {
-        let { name, ctype: fty, .. } = fields[i]
-        let indices : Array[&@IR.Value] = Array::new()
-        indices.push(zero)
-        indices.push(self.llvm_ctx.getConstInt32(i))
-        let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-        if name == field_name {
-          return (field_ptr, fty)
-        }
-        if name == "" &&
-          (fty.dataKind is Struct(_, _) || fty.dataKind is Union(_, _)) {
-          match self.try_get_field_ptr_and_type(field_ptr, fty, field_name) {
-            Some((p, t)) => return (p, t)
-            None => ()
-          }
-        }
-      }
-      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
-    }
-    Union(_, fields) => {
-      for i in 0..<fields.length() {
-        let { name, ctype: fty, .. } = fields[i]
-        if name == field_name {
-          return (base_ptr, fty)
-        }
-        if name == "" &&
-          (fty.dataKind is Struct(_, _) || fty.dataKind is Union(_, _)) {
-          match self.try_get_field_ptr_and_type(base_ptr, fty, field_name) {
-            Some((p, t)) => return (p, t)
-            None => ()
-          }
-        }
-      }
-      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
-    }
-    _ => raise SemanticError("Type '\{base_ty}' has no fields")
+  let acc = self.get_field_access(base_ptr, base_ty, field_name)
+  match acc.bit_width {
+    Some(_) =>
+      raise SemanticError("Bitfield '\{field_name}' is not addressable")
+    None => (acc.ptr, acc.ctype)
   }
 }
 
@@ -345,8 +533,12 @@ fn Context::emit_string_literal_to_array(
   value : String,
   is_wide : Bool,
 ) -> Unit raise {
-  guard ty.dataKind is Array(elem_ty, size) else {
+  guard ty.dataKind is Array(elem_ty, size0) else {
     raise SemanticError("String initializer target is not an array")
+  }
+  let mut size = size0
+  if size == 0 {
+    size = value.length() + 1
   }
   let arr_llvm_ty = self.ctype_to_llvm_type(ty)
   let zero = self.llvm_ctx.getConstInt32(0)
@@ -550,11 +742,20 @@ fn Context::emit_initializer_list_to_ptr(
   }
   match ty.dataKind {
     Array(elem_ty, size) => {
+      let mut actual_size = size
+      if actual_size == 0 {
+        if inits.length() == 1 &&
+          string_literal_from_initializer(inits[0]) is Some((s, _)) {
+          actual_size = s.length() + 1
+        } else {
+          actual_size = inits.length()
+        }
+      }
       // Zero-initialize all elements first
       let arr_llvm_ty = self.ctype_to_llvm_type(ty)
       let zero = self.llvm_ctx.getConstInt32(0)
       let mut zi = 0
-      while zi < size {
+      while zi < actual_size {
         let idx = self.llvm_ctx.getConstInt32(zi)
         let indices : Array[&@IR.Value] = Array::new()
         indices.push(zero)
@@ -578,7 +779,7 @@ fn Context::emit_initializer_list_to_ptr(
                 let zero = self.llvm_ctx.getConstInt32(0)
                 let mut i = start_idx
                 while i <= end_idx {
-                  if i >= 0 && i < size {
+                  if i >= 0 && i < actual_size {
                     let indices : Array[&@IR.Value] = Array::new()
                     indices.push(zero)
                     indices.push(self.llvm_ctx.getConstInt32(i))
@@ -631,13 +832,13 @@ fn Context::emit_initializer_list_to_ptr(
             match string_literal_from_initializer(init) {
               Some((s, wide)) => {
                 self.emit_string_literal_to_array(base_ptr, ty, s, wide)
-                next_idx = size
+                next_idx = actual_size
                 init_idx = init_idx + 1
                 continue
               }
               None => ()
             }
-            if next_idx >= size {
+            if next_idx >= actual_size {
               init_idx = init_idx + 1
               continue
             }
@@ -664,7 +865,7 @@ fn Context::emit_initializer_list_to_ptr(
             next_idx = next_idx + 1
           }
           InitializerList(inner) => {
-            if next_idx >= size {
+            if next_idx >= actual_size {
               init_idx = init_idx + 1
               continue
             }
@@ -701,18 +902,9 @@ fn Context::emit_initializer_list_to_ptr(
           _ => ()
         }
       }
-      let st_llvm_ty = self.ctype_to_llvm_type(ty)
-      let zero = self.llvm_ctx.getConstInt32(0)
-      // Zero-initialize all fields first
-      for i in 0..<fields.length() {
-        let { ctype: fty, .. } = fields[i]
-        let indices : Array[&@IR.Value] = Array::new()
-        indices.push(zero)
-        indices.push(self.llvm_ctx.getConstInt32(i))
-        let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-        let z = self.const_zero_value(self.ctype_to_llvm_type(fty))
-        let _ = self.builder.createStore(z, field_ptr)
-      }
+      // Zero-initialize the whole struct first (covers bitfields too).
+      let z = self.const_zero_value(self.ctype_to_llvm_type(ty))
+      let _ = self.builder.createStore(z, base_ptr)
       let mut next_idx = 0
       let mut init_idx = 0
       while init_idx < inits.length() {
@@ -740,16 +932,32 @@ fn Context::emit_initializer_list_to_ptr(
               init_idx = init_idx + 1
               continue
             }
-            let { ctype: fty, .. } = fields[next_idx]
-            let indices : Array[&@IR.Value] = Array::new()
-            indices.push(zero)
-            indices.push(self.llvm_ctx.getConstInt32(next_idx))
-            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+            // Skip unnamed bitfields (they don't consume initializers).
+            let mut skip = true
+            let mut fty : @parser.CType = fields[next_idx].ctype
+            let mut fbit : Int? = fields[next_idx].bit_width
+            let mut fname = fields[next_idx].name
+            while fbit is Some(_) && fname == "" {
+              next_idx = next_idx + 1
+              if next_idx >= fields.length() {
+                init_idx = init_idx + 1
+                skip = false
+                break
+              }
+              fty = fields[next_idx].ctype
+              fbit = fields[next_idx].bit_width
+              fname = fields[next_idx].name
+            }
+            if !skip {
+              continue
+            }
+            let mut field_ptr : &@IR.Value = base_ptr
             if is_aggregate_type(fty) {
               let (group, next_init_idx) =
                 consume_flat_inits_for_type(fty, inits, init_idx)
               if group.length() > 0 {
-                self.emit_initializer_list_to_ptr(field_ptr, fty, group)
+                let acc = self.get_field_access(base_ptr, ty, fname)
+                self.emit_initializer_list_to_ptr(acc.ptr, fty, group)
                 init_idx = next_init_idx
               } else {
                 init_idx = init_idx + 1
@@ -757,10 +965,12 @@ fn Context::emit_initializer_list_to_ptr(
             } else {
               match string_literal_from_initializer(init) {
                 Some((s, wide)) if fty.dataKind is Array(_, _) => {
-                  self.emit_string_literal_to_array(field_ptr, fty, s, wide)
+                  let acc = self.get_field_access(base_ptr, ty, fname)
+                  self.emit_string_literal_to_array(acc.ptr, fty, s, wide)
                 }
                 _ if fty.dataKind is Union(_, _) => {
-                  self.emit_initializer_list_to_ptr(field_ptr, fty, [init])
+                  let acc = self.get_field_access(base_ptr, ty, fname)
+                  self.emit_initializer_list_to_ptr(acc.ptr, fty, [init])
                 }
                 _ => {
                   match ae.ctype.dataKind {
@@ -773,8 +983,34 @@ fn Context::emit_initializer_list_to_ptr(
                     _ => ()
                   }
                   let raw = self.emit_assign_expr(ae)
-                  let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
-                  let _ = self.builder.createStore(v, field_ptr)
+                  let acc = self.get_field_access(base_ptr, ty, fname)
+                  match (acc.bit_width, acc.bit_offset) {
+                    (Some(w), Some(off)) => {
+                      let container_ty = acc.container_ctype.unwrap()
+                      let llvm_cty = self.ctype_to_llvm_type(container_ty)
+                      let old =
+                        (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+                      let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+                      let mask = self.const_int_for_ctype(container_ty, mask_val)
+                      let shift = self.const_int_for_ctype(container_ty, off)
+                      let field_mask = self.builder.createShl(mask, shift)
+                      let v0 = self.cast_value_to_ctype(raw, ae.ctype, acc.ctype)
+                      let v1 =
+                        self.cast_value_to_ctype(v0, acc.ctype, container_ty)
+                      let v2 = self.builder.createAnd(v1, mask)
+                      let vshift = self.builder.createShl(v2, shift)
+                      let cleared = self.builder.createAnd(
+                        old,
+                        self.builder.createNot(field_mask),
+                      )
+                      let merged = self.builder.createOr(cleared, vshift)
+                      let _ = self.builder.createStore(merged, acc.ptr)
+                    }
+                    _ => {
+                      let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
+                      let _ = self.builder.createStore(v, acc.ptr)
+                    }
+                  }
                 }
               }
               init_idx = init_idx + 1
@@ -786,12 +1022,25 @@ fn Context::emit_initializer_list_to_ptr(
               init_idx = init_idx + 1
               continue
             }
-            let { ctype: fty, .. } = fields[next_idx]
-            let indices : Array[&@IR.Value] = Array::new()
-            indices.push(zero)
-            indices.push(self.llvm_ctx.getConstInt32(next_idx))
-            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-            self.emit_initializer_list_to_ptr(field_ptr, fty, inner)
+            // Skip unnamed bitfields
+            let mut fty : @parser.CType = fields[next_idx].ctype
+            let mut fbit : Int? = fields[next_idx].bit_width
+            let mut fname = fields[next_idx].name
+            while fbit is Some(_) && fname == "" {
+              next_idx = next_idx + 1
+              if next_idx >= fields.length() {
+                init_idx = init_idx + 1
+                fbit = None
+                break
+              }
+              fty = fields[next_idx].ctype
+              fbit = fields[next_idx].bit_width
+              fname = fields[next_idx].name
+            }
+            if next_idx < fields.length() {
+              let acc = self.get_field_access(base_ptr, ty, fname)
+              self.emit_initializer_list_to_ptr(acc.ptr, fty, inner)
+            }
             next_idx = next_idx + 1
             init_idx = init_idx + 1
           }

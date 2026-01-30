@@ -121,7 +121,33 @@ fn Context::emit_static_local_variable(
   }
   let func_name = func.getName()
   let global_name = "\{func_name}__\{name}__static"
-  let llvm_ty = self.ctype_to_llvm_type(ty)
+  let mut flex_len : Int? = None
+  let mut flex_elem : @parser.CType? = None
+  match (ty.dataKind, init_expr) {
+    (Struct(_, fields), Some(init)) => {
+      flex_len = flex_array_len_from_initializer(fields, init)
+      if flex_len is Some(_) {
+        let last = fields[fields.length() - 1]
+        match last.ctype.dataKind {
+          Array(elem, 0) => flex_elem = Some(elem)
+          _ => ()
+        }
+      }
+    }
+    _ => ()
+  }
+  let llvm_ty = match (flex_len, flex_elem) {
+    (Some(len), Some(elem)) if len > 0 => {
+      let base_ty = self.ctype_to_llvm_type(ty)
+      let elem_ty = self.ctype_to_llvm_type(elem)
+      let extra_ty = self.llvm_ctx.getArrayType(elem_ty, len)
+      let elems : Array[&@IR.Type] = Array::new()
+      elems.push(base_ty)
+      elems.push(extra_ty)
+      (self.llvm_ctx.getStructType(elems, isPacked=false) : &@IR.Type)
+    }
+    _ => self.ctype_to_llvm_type(ty)
+  }
   let init_const = self.const_zero_constant(llvm_ty)
   let gvar = self.llvm_mod.addGlobalVariable(
     llvm_ty,
@@ -195,6 +221,9 @@ fn Context::get_label(self : Context, name : String) -> @IR.BasicBlock {
       let func = self.current_func.unwrap()
       let bb = func.addBasicBlock(name~)
       self.labels.set(name, bb)
+      self.label_list.push(bb)
+      let key = "\{func.getName()}::\{name}"
+      self.label_global.set(key, bb)
       bb
     }
   }
@@ -249,6 +278,19 @@ pub fn Context::emit_statement(
     Goto(label) => {
       let bb = self.get_label(label)
       self.builder.createBr(bb) |> ignore
+    }
+    GotoIndirect(expr) => {
+      let addr_val = self.emit_expr(expr)
+      let addr_ptr = self.cast_value_to_ctype(
+        addr_val,
+        expr.ctype,
+        @parser.CType::void_().ptr_to(),
+      )
+      let dests : Array[@IR.BasicBlock] = Array::new()
+      for bb in self.label_list {
+        dests.push(bb)
+      }
+      let _ = self.builder.createIndirectBr(addr_ptr, dests)
     }
   }
 }

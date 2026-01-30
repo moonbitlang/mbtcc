@@ -565,6 +565,14 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       }
       continue skip_line(line, rest)
     }
+    // Skip other #pragma directives (ignored)
+    [
+      { kind: Hash, line, .. },
+      { kind: Identifier("pragma"), .. },
+      .. rest,
+    ] => {
+      continue skip_line(line, rest)
+    }
     // Expand object-like macro
     [{ kind: Identifier(name), .. } as tok, .. rest] if macros.get(name)
       is Some(_) => {

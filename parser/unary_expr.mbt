@@ -69,6 +69,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
     PreDec(_) => "unary operator --"
     AddrOf(_) => "unary operator &"
     Deref(_) => "unary operator *"
+    LabelAddr(_, _) => "unary operator &&"
     Posate(_) => "unary operator +"
     Negate(_) => "unary operator -"
     BitNot(_) => "unary operator ~"
@@ -116,6 +117,7 @@ pub fn UnaryExpr::to_string(self : Self, color? : Bool = true) -> String {
       )
       "\{prefix} \{ctype}\n" + "\{lines_formatted}"
     }
+    LabelAddr(label, _) => "\{prefix} \{ctype}\n└-label \{label}"
     Deref(inner) => {
       let inner_str = inner.to_string(color~)
       let lines = inner_str.split("\n")
@@ -219,6 +221,8 @@ pub enum UnaryExprKind {
   // unary_operator cast_expression
   AddrOf(CastExpr)
   Deref(CastExpr)
+  // GNU address of label: &&label
+  LabelAddr(String, String)
   // Unary plus: `+x`
   Posate(CastExpr)
   Negate(CastExpr)
@@ -304,6 +308,29 @@ pub fn Context::parse_unary_expr(
   let init_toks = tokens
   let start_offset = tokens.start_offset()
   match tokens {
+    [
+      { kind: Operator("&&"), .. },
+      { kind: Identifier(label), .. },
+      .. rest,
+    ] => {
+      let addr_ctype = CType::void_().ptr_to()
+      self.add_label(label)
+      let func_name = match self.current_func_name {
+        Some(n) => n
+        None =>
+          raise ParseError(
+            tokens[0],
+            "Label address is only valid inside a function",
+          )
+      }
+      let tokens = init_toks[0:rest.start_offset() - start_offset]
+      let unary_expr = UnaryExpr::{
+        kind: LabelAddr(label, func_name),
+        ctype: addr_ctype,
+        tokens,
+      }
+      (unary_expr, rest)
+    }
     [
       { kind: Identifier("__builtin_va_arg"), .. },
       { kind: Bracket('('), .. },
@@ -442,23 +469,53 @@ pub fn Context::parse_unary_expr(
       }
       (unary_expr, rest)
     }
-    // Sizeof '(' type_name ')'
-    [{ kind: Keyword(Sizeof), .. }, { kind: Bracket('('), .. }, tok, ..] as tokens if self.is_keyword_or_type_name(
-        tok,
-      ) => {
-      let (ctype, rest) = self.parse_type_name(tokens[2:])
-      guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
-        let msg = "Expected ')' after type name in sizeof"
-        raise ParseError(rest[0], msg)
+    // Sizeof '(' type_name ')' or Sizeof '(' unary_expr ')'
+    [{ kind: Keyword(Sizeof), .. }, { kind: Bracket('('), .. }, .. rest] => {
+      let parsed = try self.parse_type_name(rest) catch {
+        _ => None
+      } noraise {
+        value => Some(value)
       }
-      let tokens = init_toks[0:rest.start_offset() - start_offset]
-      let unary_expr = UnaryExpr::{
-        kind: SizeofType(ctype),
-        ctype: CType::long(),
-        tokens,
+      match parsed {
+        Some((ctype, rest2)) if rest2 is [{ kind: Bracket(')'), .. }, .. rest3] => {
+          let tokens = init_toks[0:rest3.start_offset() - start_offset]
+          let unary_expr = UnaryExpr::{
+            kind: SizeofType(ctype),
+            ctype: CType::long(),
+            tokens,
+          }
+          (unary_expr, rest3)
+        }
+        _ => {
+          let (inner_expr, rest2) = self.parse_expr(rest)
+          guard rest2 is [{ kind: Bracket(')'), .. }, .. rest3] else {
+            let msg = "Expected ')' after sizeof expression"
+            raise ParseError(rest2[0], msg)
+          }
+          let paren_prim = PrimExpr::{
+            kind: Paren(inner_expr),
+            ctype: inner_expr.ctype,
+            tokens: inner_expr.tokens,
+          }
+          let paren_postfix = PostfixExpr::{
+            kind: PrimExpr(paren_prim),
+            ctype: paren_prim.ctype,
+            tokens: paren_prim.tokens,
+          }
+          let inner_unary = UnaryExpr::{
+            kind: PostfixExpr(paren_postfix),
+            ctype: paren_postfix.ctype,
+            tokens: paren_postfix.tokens,
+          }
+          let tokens = init_toks[0:rest3.start_offset() - start_offset]
+          let unary_expr = UnaryExpr::{
+            kind: SizeofExpr(inner_unary),
+            ctype: CType::long(),
+            tokens,
+          }
+          (unary_expr, rest3)
+        }
       }
-      // guard 已经消费了 `)`，这里不要再额外跳过一个 token
-      (unary_expr, rest)
     }
     // Size of unary_expr 
     [{ kind: Keyword(Sizeof), .. }, .. rest] => {
@@ -511,6 +568,7 @@ pub fn UnaryExpr::is_constant(self : Self) -> Bool {
     PreDec(_) => false
     AddrOf(_) => false
     Deref(_) => false
+    LabelAddr(_, _) => false
     Posate(inner) => inner.is_constant()
     Negate(inner) => inner.is_constant()
     BitNot(inner) => inner.is_constant()
@@ -560,7 +618,12 @@ pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
     PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
     Deref(_) => !self.ctype.is_const
     PreInc(_) | PreDec(_) => false
-    AddrOf(_) | Posate(_) | Negate(_) | BitNot(_) | LogicalNot(_) => false
+    AddrOf(_)
+    | LabelAddr(_, _)
+    | Posate(_)
+    | Negate(_)
+    | BitNot(_)
+    | LogicalNot(_) => false
     SizeofExpr(_) | SizeofType(_) | Alignof(_) | BuiltinVaArg(_, _) => false
   }
 }

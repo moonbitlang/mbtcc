@@ -282,7 +282,10 @@ pub fn Context::parse_external_declaration(
     self.add_var("__func__", func_name_ty)
     self.add_var("__FUNCTION__", func_name_ty)
     // Parse compound statement (function body)
+    let saved_func = self.current_func_name
+    self.current_func_name = Some(name)
     let (body, rest) = self.parse_compound_statement(rest)
+    self.current_func_name = saved_func
     self.pop_scope()
     let func_def = FunctionDefinition::{
       name,

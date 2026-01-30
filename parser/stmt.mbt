@@ -127,6 +127,21 @@ pub fn Statement::to_string(self : Self, color? : Bool = true) -> String {
       }
       prefix
     }
+    GotoIndirect(expr) => {
+      let prefix = if color {
+        @color.taint("goto statement (indirect)", Magenta)
+      } else {
+        "goto statement (indirect)"
+      }
+      let expr_str = expr.to_string(color~)
+      let expr_lines = expr_str.split("\n")
+      let expr_formatted = format_lines(
+        expr_lines,
+        head_with="└-",
+        continue_with="  ",
+      )
+      "\{prefix}\n\{expr_formatted}"
+    }
     Continue =>
       if color {
         @color.taint("continue statement", Magenta)
@@ -187,6 +202,7 @@ pub enum StmtKind {
   While(WhileStmt)
   DoWhile(DoWhileStmt)
   Goto(String)
+  GotoIndirect(Expr)
   Continue
   Break
   Return(Expr)
@@ -224,6 +240,17 @@ pub fn Context::parse_statement(
       (StmtKind::Continue, rest)
     [{ kind: Keyword(Continue), .. }, tok, ..] =>
       raise ParseError(tok, "Expected ';' after 'continue'")
+    [
+      { kind: Keyword(Goto), .. },
+      { kind: Operator("*"), .. },
+      .. rest,
+    ] => {
+      let (expr, rest) = self.parse_expr(rest)
+      guard rest is [{ kind: Semi, .. }, .. rest2] else {
+        raise ParseError(rest[0], "Expected ';' after indirect goto expression")
+      }
+      (StmtKind::GotoIndirect(expr), rest2)
+    }
     [
       { kind: Keyword(Goto), .. },
       { kind: Identifier(label), .. },

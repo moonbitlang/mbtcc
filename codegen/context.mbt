@@ -22,6 +22,8 @@ pub struct Context {
   // switch 语句 codegen 的临时上下文栈（支持嵌套 switch 与嵌套 case label）
   switch_ctx_stack : Array[SwitchCodegenCtx]
   mut labels : Map[String, @IR.BasicBlock]
+  mut label_list : Array[@IR.BasicBlock]
+  label_global : Map[String, @IR.BasicBlock]
 }
 
 ///|
@@ -30,6 +32,7 @@ pub struct SwitchCodegenCtx {
   case_map : Map[Int, @IR.BasicBlock]
   default_bb : @IR.BasicBlock
   exit_bb : @IR.BasicBlock
+  cond_ty : @parser.CType
   mut active : Bool
   mut has_default : Bool
 }
@@ -59,6 +62,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let continue_stack = Array::new()
   let switch_ctx_stack = Array::new()
   let labels = Map::new()
+  let label_list = Array::new()
+  let label_global = Map::new()
   Context::{
     llvm_ctx,
     llvm_mod,
@@ -81,6 +86,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     continue_stack,
     switch_ctx_stack,
     labels,
+    label_list,
+    label_global,
   }
 }
 
@@ -181,6 +188,83 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
   self.current_ret_ty = saved_ret
 }
 
+///|
+fn string_literal_len_in_init(init : @parser.Initializer) -> Int? {
+  let mut len = 0
+  let mut saw = false
+  for tok in init.tokens {
+    match tok.kind {
+      String(s) => {
+        len = len + s.length()
+        saw = true
+      }
+      _ => return None
+    }
+  }
+  if saw { Some(len + 1) } else { None }
+}
+
+///|
+fn designator_targets_field(desig : @parser.Designator, name : String) -> Bool {
+  match desig {
+    Field(n) => n == name
+    DesignatorList(list) =>
+      if list.length() == 0 {
+        false
+      } else {
+        match list[0] {
+          Field(n) => n == name
+          _ => false
+        }
+      }
+    _ => false
+  }
+}
+
+///|
+fn flex_array_len_from_initializer(
+  fields : Array[@parser.StructField],
+  init : @parser.Initializer,
+) -> Int? {
+  guard fields.length() > 0 else { return None }
+  let flex_idx = fields.length() - 1
+  let flex_field = fields[flex_idx]
+  guard flex_field.ctype.dataKind is Array(_, 0) else { return None }
+  let flex_name = flex_field.name
+  guard flex_name != "" else { return None }
+  match init.kind {
+    InitializerList(inits) => {
+      let mut idx = 0
+      let mut flex_init : @parser.Initializer? = None
+      for item in inits {
+        match item.kind {
+          Designation(desig, inner) => {
+            if designator_targets_field(desig, flex_name) {
+              flex_init = Some(inner)
+            }
+          }
+          _ => {
+            if idx == flex_idx {
+              flex_init = Some(item)
+            }
+            idx = idx + 1
+          }
+        }
+      }
+      match flex_init {
+        Some(fi) => match fi.kind {
+          InitializerList(list) => Some(list.length())
+          AssignExpr(_) => string_literal_len_in_init(fi)
+          _ => None
+        }
+        None => None
+      }
+    }
+    _ => None
+  }
+}
+
+///|
 ///|
 fn Context::enter_scope(self : Context) -> Unit {
   let env = @env.Env::new(parent=Some(self.var_env))
@@ -407,23 +491,76 @@ pub fn Context::emit_global_variable_decl(
 ) -> Unit raise CodeGenError {
   ignore(is_register)
   ignore(is_thread_local)
+  let mut flex_len : Int? = None
+  let mut flex_elem : @parser.CType? = None
+  match (ctype.dataKind, initializer) {
+    (Struct(_, fields), Some(init)) => {
+      flex_len = flex_array_len_from_initializer(fields, init)
+      if flex_len is Some(_) {
+        let last = fields[fields.length() - 1]
+        match last.ctype.dataKind {
+          Array(elem, 0) => flex_elem = Some(elem)
+          _ => ()
+        }
+      }
+    }
+    _ => ()
+  }
+  let get_storage_llvm_ty = fn(self : Context) -> &@IR.Type raise {
+    match (flex_len, flex_elem) {
+      (Some(len), Some(elem)) if len > 0 => {
+        let base_ty = self.ctype_to_llvm_type(ctype)
+        let elem_ty = self.ctype_to_llvm_type(elem)
+        let extra_ty = self.llvm_ctx.getArrayType(elem_ty, len)
+        let elems : Array[&@IR.Type] = Array::new()
+        elems.push(base_ty)
+        elems.push(extra_ty)
+        (self.llvm_ctx.getStructType(elems, isPacked=false) : &@IR.Type)
+      }
+      _ => self.ctype_to_llvm_type(ctype)
+    }
+  }
+  // Defer tentative incomplete array definitions until a complete one appears.
+  match (ctype.dataKind, initializer, is_extern) {
+    (Array(_, 0), None, false) => {
+      self.global_types.set(name, ctype)
+      return
+    }
+    _ => ()
+  }
   match self.globals.get(name) {
     Some(gv) => {
       self.global_types.set(name, ctype)
       if (!is_extern) || initializer is Some(_) {
-        let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
+        let llvm_ty = get_storage_llvm_ty(self) catch {
           err => raise IllegalLLVMUsage("\{err}")
         }
         let zero = self.const_zero_constant(llvm_ty)
-        @unsafe.llvm_set_initializer(gv.getValueRef(), zero.getValueRef())
-        let linkage : @IR.Linkage =
-          if is_static { InternalLinkage } else { ExternalLinkage }
-        let llvm_linkage = match linkage {
-          ExternalLinkage => @unsafe.LLVMExternalLinkage
-          InternalLinkage => @unsafe.LLVMInternalLinkage
-          _ => @unsafe.LLVMExternalLinkage
+        if flex_len is Some(_) {
+          // Replace existing global with expanded storage for flexible array init.
+          let old_name = name + "__old"
+          gv.setValueName(old_name)
+          let linkage : @IR.Linkage =
+            if is_static { InternalLinkage } else { ExternalLinkage }
+          let new_gv = self.llvm_mod.addGlobalVariable(
+            llvm_ty,
+            name,
+            initializer=zero,
+            linkage?=Some(linkage),
+          )
+          gv.replaceAllUsesWith(new_gv)
+          self.globals.set(name, new_gv)
+        } else {
+          @unsafe.llvm_set_initializer(gv.getValueRef(), zero.getValueRef())
+          let linkage : @IR.Linkage =
+            if is_static { InternalLinkage } else { ExternalLinkage }
+          let llvm_linkage = match linkage {
+            ExternalLinkage => @unsafe.LLVMExternalLinkage
+            InternalLinkage => @unsafe.LLVMInternalLinkage
+            _ => @unsafe.LLVMExternalLinkage
+          }
+          @unsafe.llvm_set_linkage(gv.getValueRef(), llvm_linkage)
         }
-        @unsafe.llvm_set_linkage(gv.getValueRef(), llvm_linkage)
         match initializer {
           Some(init) => self.global_inits.push((name, ctype, init))
           None => ()
@@ -433,7 +570,7 @@ pub fn Context::emit_global_variable_decl(
     }
     None => ()
   }
-  let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
+  let llvm_ty = get_storage_llvm_ty(self) catch {
     err => raise IllegalLLVMUsage("\{err}")
   }
   let linkage : @IR.Linkage =

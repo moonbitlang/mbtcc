@@ -3,6 +3,43 @@ pub fn Context::emit_function_def(
   self : Context,
   func_def : @parser.FunctionDefinition,
 ) -> Unit raise {
+  fn predeclare_compound(
+    self : Context,
+    compound_stmt : @parser.CompoundStmt,
+  ) -> Unit {
+    for item in compound_stmt.items {
+      match item {
+        Left(stmt) => predeclare_labels(self, stmt)
+        Right(_) => ()
+      }
+    }
+  }
+
+  fn predeclare_labels(self : Context, stmt : @parser.Statement) -> Unit {
+    match stmt.kind {
+      Labeled(label, inner) => {
+        self.get_label(label) |> ignore
+        predeclare_labels(self, inner)
+      }
+      Case(_, inner) => predeclare_labels(self, inner)
+      CaseRange(_, _, inner) => predeclare_labels(self, inner)
+      DefaultCase(inner) => predeclare_labels(self, inner)
+      Compound(compound_stmt) => predeclare_compound(self, compound_stmt)
+      If(if_stmt) => {
+        predeclare_labels(self, if_stmt.then_stmt)
+        match if_stmt.else_stmt {
+          Some(es) => predeclare_labels(self, es)
+          None => ()
+        }
+      }
+      Switch(switch_stmt) => predeclare_labels(self, switch_stmt.body)
+      For(for_stmt) => predeclare_labels(self, for_stmt.body)
+      While(while_stmt) => predeclare_labels(self, while_stmt.body)
+      DoWhile(do_while_stmt) => predeclare_labels(self, do_while_stmt.body)
+      _ => ()
+    }
+  }
+
   let { name, params, ret_ty, is_static, is_variadic, body } = func_def
   // if `static` set, we just ignore it for now
   ignore(is_static)
@@ -38,9 +75,12 @@ pub fn Context::emit_function_def(
   self.current_func = Some(llvm_func)
   self.current_ret_ty = Some(ret_ty)
   self.labels = Map::new()
+  self.label_list = Array::new()
   // Create entry basic block
   let entry_bb = llvm_func.addBasicBlock(name="entry")
   self.builder.setInsertPoint(entry_bb)
+  // Predeclare labels so indirectbr has all destinations
+  predeclare_compound(self, body)
   // Enter new scope for function parameters
   self.enter_scope()
   for i in 0..<param_names.length() {

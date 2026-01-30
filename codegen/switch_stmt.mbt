@@ -12,19 +12,15 @@ fn Context::emit_switch_stmt(
   // `break` 在 switch 内跳转到 exit_bb
   self.push_switch_break_target(exit_bb)
 
-  // 计算 switch 条件，并统一转成 i32 以简化常量 case 的匹配
+  // 计算 switch 条件，并保持其整型宽度
   let cond_raw = self.emit_expr(switch_stmt.expr)
   guard is_switchable_kind(switch_stmt.expr.ctype.dataKind) else {
     raise SemanticError("Switch condition must be an integral type")
   }
-  let cond_i32 = self.cast_value_to_ctype(
-    cond_raw,
-    switch_stmt.expr.ctype,
-    @parser.CType::int(),
-  )
+  let cond_val = cond_raw
 
   // 生成 LLVM switch 指令（这是一个 terminator）
-  let switch_inst = self.builder.createSwitch(cond_i32, default_bb)
+  let switch_inst = self.builder.createSwitch(cond_val, default_bb)
 
   // Allow non-compound switch bodies by wrapping them into a single-item list.
   let body_items = match switch_stmt.body.kind {
@@ -44,6 +40,7 @@ fn Context::emit_switch_stmt(
     case_map,
     default_bb,
     exit_bb,
+    cond_ty: switch_stmt.expr.ctype,
     active: false,
     has_default: false,
   })
@@ -62,8 +59,8 @@ fn Context::emit_switch_stmt(
             }
             let bb = func.addBasicBlock()
             top.case_map.set(v, bb)
-            let ci32 = self.llvm_ctx.getConstInt32(v)
-            let _ = top.switch_inst.addCase(ci32, bb)
+            let cval = self.const_int_for_ctype(switch_stmt.expr.ctype, v)
+            let _ = top.switch_inst.addCase(cval, bb)
 
           }
         }
@@ -219,8 +216,8 @@ fn Context::emit_case_label_in_switch(
     None => {
       let bb = func.addBasicBlock()
       ctx.case_map.set(v, bb)
-      let ci32 = self.llvm_ctx.getConstInt32(v)
-      let _ = ctx.switch_inst.addCase(ci32, bb)
+      let cval = self.const_int_for_ctype(ctx.cond_ty, v)
+      let _ = ctx.switch_inst.addCase(cval, bb)
       bb
     }
   }
@@ -263,8 +260,8 @@ fn Context::emit_case_range_label_in_switch(
         raise SemanticError("Duplicate or overlapping case label: \{v}")
       None => {
         ctx.case_map.set(v, target_bb)
-        let ci32 = self.llvm_ctx.getConstInt32(v)
-        let _ = ctx.switch_inst.addCase(ci32, target_bb)
+        let cval = self.const_int_for_ctype(ctx.cond_ty, v)
+        let _ = ctx.switch_inst.addCase(cval, target_bb)
       }
     }
   }

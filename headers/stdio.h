@@ -20,8 +20,11 @@ extern FILE *stderr;
 #endif
 
 int printf(const char *fmt, ...);
+int scanf(const char *fmt, ...);
 int fprintf(FILE *fp, const char *fmt, ...);
 int sprintf(char *buf, const char *fmt, ...);
+int fscanf(FILE *fp, const char *fmt, ...);
+int sscanf(const char *buf, const char *fmt, ...);
 int snprintf(char *buf, size_t n, const char *fmt, ...);
 int putchar(int c);
 int puts(const char *s);

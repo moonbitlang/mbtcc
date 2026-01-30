@@ -439,6 +439,11 @@ pub fn Context::parse_designator(
 ) -> (Designator, ArrayView[Token]) raise ParseError {
   let designators : Array[Designator] = Array::new()
   let rest = loop tokens {
+    [{ kind: Identifier(name), .. }, { kind: Colon, .. }, .. rest] => {
+      let designator = Designator::Field(name)
+      designators.push(designator)
+      continue rest
+    }
     [{ kind: Dot, .. }, { kind: Identifier(name), .. }, .. rest] => {
       let designator = Designator::Field(name)
       designators.push(designator)
@@ -498,6 +503,7 @@ pub fn Context::parse_declaration(
       rest,
       init_tokens,
       decay_array_to_ptr=false,
+      allow_typedef_name=true,
     )
     guard rest is [{ kind: Semi, .. }, .. rest2] else {
       raise ParseError(rest[0], "expected ';' after typedef")
@@ -505,10 +511,15 @@ pub fn Context::parse_declaration(
     guard !(name is "") else {
       raise ParseError(rest[0], "typedef name cannot be empty")
     }
-    guard !self.defined.contains_local(name) else {
-      raise ParseError(rest[0], "redeclaration of type name: \{name}")
+    if self.defined.contains_local(name) {
+      match self.defined.get(name) {
+        Some(TypeDef(prev)) if prev == ctype => ()
+        _ =>
+          raise ParseError(rest[0], "redeclaration of type name: \{name}")
+      }
+    } else {
+      self.add_typedef(name, ctype)
     }
-    self.add_typedef(name, ctype)
     let decl_end = if skip_semi {
       rest2.start_offset()
     } else {
@@ -747,12 +758,13 @@ pub fn Context::parse_initializer(
   let init_tokens = tokens
   let start_offset = tokens.start_offset()
   let (init_kind, rest) = match tokens {
-    [{ kind: Dot | Bracket('['), .. }, ..] => {
-      let (designator, rest) = self.parse_designator(tokens)
-      guard rest is [{ kind: AssignOp("="), .. }, .. rest] else {
-        raise ParseError(rest[0], "expected '=' after designator")
+    [{ kind: Dot | Bracket('['), .. }, ..]
+    | [{ kind: Identifier(_), .. }, { kind: Colon, .. }, ..] => {
+      let (designator, rest0) = self.parse_designator(tokens)
+      let (initializer, rest) = match rest0 {
+        [{ kind: AssignOp("="), .. }, .. rest] => self.parse_initializer(rest)
+        rest => self.parse_initializer(rest)
       }
-      let (initializer, rest) = self.parse_initializer(rest)
       let init_kind = InitializerKind::Designation(designator, initializer)
       (init_kind, rest)
     }

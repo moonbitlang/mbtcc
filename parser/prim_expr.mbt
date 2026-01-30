@@ -495,6 +495,7 @@ pub fn PrimExpr::eval_as_int(self : Self) -> Int raise ParseError {
     UInt(v) => v.reinterpret_as_int()
     ULong(v) => v.to_int()
     ULongLong(v) => v.to_int()
+    Char(c) => c.to_int()
     _ => {
       let msg = "Cannot evaluate PrimExpr as int: not an integer literal"
       raise ParseError(self.tokens[0], msg)

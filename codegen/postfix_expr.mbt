@@ -3,6 +3,21 @@ fn Context::emit_postfix_expr(
   self : Self,
   expr : @parser.PostfixExpr,
 ) -> &@IR.Value raise {
+  fn is_unsigned_bitfield(ty : @parser.CType) -> Bool {
+    match ty.dataKind {
+      Bool | UChar | UInt16 | UInt | ULong | ULongLong => true
+      Enum(_, values) => {
+        for item in values {
+          let v = item.1
+          if v < 0 {
+            return false
+          }
+        }
+        true
+      }
+      _ => false
+    }
+  }
   match expr.kind {
     PrimExpr(expr) => self.emit_prim_expr(expr)
     ArrayAccess(expr, idx_expr) => {
@@ -24,48 +39,91 @@ fn Context::emit_postfix_expr(
     }
     FuncCall(func_expr, arg_exprs) => self.emit_func_call(func_expr, arg_exprs)
     MemberAccess(expr, member_name) => {
-      // Prefer lvalue access for aggregates (supports anonymous fields).
+      // Prefer lvalue access for aggregates (supports anonymous fields + bitfields).
       match self.try_get_lvalue_ptr_from_postfix(expr) {
         Some((base_ptr, base_ty)) => {
-          let (field_ptr, fty) = self.get_field_ptr_and_type(
-            base_ptr,
-            base_ty,
-            member_name,
-          )
-          match fty.dataKind {
-            Array(_, _) => {
-              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
-              let zero = self.llvm_ctx.getConstInt32(0)
-              let arr_indices : Array[&@IR.Value] = Array::new()
-              arr_indices.push(zero)
-              arr_indices.push(zero)
-              (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+          let acc = self.get_field_access(base_ptr, base_ty, member_name)
+          match (acc.bit_width, acc.bit_offset) {
+            (Some(w), Some(off)) => {
+              let container_ty = acc.container_ctype.unwrap()
+              let llvm_cty = self.ctype_to_llvm_type(container_ty)
+              let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+              let shift = self.const_int_for_ctype(container_ty, off)
+              let shifted = self.builder.createLShr(raw, shift)
+              let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+              let mask = self.const_int_for_ctype(container_ty, mask_val)
+              let masked = self.builder.createAnd(shifted, mask)
+              // Signed bitfield needs sign extension
+              let is_unsigned = is_unsigned_bitfield(acc.ctype)
+              let val = if is_unsigned {
+                masked
+              } else {
+                let width = self.bitfield_container_bits(container_ty)
+                let shl = self.const_int_for_ctype(container_ty, width - w)
+                let tmp = self.builder.createShl(masked, shl)
+                self.builder.createAShr(tmp, shl)
+              }
+              self.cast_value_to_ctype(val, container_ty, acc.ctype)
             }
-            _ => {
-              let llvm_ty = self.ctype_to_llvm_type(fty)
-              (self.builder.createLoad(llvm_ty, field_ptr) : &@IR.Value)
-            }
+            _ =>
+              match acc.ctype.dataKind {
+                Array(_, _) => {
+                  let arr_llvm_ty = self.ctype_to_llvm_type(acc.ctype)
+                  let zero = self.llvm_ctx.getConstInt32(0)
+                  let arr_indices : Array[&@IR.Value] = Array::new()
+                  arr_indices.push(zero)
+                  arr_indices.push(zero)
+                  (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+                }
+                _ => {
+                  let llvm_ty = self.ctype_to_llvm_type(acc.ctype)
+                  (self.builder.createLoad(llvm_ty, acc.ptr) : &@IR.Value)
+                }
+              }
           }
         }
         None => {
-          // Fallback for rvalue structs: use extractvalue for direct struct fields.
-          let (idx, fty) = struct_field_index_and_type(expr.ctype, member_name)
-          match fty.dataKind {
-            Array(_, _) => {
-              let base_val = self.emit_postfix_expr(expr)
-              let st_llvm_ty = self.ctype_to_llvm_type(expr.ctype)
-              let zero = self.llvm_ctx.getConstInt32(0)
-              let indices : Array[&@IR.Value] = Array::new()
-              indices.push(zero)
-              indices.push(self.llvm_ctx.getConstInt32(idx))
-              let field_ptr = self.builder.createGEP(base_val, st_llvm_ty, indices)
-              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
-              let arr_indices : Array[&@IR.Value] = Array::new()
-              arr_indices.push(zero)
-              arr_indices.push(zero)
-              (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+          // Fallback for rvalue structs: materialize into a temp for bitfields.
+          let base_val = self.emit_postfix_expr(expr)
+          let tmp = self.builder.createAlloca(self.ctype_to_llvm_type(expr.ctype))
+          self.builder.createStore(base_val, tmp) |> ignore
+          let acc = self.get_field_access(tmp, expr.ctype, member_name)
+          match (acc.bit_width, acc.bit_offset) {
+            (Some(w), Some(off)) => {
+              let container_ty = acc.container_ctype.unwrap()
+              let llvm_cty = self.ctype_to_llvm_type(container_ty)
+              let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+              let shift = self.const_int_for_ctype(container_ty, off)
+              let shifted = self.builder.createLShr(raw, shift)
+              let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+              let mask = self.const_int_for_ctype(container_ty, mask_val)
+              let masked = self.builder.createAnd(shifted, mask)
+              let is_unsigned = is_unsigned_bitfield(acc.ctype)
+              let val = if is_unsigned {
+                masked
+              } else {
+                let width = self.bitfield_container_bits(container_ty)
+                let shl = self.const_int_for_ctype(container_ty, width - w)
+                let tmp2 = self.builder.createShl(masked, shl)
+                self.builder.createAShr(tmp2, shl)
+              }
+              self.cast_value_to_ctype(val, container_ty, acc.ctype)
             }
-            _ => self.builder.createExtractValue(self.emit_postfix_expr(expr), idx)
+            _ =>
+              match acc.ctype.dataKind {
+                Array(_, _) => {
+                  let arr_llvm_ty = self.ctype_to_llvm_type(acc.ctype)
+                  let zero = self.llvm_ctx.getConstInt32(0)
+                  let arr_indices : Array[&@IR.Value] = Array::new()
+                  arr_indices.push(zero)
+                  arr_indices.push(zero)
+                  (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+                }
+                _ => {
+                  let llvm_ty = self.ctype_to_llvm_type(acc.ctype)
+                  (self.builder.createLoad(llvm_ty, acc.ptr) : &@IR.Value)
+                }
+              }
           }
         }
       }
@@ -75,22 +133,41 @@ fn Context::emit_postfix_expr(
         raise SemanticError("Pointer member access on non-pointer type")
       }
       let base_ptr = self.emit_postfix_expr(expr)
-      let (field_ptr, fty) = self.get_field_ptr_and_type(
-        base_ptr,
-        inner,
-        member_name,
-      )
-      match fty.dataKind {
-        Array(_, _) => {
-          let arr_llvm_ty = self.ctype_to_llvm_type(fty)
-          let zero = self.llvm_ctx.getConstInt32(0)
-          let arr_indices : Array[&@IR.Value] = Array::new()
-          arr_indices.push(zero)
-          arr_indices.push(zero)
-          (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+      let acc = self.get_field_access(base_ptr, inner, member_name)
+      match (acc.bit_width, acc.bit_offset) {
+        (Some(w), Some(off)) => {
+          let container_ty = acc.container_ctype.unwrap()
+          let llvm_cty = self.ctype_to_llvm_type(container_ty)
+          let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+          let shift = self.const_int_for_ctype(container_ty, off)
+          let shifted = self.builder.createLShr(raw, shift)
+          let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+          let mask = self.const_int_for_ctype(container_ty, mask_val)
+          let masked = self.builder.createAnd(shifted, mask)
+          let is_unsigned = is_unsigned_bitfield(acc.ctype)
+          let val = if is_unsigned {
+            masked
+          } else {
+            let width = self.bitfield_container_bits(container_ty)
+            let shl = self.const_int_for_ctype(container_ty, width - w)
+            let tmp2 = self.builder.createShl(masked, shl)
+            self.builder.createAShr(tmp2, shl)
+          }
+          self.cast_value_to_ctype(val, container_ty, acc.ctype)
         }
         _ =>
-          (self.builder.createLoad(self.ctype_to_llvm_type(fty), field_ptr) : &@IR.Value)
+          match acc.ctype.dataKind {
+            Array(_, _) => {
+              let arr_llvm_ty = self.ctype_to_llvm_type(acc.ctype)
+              let zero = self.llvm_ctx.getConstInt32(0)
+              let arr_indices : Array[&@IR.Value] = Array::new()
+              arr_indices.push(zero)
+              arr_indices.push(zero)
+              (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+            }
+            _ =>
+              (self.builder.createLoad(self.ctype_to_llvm_type(acc.ctype), acc.ptr) : &@IR.Value)
+          }
       }
     }
     PostInc(expr) => {
@@ -201,7 +278,97 @@ fn Context::emit_func_call(
     let tmp_ptr = self.builder.createBitCast(tmp, self.llvm_ctx.getPtrTy())
     (self.builder.createLoad(coerce_ty, tmp_ptr) : &@IR.Value)
   }
+  fn get_sync_ptr_and_elem(
+    self : Context,
+    arg0 : @parser.AssignExpr,
+  ) -> (&@IR.Value, @parser.CType) raise {
+    let ptr_val = self.emit_assign_expr(arg0)
+    let elem_ty = match arg0.ctype.dataKind {
+      Ptr(t) => t
+      Array(t, _) => t
+      _ => raise SemanticError("Atomic builtin requires pointer argument")
+    }
+    (ptr_val, elem_ty)
+  }
   match func_expr.kind {
+    PrimExpr({ kind: Ident(name), .. }) if name == "__sync_fetch_and_add" ||
+        name == "__sync_fetch_and_sub" => {
+        guard arg_exprs.length() == 2 else {
+          raise SemanticError("\{name} requires exactly two arguments")
+        }
+        let (mem_ptr, elem_ty) = get_sync_ptr_and_elem(self, arg_exprs[0])
+        let val_raw = self.emit_assign_expr(arg_exprs[1])
+        let val =
+          self.cast_value_to_ctype(val_raw, arg_exprs[1].ctype, elem_ty)
+        let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+        let old = (self.builder.createLoad(llvm_ty, mem_ptr) : &@IR.Value)
+        let new_val = if name == "__sync_fetch_and_add" {
+          self.builder.createAdd(old, val)
+        } else {
+          self.builder.createSub(old, val)
+        }
+        let _ = self.builder.createStore(new_val, mem_ptr)
+        return old
+      }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__sync_add_and_fetch" => {
+      guard arg_exprs.length() == 2 else {
+        raise SemanticError("__sync_add_and_fetch requires exactly two arguments")
+      }
+      let (mem_ptr, elem_ty) = get_sync_ptr_and_elem(self, arg_exprs[0])
+      let val_raw = self.emit_assign_expr(arg_exprs[1])
+      let val =
+        self.cast_value_to_ctype(val_raw, arg_exprs[1].ctype, elem_ty)
+      let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+      let old = (self.builder.createLoad(llvm_ty, mem_ptr) : &@IR.Value)
+      let new_val = self.builder.createAdd(old, val)
+      let _ = self.builder.createStore(new_val, mem_ptr)
+      return new_val
+    }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__sync_lock_test_and_set" => {
+      guard arg_exprs.length() == 2 else {
+        raise SemanticError("__sync_lock_test_and_set requires exactly two arguments")
+      }
+      let (mem_ptr, elem_ty) = get_sync_ptr_and_elem(self, arg_exprs[0])
+      let val_raw = self.emit_assign_expr(arg_exprs[1])
+      let val =
+        self.cast_value_to_ctype(val_raw, arg_exprs[1].ctype, elem_ty)
+      let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+      let old = (self.builder.createLoad(llvm_ty, mem_ptr) : &@IR.Value)
+      let _ = self.builder.createStore(val, mem_ptr)
+      return old
+    }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__sync_val_compare_and_swap" => {
+        guard arg_exprs.length() == 3 else {
+          raise SemanticError("__sync_val_compare_and_swap requires three arguments")
+        }
+        let (mem_ptr, elem_ty) = get_sync_ptr_and_elem(self, arg_exprs[0])
+        let expect_raw = self.emit_assign_expr(arg_exprs[1])
+        let desired_raw = self.emit_assign_expr(arg_exprs[2])
+        let expect =
+          self.cast_value_to_ctype(expect_raw, arg_exprs[1].ctype, elem_ty)
+        let desired =
+          self.cast_value_to_ctype(desired_raw, arg_exprs[2].ctype, elem_ty)
+        let llvm_ty = self.ctype_to_llvm_type(elem_ty)
+        let old = (self.builder.createLoad(llvm_ty, mem_ptr) : &@IR.Value)
+        let cmp = self.builder.createICmpEQ(old, expect)
+        let next = self.builder.createSelect(cmp, desired, old)
+        let _ = self.builder.createStore(next, mem_ptr)
+        return old
+      }
+    PrimExpr({ kind: Ident(name), .. }) if name == "alloca" || name == "__builtin_alloca" => {
+      guard arg_exprs.length() == 1 else {
+        raise SemanticError("alloca requires exactly one argument")
+      }
+      let size_expr = arg_exprs[0]
+      let size_val = self.emit_assign_expr(size_expr)
+      let size_cast = self.cast_value_to_ctype(
+        size_val,
+        size_expr.ctype,
+        @parser.CType::ulong(),
+      )
+      let i8_ty = self.llvm_ctx.getInt8Ty()
+      return (self.builder.createArrayAlloca(i8_ty, size_cast) : &@IR.Value)
+    }
     PrimExpr({ kind: Ident(name), .. }) if name == "__builtin_va_start" => {
       guard arg_exprs.length() >= 1 else {
         raise SemanticError("__builtin_va_start requires at least one argument")
@@ -237,6 +404,17 @@ fn Context::emit_func_call(
       }
       let args : Array[&@IR.Value] = [ap_ptr]
       return (self.builder.createCall(func, args) : &@IR.Value)
+    }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__builtin_va_copy" => {
+      guard arg_exprs.length() >= 2 else {
+        raise SemanticError("__builtin_va_copy requires two arguments")
+      }
+      let dst_ptr = get_va_list_ptr(self, arg_exprs[0])
+      let src_ptr = get_va_list_ptr(self, arg_exprs[1])
+      let ptr_ty = self.llvm_ctx.getPtrTy()
+      let src_val = self.builder.createLoad(ptr_ty, src_ptr)
+      self.builder.createStore(src_val, dst_ptr) |> ignore
+      return self.llvm_ctx.getConstInt32(0)
     }
     _ => ()
   }

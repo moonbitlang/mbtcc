@@ -129,7 +129,8 @@ pub fn Context::parse_cast_expr(
   let init_toks = tokens
   let start_offset = tokens.start_offset()
   match tokens {
-    [{ kind: Bracket('('), .. }, tok, ..] if self.is_keyword_or_type_name(tok) => {
+    [{ kind: Bracket('('), .. }, tok, ..] if self.is_type_tok(tok) ||
+        (tok.kind is Identifier(name) && self.is_type_name(name)) => {
       let (ctype, rest) = self.parse_type_name(tokens[1:])
       guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
         let msg = "Expected ')' after type name in cast expression"

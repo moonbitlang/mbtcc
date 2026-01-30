@@ -24,6 +24,26 @@ fn Context::emit_unary_expr(
         }
         _ => raise SemanticError("Expression is not an assignable lvalue")
       }
+    LabelAddr(label, func_name) => {
+      let func = match self.llvm_mod.getFunction(func_name) {
+        Some(f) => f
+        None =>
+          raise SemanticError("Function '\{func_name}' not found for label address")
+      }
+      let key = "\{func_name}::\{label}"
+      let bb = match self.label_global.get(key) {
+        Some(b) => b
+        None => {
+          // Fallback: if we are in the same function, create/lookup label.
+          if self.current_func is Some(cf) && cf.getName() == func_name {
+            self.get_label(label)
+          } else {
+            raise SemanticError("Label '\{label}' not found in function '\{func_name}'")
+          }
+        }
+      }
+      (func.blockAddress(bb) : &@IR.Value)
+    }
     Deref(inner) => {
       let ptr_val = self.emit_cast_expr(inner)
       match expr.ctype.dataKind {

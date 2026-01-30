@@ -9,6 +9,7 @@ pub struct Context {
   mut tags : Env[String, CTypeDataKind]
   // Labels live in a separate namespace from identifiers
   labels : Env[String, Bool]
+  mut current_func_name : String?
   errs : Array[ParseError]
   prog : Program
 }
@@ -33,6 +34,7 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
     defined: Env::new(),
     tags: Env::new(),
     labels: Env::new(),
+    current_func_name: None,
     errs: Array::new(),
     prog: Program::new(),
   }
@@ -42,6 +44,15 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
   )
   ctx.add_var("__builtin_va_start", builtin_fn_ty)
   ctx.add_var("__builtin_va_end", builtin_fn_ty)
+  ctx.add_var("__builtin_va_copy", builtin_fn_ty)
+  let sync_fn_ty = CType::default_with(
+    Function(Array::new(), CType::int(), is_variadic=true),
+  )
+  ctx.add_var("__sync_fetch_and_add", sync_fn_ty)
+  ctx.add_var("__sync_fetch_and_sub", sync_fn_ty)
+  ctx.add_var("__sync_add_and_fetch", sync_fn_ty)
+  ctx.add_var("__sync_val_compare_and_swap", sync_fn_ty)
+  ctx.add_var("__sync_lock_test_and_set", sync_fn_ty)
   ctx
 }
 

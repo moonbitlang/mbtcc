@@ -5,11 +5,14 @@ extern int test_weak () __attribute__ ((weak_import));
 extern int test_weak () __attribute__ ((weak));
 #endif
 
+#if defined(__APPLE__)
+__attribute__((weak)) int test_weak(void) { return 0; }
+#endif
+
 int main(){
   int (*t)() = test_weak;
   if (t) {
     t();
-    return 1;
   }
   return 0;
 }

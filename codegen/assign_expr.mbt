@@ -17,6 +17,123 @@ fn Context::emit_assignment(
   assign_op : @parser.AssignOp,
   right : @parser.AssignExpr,
 ) -> &@IR.Value raise {
+  fn try_get_bitfield_access(
+    self : Context,
+    left : @parser.UnaryExpr,
+  ) -> FieldAccess? raise {
+    match left.kind {
+      PostfixExpr(postfix_expr) =>
+        match postfix_expr.kind {
+          MemberAccess(base, field_name) => {
+            let (base_ptr, base_ty) = self.get_lvalue_ptr_from_postfix(base)
+            let acc = self.get_field_access(base_ptr, base_ty, field_name)
+            if acc.bit_width is Some(_) { Some(acc) } else { None }
+          }
+          PtrMemberAccess(base, field_name) => {
+            guard base.ctype.dataKind is Ptr(inner) else { return None }
+            let base_ptr = self.emit_postfix_expr(base)
+            let acc = self.get_field_access(base_ptr, inner, field_name)
+            if acc.bit_width is Some(_) { Some(acc) } else { None }
+          }
+          _ => None
+        }
+      _ => None
+    }
+  }
+  fn is_unsigned_bitfield(ty : @parser.CType) -> Bool {
+    match ty.dataKind {
+      Bool | UChar | UInt16 | UInt | ULong | ULongLong => true
+      Enum(_, values) => {
+        for item in values {
+          let v = item.1
+          if v < 0 {
+            return false
+          }
+        }
+        true
+      }
+      _ => false
+    }
+  }
+  fn load_bitfield(
+    self : Context,
+    acc : FieldAccess,
+  ) -> &@IR.Value raise {
+    let container_ty = acc.container_ctype.unwrap()
+    let llvm_cty = self.ctype_to_llvm_type(container_ty)
+    let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+    let off = acc.bit_offset.unwrap()
+    let w = acc.bit_width.unwrap()
+    let shift = self.const_int_for_ctype(container_ty, off)
+    let shifted = self.builder.createLShr(raw, shift)
+    let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+    let mask = self.const_int_for_ctype(container_ty, mask_val)
+    let masked = self.builder.createAnd(shifted, mask)
+    let val = if is_unsigned_bitfield(acc.ctype) {
+      masked
+    } else {
+      let width = self.bitfield_container_bits(container_ty)
+      let shl = self.const_int_for_ctype(container_ty, width - w)
+      let tmp = self.builder.createShl(masked, shl)
+      self.builder.createAShr(tmp, shl)
+    }
+    self.cast_value_to_ctype(val, container_ty, acc.ctype)
+  }
+  fn store_bitfield(
+    self : Context,
+    acc : FieldAccess,
+    value : &@IR.Value,
+    value_ctype : @parser.CType,
+  ) -> &@IR.Value raise {
+    let container_ty = acc.container_ctype.unwrap()
+    let llvm_cty = self.ctype_to_llvm_type(container_ty)
+    let old = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+    let w = acc.bit_width.unwrap()
+    let off = acc.bit_offset.unwrap()
+    let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
+    let mask = self.const_int_for_ctype(container_ty, mask_val)
+    let shift = self.const_int_for_ctype(container_ty, off)
+    let field_mask = self.builder.createShl(mask, shift)
+    let v0 = self.cast_value_to_ctype(value, value_ctype, acc.ctype)
+    let v1 = self.cast_value_to_ctype(v0, acc.ctype, container_ty)
+    let v2 = self.builder.createAnd(v1, mask)
+    let vshift = self.builder.createShl(v2, shift)
+    let cleared = self.builder.createAnd(old, self.builder.createNot(field_mask))
+    let merged = self.builder.createOr(cleared, vshift)
+    self.builder.createStore(merged, acc.ptr) |> ignore
+    v0
+  }
+  match try_get_bitfield_access(self, left) {
+    Some(acc) => {
+      let rhs_val = self.emit_assign_expr(right)
+      let rhs_ctype = right.ctype
+      let new_val = match assign_op {
+        Assign => self.cast_value_to_ctype(rhs_val, rhs_ctype, acc.ctype)
+        _ => {
+          let lhs_val = load_bitfield(self, acc)
+          let common = acc.ctype.common_type(rhs_ctype).unwrap_or(acc.ctype)
+          let lcast = self.cast_value_to_ctype(lhs_val, acc.ctype, common)
+          let rcast = self.cast_value_to_ctype(rhs_val, rhs_ctype, common)
+          let calc = match assign_op {
+            AddAssign => self.builder.createAdd(lcast, rcast)
+            SubAssign => self.builder.createSub(lcast, rcast)
+            MulAssign => self.builder.createMul(lcast, rcast)
+            DivAssign => self.builder.createSDiv(lcast, rcast)
+            ModAssign => self.builder.createSRem(lcast, rcast)
+            ShlAssign => self.builder.createShl(lcast, rcast)
+            ShrAssign => self.builder.createAShr(lcast, rcast)
+            AndAssign => self.builder.createAnd(lcast, rcast)
+            XorAssign => self.builder.createXor(lcast, rcast)
+            OrAssign => self.builder.createOr(lcast, rcast)
+            _ => lcast
+          }
+          self.cast_value_to_ctype(calc, common, acc.ctype)
+        }
+      }
+      return store_bitfield(self, acc, new_val, acc.ctype)
+    }
+    None => ()
+  }
   let (lhs_ptr, lhs_ctype) = self.get_lvalue_ptr_from_unary(left)
   let rhs_val = self.emit_assign_expr(right)
   let rhs_ctype = right.ctype

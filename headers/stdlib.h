@@ -12,5 +12,7 @@ int atoi(const char *s);
 long atol(const char *s);
 
 void exit(int status);
+int atexit(void (*func)(void));
+void abort(void);
 
 #endif

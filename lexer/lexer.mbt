@@ -294,6 +294,16 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       col += 1
       continue rest
     }
+    ['.', '0'..='9', ..] as code => {
+      let (token, rest) = self.lex_number_literal(
+        code, source_file, line, col, idx,
+      )
+      tokens.push(token)
+      let token_len = token.raw.length()
+      idx += token_len
+      col += token_len
+      continue rest
+    }
     ['.', .. rest] => {
       tokens.push(Token::new(Dot, source_file, line, col, idx, "."))
       idx += 1

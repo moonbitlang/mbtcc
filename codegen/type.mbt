@@ -25,23 +25,15 @@ pub fn Context::ctype_kind_to_llvm_type(
       if name == "" && fields.length() == 0 {
         llvm_ctx.getArrayType(llvm_ctx.getInt8Ty(), 0).asTypeEnum().asTypeClass()
       } else if name == "" {
-        let elem_tys : Array[&@IR.Type] = Array::new()
-        for f in fields {
-          let { ctype, .. } = f
-          let llvm_ty = self.ctype_to_llvm_type(ctype)
-          elem_tys.push(llvm_ty)
-        }
+        let slots = self.struct_layout_slots(fields)
+        let elem_tys = self.struct_slot_llvm_types(slots)
         llvm_ctx.getStructType(elem_tys, isPacked=false)
       } else {
         match self.tag_env.get(name) {
           Some(ty) => ty
           None => {
-            let elem_tys : Array[&@IR.Type] = Array::new()
-            for f in fields {
-              let { ctype, .. } = f
-              let llvm_ty = self.ctype_to_llvm_type(ctype)
-              elem_tys.push(llvm_ty)
-            }
+            let slots = self.struct_layout_slots(fields)
+            let elem_tys = self.struct_slot_llvm_types(slots)
             let id = self.struct_name_counter
             self.struct_name_counter = id + 1
             let llvm_name = "\{name}.\{id}"
@@ -294,6 +286,28 @@ fn Context::cast_value_to_ctype(
   } else if from_kind is Function(_, _, ..) && to_kind is Ptr(_) {
     // 函数在表达式中会退化为函数指针；MoonLLVM 里函数值可直接作为 ptr 使用
     val
+  } else if to_kind is Union(_, fields) {
+    // Transparent union (or compatible union member) coercion: materialize a union value
+    // by storing the source value into the union storage.
+    for f in fields {
+      if from_ctype == f.ctype || from_ctype.dataKind == f.ctype.dataKind {
+        let union_ty = self.ctype_to_llvm_type(to_ctype)
+        let field_ty = self.ctype_to_llvm_type(f.ctype)
+        let tmp_union = self.builder.createAlloca(union_ty)
+        let tmp_field = self.builder.createAlloca(field_ty)
+        self.builder.createStore(val, tmp_field) |> ignore
+        let dl = self.llvm_mod.getDataLayout()
+        let field_align = dl.getTypeAlignment(field_ty)
+        let size = dl.getTypeAllocSize(field_ty)
+        let size_val = self.llvm_ctx.getConstInt64(size.to_int64())
+        let _ = self.builder.createMemCpy(tmp_union, field_align, tmp_field, field_align, size_val)
+        return (self.builder.createLoad(union_ty, tmp_union) : &@IR.Value)
+      }
+    }
+    println(
+      "Compiler ICE: cannot cast value from '\{from_ctype}' to '\{to_ctype}'",
+    )
+    panic()
   } else {
     println(
       "Compiler ICE: cannot cast value from '\{from_ctype}' to '\{to_ctype}'",

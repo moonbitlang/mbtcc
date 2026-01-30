@@ -680,4 +680,3 @@ pub impl Show for WhileStmt
 // Type aliases
 
 // Traits
-
