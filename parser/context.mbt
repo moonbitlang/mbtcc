@@ -44,7 +44,7 @@ pub fn Context::new(
   let lexer_ctx = @lexer.Context::new(code~, source_file~)
   let _ = lexer_ctx.tokenize()
   let lexer_ctx = if preprocess {
-    @preprocess.preprocess(lexer_ctx)
+    @preprocess.preprocess_root(lexer_ctx)
   } else {
     lexer_ctx
   }

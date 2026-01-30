@@ -369,7 +369,7 @@ let ulong_ty : CType = CType::default_with(ULong)
 let ulonglong_ty : CType = CType::default_with(ULongLong)
 
 ///|
-let string_ty : CType = CType::default_with(Ptr(CType::const_with(Char)))
+let string_ty : CType = CType::default_with(Ptr(CType::default_with(Char)))
 
 ///|
 let float_ty : CType = CType::default_with(Float)
@@ -572,6 +572,13 @@ pub fn CType::get_field_ctype_by_dot_acc(
     if name == field_name {
       return Some(ctype)
     }
+    if name == "" &&
+      (ctype.dataKind is Struct(_, _) || ctype.dataKind is Union(_, _)) {
+      match ctype.get_field_ctype_by_dot_acc(field_name) {
+        Some(inner) => return Some(inner)
+        None => ()
+      }
+    }
   }
   None
 }
@@ -581,8 +588,11 @@ pub fn CType::get_field_ctype_by_ptr_acc(
   self : CType,
   field_name : String,
 ) -> CType? {
-  guard self.dataKind is Ptr(inner_ctype) else { return None }
-  inner_ctype.get_field_ctype_by_dot_acc(field_name)
+  match self.dataKind {
+    Ptr(inner_ctype) => inner_ctype.get_field_ctype_by_dot_acc(field_name)
+    Array(elem, _) => elem.get_field_ctype_by_dot_acc(field_name)
+    _ => None
+  }
 }
 
 ///|

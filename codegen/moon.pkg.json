@@ -4,6 +4,8 @@
     "Kaida-Amethyst/mbtcc/env",
     "Kaida-Amethyst/either",
     "Kaida-Amethyst/llvm/IR",
+    "Kaida-Amethyst/llvm/unsafe",
+    "moonbitlang/core/encoding/utf8"
   ],
   "warn-list" : "+prefer_readonly_array+prefer_fixed_array"
 }

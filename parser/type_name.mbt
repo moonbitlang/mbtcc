@@ -275,10 +275,15 @@ fn Context::parse_array_abstract_declarator(
       is_atomic = true
       continue rest
     }
+    [{ kind: Operator("*"), .. }, .. rest] => {
+      // VLA or unspecified bound in parameter declarations
+      size = Some(0)
+      continue rest
+    }
     [{ kind: Bracket(']'), .. }, .. rest] => break rest
     tokens => {
       let (const_expr, rest) = self.parse_conditional_expr(tokens)
-      size = Some(const_expr.eval_as_int())
+      size = Some(const_expr.eval_as_int() catch { _ => 0 })
       continue rest
     }
   }
@@ -454,7 +459,11 @@ fn Context::parse_decl_spec(
       continue rest
     }
     [{ kind: Keyword(Int), .. }, .. rest] => {
-      data_ty = Some(Int)
+      match data_ty {
+        None => data_ty = Some(Int)
+        Some(Long) | Some(LongLong) | Some(Int16) => ()
+        Some(_) => data_ty = Some(Int)
+      }
       continue rest
     }
     [{ kind: Keyword(Short), .. }, .. rest] => {
@@ -795,7 +804,6 @@ fn Context::parse_struct_union_members(
   tokens : ArrayView[Token],
   members : Array[StructField],
 ) -> (Array[StructField], ArrayView[Token]) raise ParseError {
-  self.push_scope()
   let mut tokens = tokens
   while !(tokens is [{ kind: Bracket('}'), .. }, ..]) {
     let this_init_tokens = tokens
@@ -835,7 +843,6 @@ fn Context::parse_struct_union_members(
       }
     }
   }
-  self.pop_scope()
   (members, tokens)
 }
 

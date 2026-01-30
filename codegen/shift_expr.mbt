@@ -24,8 +24,8 @@ fn Context::emit_shift(
   let lraw = self.emit_shift_expr(left)
   let rraw = self.emit_additive_expr(right)
   let lval = self.cast_value_to_ctype(lraw, left.ctype, result_ctype)
-  // shift amount is always treated as int type
-  let rval = self.cast_value_to_ctype(rraw, right.ctype, @parser.CType::int())
+  // shift amount should match lhs bitwidth
+  let rval = self.cast_value_to_ctype(rraw, right.ctype, result_ctype)
   let is_unsigned = is_unsigned_kind(result_ctype.dataKind)
   match (is_left, is_unsigned) {
     (true, _) => self.builder.createShl(lval, rval)

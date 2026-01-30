@@ -24,96 +24,73 @@ fn Context::emit_postfix_expr(
     }
     FuncCall(func_expr, arg_exprs) => self.emit_func_call(func_expr, arg_exprs)
     MemberAccess(expr, member_name) => {
-      match expr.ctype.dataKind {
-        Struct(_, _) => {
-          let (idx, fty) = struct_field_index_and_type(expr.ctype, member_name)
+      // Prefer lvalue access for aggregates (supports anonymous fields).
+      match self.try_get_lvalue_ptr_from_postfix(expr) {
+        Some((base_ptr, base_ty)) => {
+          let (field_ptr, fty) = self.get_field_ptr_and_type(
+            base_ptr,
+            base_ty,
+            member_name,
+          )
           match fty.dataKind {
             Array(_, _) => {
-              let (base_ptr, base_ty) = self.get_lvalue_ptr_from_postfix(expr)
-              let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
-              let zero = self.llvm_ctx.getConstInt32(0)
-              let indices : Array[&@IR.Value] = Array::new()
-              indices.push(zero)
-              indices.push(self.llvm_ctx.getConstInt32(idx))
-              let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
               let arr_llvm_ty = self.ctype_to_llvm_type(fty)
+              let zero = self.llvm_ctx.getConstInt32(0)
               let arr_indices : Array[&@IR.Value] = Array::new()
               arr_indices.push(zero)
               arr_indices.push(zero)
               (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
             }
             _ => {
-              let base_val = self.emit_postfix_expr(expr)
-              self.builder.createExtractValue(base_val, idx)
+              let llvm_ty = self.ctype_to_llvm_type(fty)
+              (self.builder.createLoad(llvm_ty, field_ptr) : &@IR.Value)
             }
           }
         }
-        Union(_, _) => {
-          let fty = union_field_type(expr.ctype, member_name)
-          let (base_ptr, _) = self.get_lvalue_ptr_from_postfix(expr)
+        None => {
+          // Fallback for rvalue structs: use extractvalue for direct struct fields.
+          let (idx, fty) = struct_field_index_and_type(expr.ctype, member_name)
           match fty.dataKind {
             Array(_, _) => {
-              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
+              let base_val = self.emit_postfix_expr(expr)
+              let st_llvm_ty = self.ctype_to_llvm_type(expr.ctype)
               let zero = self.llvm_ctx.getConstInt32(0)
+              let indices : Array[&@IR.Value] = Array::new()
+              indices.push(zero)
+              indices.push(self.llvm_ctx.getConstInt32(idx))
+              let field_ptr = self.builder.createGEP(base_val, st_llvm_ty, indices)
+              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
               let arr_indices : Array[&@IR.Value] = Array::new()
               arr_indices.push(zero)
               arr_indices.push(zero)
-              (self.builder.createGEP(base_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
+              (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
             }
-            _ => {
-              let llvm_ty = self.ctype_to_llvm_type(fty)
-              (self.builder.createLoad(llvm_ty, base_ptr) : &@IR.Value)
-            }
+            _ => self.builder.createExtractValue(self.emit_postfix_expr(expr), idx)
           }
         }
-        _ => raise SemanticError("Member access on non-aggregate type")
       }
     }
     PtrMemberAccess(expr, member_name) => {
       guard expr.ctype.dataKind is Ptr(inner) else {
         raise SemanticError("Pointer member access on non-pointer type")
       }
-      match inner.dataKind {
-        Struct(_, _) => {
-          let (idx, fty) = struct_field_index_and_type(inner, member_name)
-          let base_ptr = self.emit_postfix_expr(expr)
-          let st_llvm_ty = self.ctype_to_llvm_type(inner)
+      let base_ptr = self.emit_postfix_expr(expr)
+      let (field_ptr, fty) = self.get_field_ptr_and_type(
+        base_ptr,
+        inner,
+        member_name,
+      )
+      match fty.dataKind {
+        Array(_, _) => {
+          let arr_llvm_ty = self.ctype_to_llvm_type(fty)
           let zero = self.llvm_ctx.getConstInt32(0)
-          let indices : Array[&@IR.Value] = Array::new()
-          indices.push(zero)
-          indices.push(self.llvm_ctx.getConstInt32(idx))
-          let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-          match fty.dataKind {
-            Array(_, _) => {
-              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
-              let arr_indices : Array[&@IR.Value] = Array::new()
-              arr_indices.push(zero)
-              arr_indices.push(zero)
-              (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
-            }
-            _ =>
-              (self.builder.createLoad(self.ctype_to_llvm_type(fty), field_ptr) : &@IR.Value)
-          }
+          let arr_indices : Array[&@IR.Value] = Array::new()
+          arr_indices.push(zero)
+          arr_indices.push(zero)
+          (self.builder.createGEP(field_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
         }
-        Union(_, _) => {
-          let fty = union_field_type(inner, member_name)
-          let base_ptr = self.emit_postfix_expr(expr)
-          match fty.dataKind {
-            Array(_, _) => {
-              let arr_llvm_ty = self.ctype_to_llvm_type(fty)
-              let zero = self.llvm_ctx.getConstInt32(0)
-              let arr_indices : Array[&@IR.Value] = Array::new()
-              arr_indices.push(zero)
-              arr_indices.push(zero)
-              (self.builder.createGEP(base_ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
-            }
-            _ => {
-              let llvm_ty = self.ctype_to_llvm_type(fty)
-              (self.builder.createLoad(llvm_ty, base_ptr) : &@IR.Value)
-            }
-          }
-        }
-        _ => raise SemanticError("Pointer member access on non-aggregate type")
+        _ =>
+          (self.builder.createLoad(self.ctype_to_llvm_type(fty), field_ptr) : &@IR.Value)
       }
     }
     PostInc(expr) => {

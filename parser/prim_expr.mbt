@@ -96,6 +96,7 @@ pub fn PrimExpr::to_string(self : Self, color? : Bool = true) -> String {
     Float(_) => "float literal"
     Double(_) => "double literal"
     Strings(_) => "string literal"
+    CompoundLiteral(_, _) => "compound literal"
     Paren(_) => ""
     StmtExpr(_) => "statement expression"
   }
@@ -121,6 +122,7 @@ pub enum PrimExprKind {
   Float(Float)
   Double(Double)
   Strings(Array[String])
+  CompoundLiteral(CType, Initializer)
   Paren(Expr) // TODO
   /// GNU statement expression: `({ ... })`
   StmtExpr(CompoundStmt)
@@ -148,6 +150,7 @@ pub impl Show for PrimExprKind with output(self, logger) {
         .replace_all(old="\r", new="\\r")
       "\"\{joined}\""
     }
+    CompoundLiteral(ty, _) => "(compound literal \{ty})"
     Paren(expr) => expr.to_string(color=true)
     StmtExpr(comp) => comp.to_string(color=true)
   }
@@ -222,6 +225,45 @@ pub fn Context::parse_prim_expr(
   tokens : ArrayView[Token],
 ) -> (PrimExpr, ArrayView[Token]) raise ParseError {
   let start_offset = tokens.start_offset()
+  fn normalize_generic_type(ty : CType) -> CType {
+    fn strip_fn_param_names(ty : CType) -> CType {
+      match ty.dataKind {
+        Function(params, ret, is_variadic~) => {
+          let new_params : Array[(CType, String)] = Array::new()
+          for i in 0..<params.length() {
+            let (pt, _) = params[i]
+            new_params.push((strip_fn_param_names(pt), ""))
+          }
+          let new_ret = strip_fn_param_names(ret)
+          CType::{ ..ty, dataKind: Function(new_params, new_ret, is_variadic~) }
+        }
+        Ptr(inner) => CType::{ ..ty, dataKind: Ptr(strip_fn_param_names(inner)) }
+        Array(elem, n) => CType::{ ..ty, dataKind: Array(strip_fn_param_names(elem), n) }
+        _ => ty
+      }
+    }
+    let base = CType::{
+      ..ty,
+      is_const: false,
+      is_volatile: false,
+      is_restrict: false,
+      is_atomic: false,
+    }
+    let base = strip_fn_param_names(base)
+    match base.dataKind {
+      Array(elem, _) => CType::{ ..base, dataKind: Ptr(strip_fn_param_names(elem)) }
+      Function(_) => CType::{ ..base, dataKind: Ptr(base) }
+      Ptr(inner) => CType::{ ..base, dataKind: Ptr(strip_fn_param_names(inner)) }
+      _ => base
+    }
+  }
+  fn expr_from_assign(assign_expr : AssignExpr) -> Expr {
+    Expr::{
+      assign_exprs: [assign_expr],
+      ctype: assign_expr.ctype,
+      tokens: assign_expr.tokens,
+    }
+  }
   let (prim_expr_kind, rest_toks) = match tokens {
     // GNU statement expression: `({ ... })` or `__extension__ ({ ... })`
     [
@@ -258,15 +300,67 @@ pub fn Context::parse_prim_expr(
     [{ kind: Float(v), .. }, .. rest] => (Float(v), rest)
     [{ kind: Double(v), .. }, .. rest] => (Double(v), rest)
     [{ kind: Char(c), .. }, .. rest] => (Char(c), rest)
+    [
+      { kind: Keyword(Generic), .. },
+      { kind: Bracket('('), .. },
+      .. rest,
+    ] => {
+      let (control_assign, rest) = self.parse_assign_expr(rest)
+      guard rest is [{ kind: Comma, .. }, .. rest] else {
+        raise ParseError(rest[0], "Expected ',' after _Generic controlling expression")
+      }
+      let mut default_expr : Expr? = None
+      let mut selected : Expr? = None
+      let control_ty = normalize_generic_type(control_assign.ctype)
+      let mut rest2 = rest
+      loop rest2 {
+        [{ kind: Comma, .. }, .. rest3] => {
+          rest2 = rest3
+          continue rest3
+        }
+        [{ kind: Bracket(')'), .. }, .. rest3] => {
+          rest2 = rest3
+          break
+        }
+        [{ kind: Keyword(Default), .. }, { kind: Colon, .. }, .. rest3] => {
+          let (expr, rest4) = self.parse_assign_expr(rest3)
+          default_expr = Some(expr_from_assign(expr))
+          rest2 = rest4
+          continue rest4
+        }
+        tokens => {
+          let (assoc_ty, rest3) = self.parse_type_name(tokens)
+          guard rest3 is [{ kind: Colon, .. }, .. rest4] else {
+            raise ParseError(rest3[0], "Expected ':' in _Generic association")
+          }
+          let (expr, rest5) = self.parse_assign_expr(rest4)
+          if selected is None && normalize_generic_type(assoc_ty) == control_ty {
+            selected = Some(expr_from_assign(expr))
+          }
+          rest2 = rest5
+          continue rest5
+        }
+      }
+      let chosen = match selected {
+        Some(e) => e
+        None =>
+          match default_expr {
+            Some(e) => e
+            None =>
+              raise ParseError(
+                tokens[0],
+                "No matching association for _Generic",
+              )
+          }
+      }
+      (Paren(chosen), rest2)
+    }
     [{ kind: Identifier(name), .. }, .. rest] if self.is_var_name(name) =>
       (Ident(name), rest)
     [{ kind: Identifier(name), .. }, .. rest] =>
       match self.get_enum_member(name) {
         Some((_, value)) => (Int(value), rest)
-        None => {
-          let msg = "Identifier '\{name}' is not defined as a variable"
-          raise ParseError(tokens[0], msg)
-        }
+        None => (Ident(name), rest)
       }
     [{ kind: String(_), .. }, ..] as tokens => {
       let strs : Array[String] = Array::new()
@@ -280,18 +374,45 @@ pub fn Context::parse_prim_expr(
       (Strings(strs), rest_tokens)
     }
     [{ kind: Bracket('('), .. }, .. rest] => {
-      let (expr, rest) = self.parse_expr(rest)
-      match rest {
-        [{ kind: Bracket(')'), .. }, .. rest] => (Paren(expr), rest)
-        [tok, ..] =>
-          raise ParseError(
-            tok, "Expected ')' to close parenthesized expression",
-          )
-        [] =>
-          raise ParseError(
-            tokens[0],
-            "Expected ')' to close parenthesized expression",
-          )
+      match (try? self.parse_type_name(rest)) {
+        Ok((ty, rest2)) =>
+          match rest2 {
+            [{ kind: Bracket(')'), .. }, .. rest3] if rest3
+              is [{ kind: Bracket('{'), .. }, ..] => {
+              let (init, rest4) = self.parse_initializer(rest3)
+              (CompoundLiteral(ty, init), rest4)
+            }
+            _ => {
+              let (expr, rest) = self.parse_expr(rest)
+              match rest {
+                [{ kind: Bracket(')'), .. }, .. rest] => (Paren(expr), rest)
+                [tok, ..] =>
+                  raise ParseError(
+                    tok, "Expected ')' to close parenthesized expression",
+                  )
+                [] =>
+                  raise ParseError(
+                    tokens[0],
+                    "Expected ')' to close parenthesized expression",
+                  )
+              }
+            }
+          }
+        Err(_) => {
+          let (expr, rest) = self.parse_expr(rest)
+          match rest {
+            [{ kind: Bracket(')'), .. }, .. rest] => (Paren(expr), rest)
+            [tok, ..] =>
+              raise ParseError(
+                tok, "Expected ')' to close parenthesized expression",
+              )
+            [] =>
+              raise ParseError(
+                tokens[0],
+                "Expected ')' to close parenthesized expression",
+              )
+          }
+        }
       }
     }
     tokens => raise ParseError(tokens[0], "Expected a primary expression")
@@ -301,20 +422,15 @@ pub fn Context::parse_prim_expr(
   let tok_view = tokens[0:offset_range]
   let ctype = match prim_expr_kind {
     Paren(expr) => expr.ctype
+    CompoundLiteral(ty, _) => ty
     StmtExpr(comp) => {
       // Value/type is from the last expression statement in the compound block.
-      guard comp.items.length() > 0 else {
-        raise ParseError(tok_view[0], "Empty statement expression has no value")
-      }
-      match comp.items.last().unwrap() {
-        Left({ kind: Expr(e), .. }) => e.ctype
-        Left(_) => {
-          let msg = "Statement expression must end with an expression statement"
-          raise ParseError(tok_view[0], msg)
-        }
-        Right(_) => {
-          let msg = "Statement expression must end with an expression statement"
-          raise ParseError(tok_view[0], msg)
+      if comp.items.length() == 0 {
+        CType::int()
+      } else {
+        match comp.items.last().unwrap() {
+          Left({ kind: Expr(e), .. }) => e.ctype
+          _ => CType::int()
         }
       }
     }
@@ -347,6 +463,7 @@ pub fn PrimExpr::is_constant(self : Self) -> Bool {
   match self.kind {
     Ident(_) => false
     StmtExpr(_) => false
+    CompoundLiteral(_, _) => false
     _ => true
   }
 }

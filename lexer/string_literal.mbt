@@ -14,10 +14,49 @@ fn Context::lex_string_literal(
   // Preserve original token spelling in `raw` (including surrounding quotes and escapes),
   // while storing the decoded string value in `TokenKind::String`.
   raw_str_builder.write_char('"')
+  fn is_hex_digit(c : Char) -> Bool {
+    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+  }
+  fn is_octal_digit(c : Char) -> Bool { c >= '0' && c <= '7' }
   let rest = loop code {
     ['"', .. rest_str] => {
       raw_str_builder.write_char('"')
       break rest_str
+    }
+    [.. "\\x", .. rest_str] => {
+      let mut hex = ""
+      let rest2 = loop rest_str {
+        [c, .. r] if is_hex_digit(c) => {
+          hex = hex + c.to_string()
+          continue r
+        }
+        rest => break rest
+      }
+      if hex.length() == 0 {
+        raw_str_builder.write_string("\\x")
+        str_builder.write_char('x')
+        continue rest2
+      }
+      let val = @strconv.parse_int(hex, base=16) catch { _ => 0 }
+      raw_str_builder.write_string("\\x" + hex)
+      str_builder.write_char(val.unsafe_to_char())
+      continue rest2
+    }
+    [.. "\\", c, .. rest_str] if is_octal_digit(c) => {
+      let mut oct = c.to_string()
+      let mut count = 1
+      let rest2 = loop rest_str {
+        [c2, .. r] if is_octal_digit(c2) && count < 3 => {
+          oct = oct + c2.to_string()
+          count = count + 1
+          continue r
+        }
+        rest => break rest
+      }
+      let val = @strconv.parse_int(oct, base=8) catch { _ => 0 }
+      raw_str_builder.write_string("\\" + oct)
+      str_builder.write_char(val.unsafe_to_char())
+      continue rest2
     }
     [.. "\\0", .. rest_str] => {
       raw_str_builder.write_string("\\0")
@@ -99,7 +138,60 @@ fn Context::lex_char_literal(
   guard code is ['\'', .. code]  // skip first '\''
   raw_str_builder.write_char('\'')
   let mut err_msg = ""
+  fn is_hex_digit(c : Char) -> Bool {
+    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+  }
+  fn is_octal_digit(c : Char) -> Bool { c >= '0' && c <= '7' }
   let (token_kind, rest) = match code {
+    [.. "\\x", .. rest_str] => {
+      let mut hex = ""
+      let rest2 = loop rest_str {
+        [c, .. r] if is_hex_digit(c) => {
+          hex = hex + c.to_string()
+          continue r
+        }
+        rest => break rest
+      }
+      match rest2 {
+        ['\'', .. rest3] => {
+          if hex.length() == 0 {
+            raw_str_builder.write_string("\\x'")
+            (TokenKind::Char('x'), rest3)
+          } else {
+            let val = @strconv.parse_int(hex, base=16) catch { _ => 0 }
+            raw_str_builder.write_string("\\x" + hex + "'")
+            (TokenKind::Char(val.unsafe_to_char()), rest3)
+          }
+        }
+        _ => {
+          err_msg = "Unterminated char literal"
+          (TokenKind::Char('\u0000'), rest2)
+        }
+      }
+    }
+    [.. "\\", c, .. rest_str] if is_octal_digit(c) => {
+      let mut oct = c.to_string()
+      let mut count = 1
+      let rest2 = loop rest_str {
+        [c2, .. r] if is_octal_digit(c2) && count < 3 => {
+          oct = oct + c2.to_string()
+          count = count + 1
+          continue r
+        }
+        rest => break rest
+      }
+      match rest2 {
+        ['\'', .. rest3] => {
+          let val = @strconv.parse_int(oct, base=8) catch { _ => 0 }
+          raw_str_builder.write_string("\\" + oct + "'")
+          (TokenKind::Char(val.unsafe_to_char()), rest3)
+        }
+        _ => {
+          err_msg = "Unterminated char literal"
+          (TokenKind::Char('\u0000'), rest2)
+        }
+      }
+    }
     [.. "\\0", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\0'")
       (TokenKind::Char('\u0000'), rest_str)

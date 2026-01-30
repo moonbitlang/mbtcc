@@ -6,9 +6,11 @@ fn Context::emit_inclusive_or_expr(
   match expr.kind {
     ExclusiveOrExpr(expr) => self.emit_exclusive_or_expr(expr)
     InclusiveOrExpr(left, right) => {
-      let left_val = self.emit_inclusive_or_expr(left)
-      let right_val = self.emit_exclusive_or_expr(right)
-      self.builder.createOr(left_val, right_val)
+      let lraw = self.emit_inclusive_or_expr(left)
+      let rraw = self.emit_exclusive_or_expr(right)
+      let lval = self.cast_value_to_ctype(lraw, left.ctype, expr.ctype)
+      let rval = self.cast_value_to_ctype(rraw, right.ctype, expr.ctype)
+      self.builder.createOr(lval, rval)
     }
   }
 }

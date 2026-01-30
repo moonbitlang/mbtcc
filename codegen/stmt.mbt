@@ -17,10 +17,17 @@ pub fn Context::emit_local_decl(
         ignore(is_extern)
         ignore(is_register)
         ignore(is_thread_local)
-      if is_static {
-        self.emit_static_local_variable(ty, name, init_expr) |> ignore
-      } else {
-        self.emit_local_variable(ty, name, init_expr) |> ignore
+      match ty.dataKind {
+        Function(_, _, ..) => {
+          // Function prototype in block scope; record signature only.
+          self.func_decls.set(name, ty)
+        }
+        _ =>
+          if is_static {
+            self.emit_static_local_variable(ty, name, init_expr) |> ignore
+          } else {
+            self.emit_local_variable(ty, name, init_expr) |> ignore
+          }
       }
       }
     TypeDeclaration(ty) => {
@@ -40,7 +47,7 @@ fn Context::emit_local_variable(
   init_expr : @parser.Initializer?,
 ) -> Unit raise {
   let llvm_ty = self.ctype_to_llvm_type(ty)
-  let alloca = self.builder.createAlloca(llvm_ty)
+  let alloca = self.create_entry_alloca(llvm_ty)
   self.var_env.set(name, alloca)
   self.var_types.set(name, ty)
   let init_expr = match init_expr {
@@ -49,14 +56,47 @@ fn Context::emit_local_variable(
   }
   match init_expr.kind {
     AssignExpr(assign_expr) => {
-      let value = self.emit_assign_expr(assign_expr)
-      let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
-      self.builder.createStore(value, alloca) |> ignore
+      match string_literal_from_initializer(init_expr) {
+        Some((s, wide)) =>
+          match ty.dataKind {
+            Array(_, _) => self.emit_string_literal_to_array(alloca, ty, s, wide)
+            _ => {
+              let value = self.emit_assign_expr(assign_expr)
+              let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
+              self.builder.createStore(value, alloca) |> ignore
+            }
+          }
+        None => {
+          let value = self.emit_assign_expr(assign_expr)
+          let value = self.cast_value_to_ctype(value, assign_expr.ctype, ty)
+          self.builder.createStore(value, alloca) |> ignore
+        }
+      }
     }
     InitializerList(initializers) =>
       self.emit_initializer_list_to_ptr(alloca, ty, initializers)
     _ => raise Unimplemented("Initializer kind not implemented yet")
   }
+}
+
+///|
+fn Context::create_entry_alloca(
+  self : Context,
+  llvm_ty : &@IR.Type,
+) -> &@IR.Value raise {
+  let func = self.current_func.unwrap()
+  let entry_bb = func.getBasicBlocks()[0]
+  let saved_bb = self.builder.getInsertBlock()
+  match entry_bb.getFirstInst() {
+    Some(inst) => self.builder.setInsertPoint(inst)
+    None => self.builder.setInsertPoint(entry_bb)
+  }
+  let alloca = self.builder.createAlloca(llvm_ty)
+  match saved_bb {
+    Some(bb) => self.builder.setInsertPoint(bb)
+    None => ()
+  }
+  alloca
 }
 
 ///|
@@ -196,9 +236,6 @@ pub fn Context::emit_statement(
     Goto(label) => {
       let bb = self.get_label(label)
       self.builder.createBr(bb) |> ignore
-      let func = self.current_func.unwrap()
-      let next_bb = func.addBasicBlock(name="after_goto")
-      self.builder.setInsertPoint(next_bb)
     }
   }
 }

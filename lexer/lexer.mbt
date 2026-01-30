@@ -36,6 +36,12 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       col += 1
       continue rest
     }
+    ['\\', '\n', .. rest] => {
+      // Line splicing: backslash-newline is removed before preprocessing.
+      idx += 2
+      col = 1
+      continue rest
+    }
     ['\n', .. rest] => {
       line += 1
       col = 1
@@ -382,6 +388,56 @@ pub fn Context::tokenize(self : Self) -> Array[Token] {
       tokens.push(Token::new(Operator("!"), source_file, line, col, idx, "!"))
       idx += 1
       col += 1
+      continue rest
+    }
+    ['L', '"', ..] as code => {
+      let sub = code.view(start_offset=1, end_offset=code.length())
+      let (tok, rest) = self.lex_string_literal(
+        sub,
+        source_file,
+        line,
+        col + 1,
+        idx + 1,
+      )
+      let raw = "L" + tok.raw
+      let token = Token::new(
+        tok.kind,
+        source_file,
+        line,
+        col,
+        idx,
+        raw,
+        err_msg=tok.err_msg,
+      )
+      tokens.push(token)
+      let token_len = raw.length()
+      idx += token_len
+      col += token_len
+      continue rest
+    }
+    ['L', '\'', ..] as code => {
+      let sub = code.view(start_offset=1, end_offset=code.length())
+      let (tok, rest) = self.lex_char_literal(
+        sub,
+        source_file,
+        line,
+        col + 1,
+        idx + 1,
+      )
+      let raw = "L" + tok.raw
+      let token = Token::new(
+        tok.kind,
+        source_file,
+        line,
+        col,
+        idx,
+        raw,
+        err_msg=tok.err_msg,
+      )
+      tokens.push(token)
+      let token_len = raw.length()
+      idx += token_len
+      col += token_len
       continue rest
     }
     ['"', ..] as code => {

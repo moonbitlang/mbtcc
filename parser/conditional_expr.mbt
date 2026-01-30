@@ -187,6 +187,30 @@ pub fn Context::parse_conditional_expr(
 ) -> (ConditionalExpr, ArrayView[Token]) raise ParseError {
   let init_tokens = tokens
   let start_offset = init_tokens.start_offset()
+  fn is_null_pointer_expr(expr : Expr) -> Bool {
+    let v = expr.eval_as_int() catch { _ => 1 }
+    v == 0
+  }
+  fn is_null_pointer_condexpr(expr : ConditionalExpr) -> Bool {
+    let v = expr.eval_as_int() catch { _ => 1 }
+    v == 0
+  }
+  fn select_pointer_type(a : CType, b : CType) -> CType? {
+    match (a.dataKind, b.dataKind) {
+      (Ptr(inner_a), Ptr(inner_b)) => {
+        if a == b {
+          Some(a)
+        } else if inner_a.dataKind is Void {
+          Some(a)
+        } else if inner_b.dataKind is Void {
+          Some(b)
+        } else {
+          None
+        }
+      }
+      _ => None
+    }
+  }
   let (logical_or_expr, rest) = self.parse_logical_or_expr(tokens)
   guard rest is [{ kind: Question, .. }, .. rest] else {
     let cond_expr = ConditionalExpr::{
@@ -239,17 +263,27 @@ pub fn Context::parse_conditional_expr(
   let ctype = match (then_expr.ctype.dataKind, else_expr.ctype.dataKind) {
     (Void, _) | (_, Void) => CType::void_()
     _ =>
-      if then_expr.ctype == else_expr.ctype {
-        then_expr.ctype
-      } else {
-        match CType::common_type(then_expr.ctype, else_expr.ctype) {
-          Some(t) => t
-          None =>
-            raise ParseError(
-              init_tokens[0],
-              "Incompatible types in conditional expression",
-            )
-        }
+      match select_pointer_type(then_expr.ctype, else_expr.ctype) {
+        Some(ptr_ty) => ptr_ty
+        None =>
+          if then_expr.ctype.dataKind is Ptr(_) &&
+            is_null_pointer_condexpr(else_expr) {
+            then_expr.ctype
+          } else if else_expr.ctype.dataKind is Ptr(_) &&
+            is_null_pointer_expr(then_expr) {
+            else_expr.ctype
+          } else if then_expr.ctype == else_expr.ctype {
+            then_expr.ctype
+          } else {
+            match CType::common_type(then_expr.ctype, else_expr.ctype) {
+              Some(t) => t
+              None =>
+                raise ParseError(
+                  init_tokens[0],
+                  "Incompatible types in conditional expression",
+                )
+            }
+          }
       }
   }
   let cond_expr = ConditionalExpr::{

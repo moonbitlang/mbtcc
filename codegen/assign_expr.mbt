@@ -161,13 +161,26 @@ fn Context::get_lvalue_ptr_from_postfix(
           match self.var_env.get(name) {
             Some(storage) => (storage, prim_expr.ctype)
             None => {
-              guard self.func_decls.get(name) is Some(_) else {
-                raise SemanticError("Undefined identifier '\{name}'")
+              match self.globals.get(name) {
+                Some(gv) => {
+                  let gptr : &@IR.Value = gv
+                  let gty = self.global_types.get(name).unwrap_or(prim_expr.ctype)
+                  (gptr, gty)
+                }
+                None => {
+                  guard self.func_decls.get(name) is Some(_) else {
+                    raise SemanticError("Undefined identifier '\{name}'")
+                  }
+                  let func = self.get_or_declare_function(name)
+                  (func, prim_expr.ctype)
+                }
               }
-              let func = self.get_or_declare_function(name)
-              (func, prim_expr.ctype)
             }
           }
+        CompoundLiteral(ty, init) => {
+          let ptr = self.emit_compound_literal_ptr(ty, init)
+          (ptr, ty)
+        }
         Paren(inner) => self.get_lvalue_ptr_from_paren_expr(inner)
         _ => raise SemanticError("Primary expression is not assignable")
       }
@@ -182,54 +195,38 @@ fn Context::get_lvalue_ptr_from_postfix(
       (ptr, elem_ty)
     }
     MemberAccess(base, field_name) => {
-      // lvalue 的 `p.x`：必须从内存里取 struct 的地址，再 gep 到字段
+      // lvalue 的 `p.x`：必须从内存里取 struct/union 的地址，再定位字段
       let (base_ptr, base_ty) = self.get_lvalue_ptr_from_postfix(base)
-      match base_ty.dataKind {
-        Struct(_, _) => {
-          let (idx, fty) = struct_field_index_and_type(base_ty, field_name)
-          let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
-          let zero = self.llvm_ctx.getConstInt32(0)
-          let indices : Array[&@IR.Value] = Array::new()
-          indices.push(zero)
-          indices.push(self.llvm_ctx.getConstInt32(idx))
-          let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-          ((field_ptr : &@IR.Value), fty)
-        }
-        Union(_, _) => {
-          let fty = union_field_type(base_ty, field_name)
-          // Union fields share the same address (offset 0)
-          (base_ptr, fty)
-        }
-        _ => raise SemanticError("Type '\{base_ty}' has no fields")
-      }
+      let (field_ptr, fty) = self.get_field_ptr_and_type(
+        base_ptr,
+        base_ty,
+        field_name,
+      )
+      (field_ptr, fty)
     }
     PtrMemberAccess(base, field_name) => {
       // lvalue 的 `p->x`：先取出 ptr 值，再 gep 到字段
       guard base.ctype.dataKind is Ptr(inner) else {
         raise SemanticError("Pointer member access on non-pointer type")
       }
-      match inner.dataKind {
-        Struct(_, _) => {
-          let (idx, fty) = struct_field_index_and_type(inner, field_name)
-          let base_ptr = self.emit_postfix_expr(base)
-          let st_llvm_ty = self.ctype_to_llvm_type(inner)
-          let zero = self.llvm_ctx.getConstInt32(0)
-          let indices : Array[&@IR.Value] = Array::new()
-          indices.push(zero)
-          indices.push(self.llvm_ctx.getConstInt32(idx))
-          let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-          ((field_ptr : &@IR.Value), fty)
-        }
-        Union(_, _) => {
-          let fty = union_field_type(inner, field_name)
-          let base_ptr = self.emit_postfix_expr(base)
-          // Union fields share the same address (offset 0)
-          (base_ptr, fty)
-        }
-        _ => raise SemanticError("Type '\{inner}' has no fields")
-      }
+      let base_ptr = self.emit_postfix_expr(base)
+      let (field_ptr, fty) = self.get_field_ptr_and_type(
+        base_ptr,
+        inner,
+        field_name,
+      )
+      (field_ptr, fty)
     }
   }
+}
+
+///|
+fn Context::try_get_lvalue_ptr_from_postfix(
+  self : Context,
+  expr : @parser.PostfixExpr,
+) -> (&@IR.Value, @parser.CType)? {
+  let res = self.get_lvalue_ptr_from_postfix(expr) catch { _ => return None }
+  Some(res)
 }
 
 ///|

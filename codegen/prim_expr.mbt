@@ -19,6 +19,16 @@ fn Context::emit_prim_expr(
       let full_str = strs.join("")
       self.builder.createGlobalString(full_str)
     }
+    CompoundLiteral(ty, init) => {
+      let ptr = self.emit_compound_literal_ptr(ty, init)
+      match ty.dataKind {
+        Array(_, _) | Struct(_, _) | Union(_, _) => ptr
+        _ => {
+          let llvm_ty = self.ctype_to_llvm_type(ty)
+          (self.builder.createLoad(llvm_ty, ptr) : &@IR.Value)
+        }
+      }
+    }
     Paren(expr) => self.emit_expr(expr)
     StmtExpr(comp) => self.emit_stmt_expr(comp)
   }
@@ -89,10 +99,33 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
           }
         None => val // Function parameters or other direct values
       }
-    // Not a local variable, check if it's a function
-    // TODO: incorrect implementation, 
-    // if not local variable, it could also be a global variable.
-    None => self.get_or_declare_function(name)
+    None =>
+      match self.globals.get(name) {
+        Some(gv) => {
+          let gptr : &@IR.Value = gv
+          match self.global_types.get(name) {
+            Some(cty) =>
+              match cty.dataKind {
+                Array(_, _) => {
+                  let arr_llvm_ty = self.ctype_to_llvm_type(cty)
+                  let zero = self.llvm_ctx.getConstInt32(0)
+                  let indices : Array[&@IR.Value] = Array::new()
+                  indices.push(zero)
+                  indices.push(zero)
+                  (self.builder.createGEP(gptr, arr_llvm_ty, indices) : &@IR.Value)
+                }
+                _ => {
+                  let llvm_ty = self.ctype_to_llvm_type(cty)
+                  (self.builder.createLoad(llvm_ty, gptr) : &@IR.Value)
+                }
+              }
+            None => gptr
+          }
+        }
+        None =>
+          // Not a local/global variable, check if it's a function
+          self.get_or_declare_function(name)
+      }
   }
 }
 

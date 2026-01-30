@@ -202,6 +202,63 @@ pub(all) enum InitializerKind {
 } derive(Eq)
 
 ///|
+fn string_literal_len(init : Initializer) -> Int? {
+  let mut len = 0
+  let mut saw = false
+  for tok in init.tokens {
+    match tok.kind {
+      String(s) => {
+        len = len + s.length()
+        saw = true
+      }
+      _ => return None
+    }
+  }
+  if saw { Some(len + 1) } else { None }
+}
+
+fn array_len_from_inits(inits : Array[Initializer]) -> Int raise ParseError {
+  let mut next_idx = 0
+  let mut max_idx = -1
+  for init in inits {
+    match init.kind {
+      Designation(desig, _) => {
+        let idx_opt = match desig {
+          Index(const_expr) => Some(const_expr.eval_as_int())
+          DesignatorList(desigs) => {
+            let mut found : Int? = None
+            for d in desigs {
+              match d {
+                Index(const_expr) => {
+                  found = Some(const_expr.eval_as_int())
+                  break
+                }
+                _ => ()
+              }
+            }
+            found
+          }
+          _ => None
+        }
+        match idx_opt {
+          Some(idx) => {
+            if idx > max_idx { max_idx = idx }
+            next_idx = idx + 1
+          }
+          None => ()
+        }
+      }
+      _ => {
+        if next_idx > max_idx { max_idx = next_idx }
+        next_idx = next_idx + 1
+      }
+    }
+  }
+  if max_idx < 0 { 0 } else { max_idx + 1 }
+}
+
+
+///|
 pub fn InitializerKind::to_string(self : Self, color? : Bool = true) -> String {
   let s = match self {
     AssignExpr(expr) => expr.to_string(color~)
@@ -368,8 +425,8 @@ pub fn Context::parse_init_declarator_list(
     raise ParseError(tokens[0], "declarator name cannot be empty")
   }
   if self.defined.contains_local(name) {
-    match (self.defined.get(name), ctype.dataKind) {
-      (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
+    match self.defined.get(name) {
+      Some(Variable(_)) => ()
       _ =>
         raise ParseError(tokens[0], "redeclaration of variable: \{name}")
     }
@@ -383,7 +440,9 @@ pub fn Context::parse_init_declarator_list(
   }
   let ctype = match (ctype.dataKind, initializer) {
     (Array(elem, 0), Some({ kind: InitializerList(inits), .. })) =>
-      CType::{ ..ctype, dataKind: Array(elem, inits.length()) }
+      CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits(inits)) }
+    (Array(elem, 0), Some(init)) if string_literal_len(init) is Some(len) =>
+      CType::{ ..ctype, dataKind: Array(elem, len) }
     _ => ctype
   }
   self.add_var(name, ctype)
@@ -412,22 +471,24 @@ pub fn Context::parse_init_declarator_list(
         init_tokens,
         decay_array_to_ptr=false,
       )
-      guard !(name is "") else {
-        raise ParseError(tokens[0], "declarator name cannot be empty")
+    guard !(name is "") else {
+      raise ParseError(tokens[0], "declarator name cannot be empty")
+    }
+    if self.defined.contains_local(name) {
+      match self.defined.get(name) {
+        Some(Variable(_)) => ()
+        _ =>
+          raise ParseError(tokens[0], "redeclaration of variable: \{name}")
       }
-      if self.defined.contains_local(name) {
-        match (self.defined.get(name), ctype.dataKind) {
-          (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
-          _ =>
-            raise ParseError(tokens[0], "redeclaration of variable: \{name}")
-        }
-      }
+    }
       let (decl_kind, tokens) = if tokens
         is [{ kind: AssignOp("="), .. }, .. tokens] {
         let (initializer, tokens) = self.parse_initializer(tokens)
         let ctype = match (ctype.dataKind, initializer) {
           (Array(elem, 0), { kind: InitializerList(inits), .. }) =>
-            CType::{ ..ctype, dataKind: Array(elem, inits.length()) }
+            CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits(inits)) }
+          (Array(elem, 0), init) if string_literal_len(init) is Some(len) =>
+            CType::{ ..ctype, dataKind: Array(elem, len) }
           _ => ctype
         }
         self.add_var(name, ctype)
@@ -517,8 +578,12 @@ pub fn Context::parse_declarator(
     }
   }
   let (name, rest) = if rest is [{ kind: Identifier(name), .. }, .. rest] {
-    guard !self.is_type_name(name) else {
-      raise ParseError(rest[0], "expected identifier, found type name")
+    if self.defined.contains_local(name) {
+      match self.defined.get(name) {
+        Some(TypeDef(_)) =>
+          raise ParseError(rest[0], "expected identifier, found type name")
+        _ => ()
+      }
     }
     (name, rest)
   } else {
@@ -530,12 +595,6 @@ pub fn Context::parse_declarator(
     init_tokens,
     decay_array_to_ptr~,
   )
-  if name != "" && self.defined.contains_local(name) {
-    match (self.defined.get(name), ctype.dataKind) {
-      (Some(Variable({ dataKind: Function(_), .. })), Function(_)) => ()
-      _ => raise ParseError(rest[0], "redeclaration of variable")
-    }
-  }
   (ctype, name, rest)
 }
 

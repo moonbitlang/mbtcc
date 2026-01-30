@@ -26,11 +26,15 @@ fn Context::emit_switch_stmt(
   // 生成 LLVM switch 指令（这是一个 terminator）
   let switch_inst = self.builder.createSwitch(cond_i32, default_bb)
 
-  // 仅支持 compound body（与 parser 的常见输出一致）
-  let body_comp = match switch_stmt.body.kind {
-    Compound(comp) => comp
-    _ =>
-      raise SemanticError("Switch statement body must be a compound statement")
+  // Allow non-compound switch bodies by wrapping them into a single-item list.
+  let body_items = match switch_stmt.body.kind {
+    Compound(comp) => comp.items
+    _ => {
+      let items : Array[@either.Either[@parser.Statement, @parser.Declaration]] =
+        Array::new()
+      items.push(@either.Either::Left(switch_stmt.body))
+      items
+    }
   }
 
   // 建立 switch codegen 上下文，允许在嵌套语句中继续遇到 case/default 标签（如 Duff's device）
@@ -46,7 +50,7 @@ fn Context::emit_switch_stmt(
 
   // 第一遍：预先收集顶层 case（更利于生成稳定的 IR）；嵌套 case 会在遇到时懒创建
   let top = self.switch_ctx_stack.pop().unwrap()
-  for stmt in @either.collect_lefts(body_comp.items) {
+  for stmt in @either.collect_lefts(body_items) {
     match stmt.kind {
       Case(_, _) | CaseRange(_, _, _) => {
         let (labels, _payload) = unwind_case_chain(stmt)
@@ -71,7 +75,9 @@ fn Context::emit_switch_stmt(
   self.switch_ctx_stack.push(top)
 
   // 第二遍：按源代码顺序发射 case/default 块内容，并通过 fallthrough 连接
-  let mut current_bb : @IR.BasicBlock? = None
+  let body_entry = func.addBasicBlock(name="switch.body")
+  self.builder.setInsertPoint(body_entry)
+  let mut current_bb : @IR.BasicBlock? = Some(body_entry)
   fn maybe_fallthrough_to(
     self : Context,
     from_bb : @IR.BasicBlock,
@@ -83,7 +89,7 @@ fn Context::emit_switch_stmt(
     }
   }
 
-  for item in body_comp.items {
+  for item in body_items {
     match item {
       Left({ kind: Case(_, _), .. } | { kind: CaseRange(_, _, _), .. } as stmt) => {
         let (labels, payload) = unwind_case_chain(stmt)
@@ -218,14 +224,12 @@ fn Context::emit_case_label_in_switch(
       bb
     }
   }
-  if ctx.active {
-    match self.builder.getInsertBlock() {
-      Some(from_bb) =>
-        if from_bb.getTerminator() is None {
-          let _ = self.builder.createBr(target_bb)
-        }
-      None => ()
-    }
+  match self.builder.getInsertBlock() {
+    Some(from_bb) =>
+      if from_bb.getTerminator() is None {
+        let _ = self.builder.createBr(target_bb)
+      }
+    None => ()
   }
   self.builder.setInsertPoint(target_bb)
   ctx.active = true
@@ -264,14 +268,12 @@ fn Context::emit_case_range_label_in_switch(
       }
     }
   }
-  if ctx.active {
-    match self.builder.getInsertBlock() {
-      Some(from_bb) =>
-        if from_bb.getTerminator() is None {
-          let _ = self.builder.createBr(target_bb)
-        }
-      None => ()
-    }
+  match self.builder.getInsertBlock() {
+    Some(from_bb) =>
+      if from_bb.getTerminator() is None {
+        let _ = self.builder.createBr(target_bb)
+      }
+    None => ()
   }
   self.builder.setInsertPoint(target_bb)
   ctx.active = true
@@ -290,14 +292,12 @@ fn Context::emit_default_label_in_switch(
   let ctx = self.switch_ctx_stack.pop().unwrap()
   let target_bb = ctx.default_bb
   ctx.has_default = true
-  if ctx.active {
-    match self.builder.getInsertBlock() {
-      Some(from_bb) =>
-        if from_bb.getTerminator() is None {
-          let _ = self.builder.createBr(target_bb)
-        }
-      None => ()
-    }
+  match self.builder.getInsertBlock() {
+    Some(from_bb) =>
+      if from_bb.getTerminator() is None {
+        let _ = self.builder.createBr(target_bb)
+      }
+    None => ()
   }
   self.builder.setInsertPoint(target_bb)
   ctx.active = true

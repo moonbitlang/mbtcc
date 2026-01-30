@@ -77,6 +77,74 @@ fn Context::const_one_value(
 }
 
 ///|
+fn Context::const_int_for_ctype(
+  self : Context,
+  ty : @parser.CType,
+  val : Int,
+) -> &@IR.Value raise {
+  let llvm_ty = self.ctype_to_llvm_type(ty)
+  match llvm_ty.asTypeEnum() {
+    Int1Type(_) =>
+      if val == 0 { self.llvm_ctx.getConstFalse() } else {
+        self.llvm_ctx.getConstTrue()
+      }
+    Int8Type(_) => self.llvm_ctx.getConstInt8(val)
+    Int16Type(_) => self.llvm_ctx.getConstInt16(val)
+    Int32Type(_) => self.llvm_ctx.getConstInt32(val)
+    Int64Type(_) => self.llvm_ctx.getConstInt64(val.to_int64())
+    _ => raise Unimplemented("Integer constant for type '\{ty}' not supported")
+  }
+}
+
+///|
+fn string_literal_from_initializer(
+  init : @parser.Initializer,
+) -> (String, Bool)? {
+  let mut s = ""
+  let mut saw = false
+  let mut is_wide = false
+  for tok in init.tokens {
+    match tok.kind {
+      String(v) => {
+        s = s + v
+        saw = true
+        if tok.raw.strip_prefix("L\"") is Some(_) {
+          is_wide = true
+        }
+      }
+      _ => return None
+    }
+  }
+  if saw { Some((s, is_wide)) } else { None }
+}
+
+///|
+fn Context::emit_compound_literal_ptr(
+  self : Context,
+  ty : @parser.CType,
+  init : @parser.Initializer,
+) -> &@IR.Value raise {
+  let llvm_ty = self.ctype_to_llvm_type(ty)
+  let tmp = self.builder.createAlloca(llvm_ty)
+  match init.kind {
+    AssignExpr(ae) => {
+      match string_literal_from_initializer(init) {
+        Some((s, wide)) if ty.dataKind is Array(_, _) =>
+          self.emit_string_literal_to_array(tmp, ty, s, wide)
+        _ => {
+          let v = self.emit_assign_expr(ae)
+          let v = self.cast_value_to_ctype(v, ae.ctype, ty)
+          self.builder.createStore(v, tmp) |> ignore
+        }
+      }
+    }
+    InitializerList(list) => self.emit_initializer_list_to_ptr(tmp, ty, list)
+    Designation(_, _) => self.emit_initializer_list_to_ptr(tmp, ty, [init])
+  }
+  tmp
+}
+
+///|
 /// Compute `arr[idx]` element address (for both lvalue and rvalue load)
 fn Context::emit_array_access_ptr(
   self : Context,
@@ -171,21 +239,66 @@ fn struct_field_index_and_type(
 }
 
 ///|
-fn union_field_type(
-  ty : @parser.CType,
+fn Context::get_field_ptr_and_type(
+  self : Context,
+  base_ptr : &@IR.Value,
+  base_ty : @parser.CType,
   field_name : String,
-) -> @parser.CType raise {
-  let fields = match ty.dataKind {
-    Union(_, fields) => fields
-    _ => raise SemanticError("Type '\{ty}' is not a union")
-  }
-  for i in 0..<fields.length() {
-    let { name, ctype, .. } = fields[i]
-    if name == field_name {
-      return ctype
+) -> (&@IR.Value, @parser.CType) raise {
+  match base_ty.dataKind {
+    Struct(_, fields) => {
+      let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
+      let zero = self.llvm_ctx.getConstInt32(0)
+      for i in 0..<fields.length() {
+        let { name, ctype: fty, .. } = fields[i]
+        let indices : Array[&@IR.Value] = Array::new()
+        indices.push(zero)
+        indices.push(self.llvm_ctx.getConstInt32(i))
+        let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
+        if name == field_name {
+          return (field_ptr, fty)
+        }
+        if name == "" &&
+          (fty.dataKind is Struct(_, _) || fty.dataKind is Union(_, _)) {
+          match self.try_get_field_ptr_and_type(field_ptr, fty, field_name) {
+            Some((p, t)) => return (p, t)
+            None => ()
+          }
+        }
+      }
+      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
     }
+    Union(_, fields) => {
+      for i in 0..<fields.length() {
+        let { name, ctype: fty, .. } = fields[i]
+        if name == field_name {
+          return (base_ptr, fty)
+        }
+        if name == "" &&
+          (fty.dataKind is Struct(_, _) || fty.dataKind is Union(_, _)) {
+          match self.try_get_field_ptr_and_type(base_ptr, fty, field_name) {
+            Some((p, t)) => return (p, t)
+            None => ()
+          }
+        }
+      }
+      raise SemanticError("Type '\{base_ty}' has no field named '\{field_name}'")
+    }
+    _ => raise SemanticError("Type '\{base_ty}' has no fields")
   }
-  raise SemanticError("Type '\{ty}' has no field named '\{field_name}'")
+}
+
+///|
+fn Context::try_get_field_ptr_and_type(
+  self : Context,
+  base_ptr : &@IR.Value,
+  base_ty : @parser.CType,
+  field_name : String,
+) -> (&@IR.Value, @parser.CType)? {
+  let res = self.get_field_ptr_and_type(base_ptr, base_ty, field_name) catch {
+    _ => return None
+  }
+  Some(res)
 }
 
 ///|
@@ -202,12 +315,70 @@ fn Context::ctype_sizeof_bytes(
 }
 
 ///|
+fn Context::emit_string_literal_to_array(
+  self : Context,
+  base_ptr : &@IR.Value,
+  ty : @parser.CType,
+  value : String,
+  is_wide : Bool,
+) -> Unit raise {
+  guard ty.dataKind is Array(elem_ty, size) else {
+    raise SemanticError("String initializer target is not an array")
+  }
+  let arr_llvm_ty = self.ctype_to_llvm_type(ty)
+  let zero = self.llvm_ctx.getConstInt32(0)
+  let mut idx = 0
+  if is_wide {
+    for ch in value {
+      if idx >= size {
+        break
+      }
+      let v = self.const_int_for_ctype(elem_ty, ch.to_int())
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(zero)
+      indices.push(self.llvm_ctx.getConstInt32(idx))
+      let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+      let _ = self.builder.createStore(v, elem_ptr)
+      idx = idx + 1
+    }
+  } else {
+    let bytes = @utf8.encode(value)
+    let mut bi = 0
+    while bi < bytes.length() && idx < size {
+      let b = bytes[bi].to_int()
+      let v = self.const_int_for_ctype(elem_ty, b)
+      let indices : Array[&@IR.Value] = Array::new()
+      indices.push(zero)
+      indices.push(self.llvm_ctx.getConstInt32(idx))
+      let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+      let _ = self.builder.createStore(v, elem_ptr)
+      bi = bi + 1
+      idx = idx + 1
+    }
+  }
+  if idx < size {
+    let indices : Array[&@IR.Value] = Array::new()
+    indices.push(zero)
+    indices.push(self.llvm_ctx.getConstInt32(idx))
+    let elem_ptr = self.builder.createGEP(base_ptr, arr_llvm_ty, indices)
+    let z = self.const_int_for_ctype(elem_ty, 0)
+    let _ = self.builder.createStore(z, elem_ptr)
+  }
+}
+
+///|
 fn Context::emit_initializer_list_to_ptr(
   self : Context,
   base_ptr : &@IR.Value,
   ty : @parser.CType,
   inits : Array[@parser.Initializer],
 ) -> Unit raise {
+  fn unwrap_init_list(init : @parser.Initializer) -> Array[@parser.Initializer] {
+    match init.kind {
+      InitializerList(inner) => inner
+      _ => [init]
+    }
+  }
   fn apply_designator(
     self : Context,
     base_ptr : &@IR.Value,
@@ -217,20 +388,8 @@ fn Context::emit_initializer_list_to_ptr(
     match designator {
       Field(name) =>
         match base_ty.dataKind {
-          Struct(_, _) => {
-            let (idx, fty) = struct_field_index_and_type(base_ty, name)
-            let st_llvm_ty = self.ctype_to_llvm_type(base_ty)
-            let zero = self.llvm_ctx.getConstInt32(0)
-            let indices : Array[&@IR.Value] = Array::new()
-            indices.push(zero)
-            indices.push(self.llvm_ctx.getConstInt32(idx))
-            let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-            (field_ptr, fty)
-          }
-          Union(_, _) => {
-            let fty = union_field_type(base_ty, name)
-            (base_ptr, fty)
-          }
+          Struct(_, _) | Union(_, _) =>
+            self.get_field_ptr_and_type(base_ptr, base_ty, name)
           _ => raise SemanticError("Designator '.\{name}' on non-aggregate type")
         }
       Index(const_expr) => {
@@ -279,9 +438,38 @@ fn Context::emit_initializer_list_to_ptr(
         match init.kind {
           Designation(desig, inner) => {
             let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
-            self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+            self.emit_initializer_list_to_ptr(ptr, dst_ty, unwrap_init_list(inner))
+            let idx_opt = match desig {
+              Index(const_expr) => Some(const_expr.eval_as_int())
+              DesignatorList(desigs) => {
+                let mut found : Int? = None
+                for d in desigs {
+                  match d {
+                    Index(const_expr) => {
+                      found = Some(const_expr.eval_as_int())
+                      break
+                    }
+                    _ => ()
+                  }
+                }
+                found
+              }
+              _ => None
+            }
+            match idx_opt {
+              Some(idx) if idx + 1 > next_idx => next_idx = idx + 1
+              _ => ()
+            }
           }
           AssignExpr(ae) => {
+            match string_literal_from_initializer(init) {
+              Some((s, wide)) => {
+                self.emit_string_literal_to_array(base_ptr, ty, s, wide)
+                next_idx = size
+                continue
+              }
+              None => ()
+            }
             if next_idx >= size {
               continue
             }
@@ -338,7 +526,7 @@ fn Context::emit_initializer_list_to_ptr(
         match init.kind {
           Designation(desig, inner) => {
             let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
-            self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+            self.emit_initializer_list_to_ptr(ptr, dst_ty, unwrap_init_list(inner))
             // Advance sequential index if possible (best-effort)
             match desig {
               Field(name) => {
@@ -361,9 +549,19 @@ fn Context::emit_initializer_list_to_ptr(
             indices.push(zero)
             indices.push(self.llvm_ctx.getConstInt32(next_idx))
             let field_ptr = self.builder.createGEP(base_ptr, st_llvm_ty, indices)
-            let raw = self.emit_assign_expr(ae)
-            let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
-            let _ = self.builder.createStore(v, field_ptr)
+            match string_literal_from_initializer(init) {
+              Some((s, wide)) if fty.dataKind is Array(_, _) => {
+                self.emit_string_literal_to_array(field_ptr, fty, s, wide)
+              }
+              _ if fty.dataKind is Union(_, _) => {
+                self.emit_initializer_list_to_ptr(field_ptr, fty, [init])
+              }
+              _ => {
+                let raw = self.emit_assign_expr(ae)
+                let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
+                let _ = self.builder.createStore(v, field_ptr)
+              }
+            }
             next_idx = next_idx + 1
           }
           InitializerList(inner) => {
@@ -394,13 +592,20 @@ fn Context::emit_initializer_list_to_ptr(
       match inits[0].kind {
         Designation(desig, inner) => {
           let (ptr, dst_ty) = apply_designator(self, base_ptr, ty, desig)
-          self.emit_initializer_list_to_ptr(ptr, dst_ty, [inner])
+          self.emit_initializer_list_to_ptr(ptr, dst_ty, unwrap_init_list(inner))
         }
         AssignExpr(ae) => {
           let fty = fields[0].ctype
-          let raw = self.emit_assign_expr(ae)
-          let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
-          let _ = self.builder.createStore(v, base_ptr)
+          match string_literal_from_initializer(inits[0]) {
+            Some((s, wide)) if fty.dataKind is Array(_, _) => {
+              self.emit_string_literal_to_array(base_ptr, fty, s, wide)
+            }
+            _ => {
+              let raw = self.emit_assign_expr(ae)
+              let v = self.cast_value_to_ctype(raw, ae.ctype, fty)
+              let _ = self.builder.createStore(v, base_ptr)
+            }
+          }
         }
         InitializerList(inner) => {
           let fty = fields[0].ctype

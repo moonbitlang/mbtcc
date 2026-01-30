@@ -6,6 +6,10 @@ pub struct Context {
   func_decls : Map[String, @parser.CType]
   func_defs : Map[String, @IR.Function]
   globals : Map[String, @IR.GlobalVariable]
+  global_types : Map[String, @parser.CType]
+  global_inits : Array[(String, @parser.CType, @parser.Initializer)]
+  mut global_init_func : @IR.Function?
+  mut global_init_emitted : Bool
   prog : @parser.Program
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
@@ -35,10 +39,16 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let { source_file, prog, .. } = ctx
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule(source_file)
+  llvm_mod.setDefaultDataLayout()
   let builder = llvm_ctx.createBuilder()
   let func_decls = Map::new()
   let func_defs = Map::new()
   let globals = Map::new()
+  let global_types = Map::new()
+  let global_inits : Array[(String, @parser.CType, @parser.Initializer)] =
+    Array::new()
+  let global_init_func = None
+  let global_init_emitted = false
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
   let tag_env = @env.Env::new()
@@ -56,6 +66,10 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     func_decls,
     func_defs,
     globals,
+    global_types,
+    global_inits,
+    global_init_func,
+    global_init_emitted,
     prog,
     var_env,
     var_types,
@@ -76,7 +90,85 @@ pub fn Context::emit(self : Context) -> @IR.Module raise {
   for ext_decl in externals {
     self.emit_external_decl(ext_decl)
   }
+  self.emit_global_init_function()
   self.llvm_mod
+}
+
+///|
+fn Context::ensure_global_init_func(self : Context) -> @IR.Function raise {
+  match self.global_init_func {
+    Some(f) => f
+    None => {
+      let void_ty = self.llvm_ctx.getVoidTy()
+      let fty = self.llvm_ctx.getFunctionType(void_ty, Array::new(), isVarArg=false)
+      let f = self.llvm_mod.addFunction(fty, "__mbtcc_global_init", linkage?=Some(InternalLinkage))
+      self.global_init_func = Some(f)
+      f
+    }
+  }
+}
+
+///|
+fn Context::emit_global_init_function(self : Context) -> Unit raise {
+  if self.global_init_emitted {
+    return
+  }
+  let func = match self.global_init_func {
+    Some(f) => f
+    None => {
+      // No main call was inserted; skip if there are no inits.
+      if self.global_inits.length() == 0 {
+        return
+      }
+      self.ensure_global_init_func()
+    }
+  }
+  let func = self.global_init_func.unwrap()
+  self.global_init_emitted = true
+  let entry_bb = func.addBasicBlock(name="entry")
+  let saved_func = self.current_func
+  let saved_ret = self.current_ret_ty
+  self.current_func = Some(func)
+  self.current_ret_ty = Some(@parser.CType::void_())
+  self.builder.setInsertPoint(entry_bb)
+  self.enter_scope()
+  for entry in self.global_inits {
+    let (name, ty, init) = entry
+    match self.globals.get(name) {
+      Some(gv) => {
+        let gptr : &@IR.Value = gv
+        match init.kind {
+          AssignExpr(ae) => {
+            match string_literal_from_initializer(init) {
+              Some((s, wide)) =>
+                match ty.dataKind {
+                  Array(_, _) => self.emit_string_literal_to_array(gptr, ty, s, wide)
+                  _ => {
+                    let v = self.emit_assign_expr(ae)
+                    let v = self.cast_value_to_ctype(v, ae.ctype, ty)
+                    self.builder.createStore(v, gptr) |> ignore
+                  }
+                }
+              None => {
+                let v = self.emit_assign_expr(ae)
+                let v = self.cast_value_to_ctype(v, ae.ctype, ty)
+                self.builder.createStore(v, gptr) |> ignore
+              }
+            }
+          }
+          InitializerList(list) =>
+            self.emit_initializer_list_to_ptr(gptr, ty, list)
+          Designation(desig, inner) =>
+            self.emit_initializer_list_to_ptr(gptr, ty, [init])
+        }
+      }
+      None => ()
+    }
+  }
+  self.builder.createRetVoid() |> ignore
+  self.exit_scope()
+  self.current_func = saved_func
+  self.current_ret_ty = saved_ret
 }
 
 ///|
@@ -305,13 +397,43 @@ pub fn Context::emit_global_variable_decl(
 ) -> Unit raise CodeGenError {
   ignore(is_register)
   ignore(is_thread_local)
+  match self.globals.get(name) {
+    Some(gv) => {
+      self.global_types.set(name, ctype)
+      if (!is_extern) || initializer is Some(_) {
+        let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
+          err => raise IllegalLLVMUsage("\{err}")
+        }
+        let zero = self.const_zero_constant(llvm_ty)
+        @unsafe.llvm_set_initializer(gv.getValueRef(), zero.getValueRef())
+        let linkage : @IR.Linkage =
+          if is_static { InternalLinkage } else { ExternalLinkage }
+        let llvm_linkage = match linkage {
+          ExternalLinkage => @unsafe.LLVMExternalLinkage
+          InternalLinkage => @unsafe.LLVMInternalLinkage
+          _ => @unsafe.LLVMExternalLinkage
+        }
+        @unsafe.llvm_set_linkage(gv.getValueRef(), llvm_linkage)
+        match initializer {
+          Some(init) => self.global_inits.push((name, ctype, init))
+          None => ()
+        }
+      }
+      return
+    }
+    None => ()
+  }
   let llvm_ty = self.ctype_to_llvm_type(ctype) catch {
     err => raise IllegalLLVMUsage("\{err}")
   }
   let linkage : @IR.Linkage =
     if is_static { InternalLinkage } else { ExternalLinkage }
   let init_const : &@IR.Constant? = match initializer {
-    Some(init) => Some(self.emit_initializer(init, ctype))
+    Some(_) => {
+      // Use zero initializer and emit runtime init later.
+      let zero = self.const_zero_constant(llvm_ty)
+      Some(zero)
+    }
     None =>
       if is_extern {
         None
@@ -339,7 +461,9 @@ pub fn Context::emit_global_variable_decl(
     )
   }
   self.globals.set(name, gvar)
-  let gvar_val : &@IR.Value = gvar
-  self.var_env.set(name, gvar_val)
-  self.var_types.set(name, ctype)
+  self.global_types.set(name, ctype)
+  match initializer {
+    Some(init) => self.global_inits.push((name, ctype, init))
+    None => ()
+  }
 }

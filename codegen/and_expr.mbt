@@ -6,9 +6,11 @@ fn Context::emit_and_expr(
   match expr.kind {
     EqualityExpr(expr) => self.emit_equality_expr(expr)
     AndExpr(left, right) => {
-      let left_val = self.emit_and_expr(left)
-      let right_val = self.emit_equality_expr(right)
-      self.builder.createAnd(left_val, right_val)
+      let lraw = self.emit_and_expr(left)
+      let rraw = self.emit_equality_expr(right)
+      let lval = self.cast_value_to_ctype(lraw, left.ctype, expr.ctype)
+      let rval = self.cast_value_to_ctype(rraw, right.ctype, expr.ctype)
+      self.builder.createAnd(lval, rval)
     }
   }
 }

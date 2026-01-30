@@ -3,5 +3,7 @@
     "Kaida-Amethyst/mbtcc/lexer",
     "moonbitlang/x/path",
     "moonbitlang/x/fs",
+    "moonbitlang/core/env",
+    "moonbitlang/core/ref"
   ]
 }

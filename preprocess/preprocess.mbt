@@ -85,7 +85,45 @@ fn has_ws_between(code : StringView, a : Token, b : Token) -> Bool {
 }
 
 ///|
+fn strip_attribute_tokens(tokens : Array[Token]) -> Array[Token] {
+  let out : Array[Token] = Array::new()
+  loop tokens[:] {
+    [
+      { kind: Keyword(Attribute), .. },
+      { kind: Bracket('('), .. },
+      { kind: Bracket('('), .. },
+      .. rest,
+    ] => {
+      let mut depth = 2
+      let rest = loop rest {
+        [{ kind: Bracket('('), .. }, .. rest2] => {
+          depth = depth + 1
+          continue rest2
+        }
+        [{ kind: Bracket(')'), .. }, .. rest2] => {
+          depth = depth - 1
+          if depth == 0 {
+            break rest2
+          }
+          continue rest2
+        }
+        [_, .. rest2] => continue rest2
+        [] as rest2 => break rest2
+      }
+      continue rest
+    }
+    [tok, .. rest] => {
+      out.push(tok)
+      continue rest
+    }
+    [] => break
+  }
+  out
+}
+
+///|
 let macros : Map[String, Macro] = Map::new()
+let macro_stack : Map[String, Array[Macro?]] = Map::new()
 
 ///|
 priv enum CondInclStateKind {
@@ -109,12 +147,125 @@ let cond_incl_stack : Array[CondInclState] = Array::new()
 let pragma_once : Set[String] = Set::new()
 
 ///|
+let line_offset : Ref[Int] = @ref.new(0)
+
+///|
+fn find_substring(hay : String, needle : String) -> Int? {
+  if needle.length() == 0 {
+    return Some(0)
+  }
+  if hay.length() < needle.length() {
+    return None
+  }
+  let limit = hay.length() - needle.length()
+  for i = 0; i <= limit; i = i + 1 {
+    if hay.substring(start=i, end=i + needle.length()) == needle {
+      return Some(i)
+    }
+  }
+  None
+}
+
+///|
+fn path_dirname(path : String) -> String {
+  if path.length() == 0 {
+    return "."
+  }
+  let mut i = path.length() - 1
+  while i >= 0 {
+    let ch = path.substring(start=i, end=i + 1)
+    if ch == "/" {
+      if i == 0 {
+        return "/"
+      }
+      return path.substring(start=0, end=i)
+    }
+    i = i - 1
+  }
+  "."
+}
+
+///|
+fn path_join(dir : String, name : String) -> String {
+  if dir == "" || dir == "." {
+    return name
+  }
+  if dir.substring(start=dir.length() - 1, end=dir.length()) == "/" {
+    return dir + name
+  }
+  dir + "/" + name
+}
+
+///|
+fn init_builtin_macros(template : Token) -> Unit {
+  // __LP64__ on typical 64-bit Unix/macOS
+  let one = @lexer.dummy_long(1, raw="1")
+  macros.set("__LP64__", Macro::ObjLike([one]))
+  macros.set("__APPLE__", Macro::ObjLike([one]))
+  macros.set("__MACH__", Macro::ObjLike([one]))
+  // __builtin_expect(x, y) -> x (handled specially in macro expansion)
+  let rep : Array[Token] = Array::new()
+  macros.set("__builtin_expect", Macro::FuncLike(["x", "y"], None, rep))
+}
+
+///|
+fn reset_preprocess_state(template : Token) -> Unit {
+  macros.clear()
+  macro_stack.clear()
+  cond_incl_stack.clear()
+  pragma_once.clear()
+  line_offset.val = 0
+  init_builtin_macros(template)
+}
+
+///|
+pub fn preprocess_root(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError {
+  reset_preprocess_state(@lexer.dummy_eof())
+  preprocess(ctx)
+}
+
+///|
 pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError {
   let { code, source_file, err_toks, .. } = ctx
-  let path : @path.Path = source_file
-  let dir = path.dirname()
+  let dir = path_dirname(source_file)
   let new_tokens : Array[@lexer.Token] = Array::new()
   loop ctx.tokens[:] {
+    // handle #line directive
+    [
+      { kind: Hash, line, .. },
+      { kind: Identifier("line"), .. },
+      .. rest,
+    ] => {
+      let (val, rest) = eval_const_expr_no_undef(code[:], line, rest)
+      // The next line after the directive is numbered as `val`.
+      line_offset.val = val.to_int() - (line + 1)
+      continue rest
+    }
+    // Skip __attribute__((...)) (ignored attributes)
+    [
+      { kind: Keyword(Attribute), .. },
+      { kind: Bracket('('), .. },
+      { kind: Bracket('('), .. },
+      .. rest,
+    ] => {
+      let mut depth = 2
+      let rest = loop rest {
+        [{ kind: Bracket('('), .. }, .. rest2] => {
+          depth = depth + 1
+          continue rest2
+        }
+        [{ kind: Bracket(')'), .. }, .. rest2] => {
+          depth = depth - 1
+          if depth == 0 {
+            break rest2
+          }
+          continue rest2
+        }
+        [_, .. rest2] => continue rest2
+        [] as rest2 => break rest2
+      }
+      continue rest
+    }
     // handle include directive
     // e.g: `#include "file.h"`
     [
@@ -123,7 +274,7 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: String(f), line, .. },
       .. rest,
     ] => {
-      let fpath = dir.join(f).to_string()
+      let fpath = path_join(dir, f)
       if pragma_once.contains(fpath) {
         continue skip_line(line, rest)
       }
@@ -145,10 +296,67 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       { kind: Hash, .. },
       { kind: Identifier("include"), .. },
       { kind: Operator("<"), .. },
-      ..,
+      .. rest,
     ] => {
-      println("Compiler ICE: Angle bracket include is not implemented yet")
-      panic()
+      // collect tokens until '>'
+      let name_tokens : Array[Token] = Array::new()
+      let rest = loop rest {
+        [{ kind: Operator(">"), line, .. }, .. rest2] => break rest2
+        [tok, .. rest2] => {
+          name_tokens.push(tok)
+          continue rest2
+        }
+        [] as rest2 => break rest2
+      }
+      let mut fname = ""
+      for t in name_tokens {
+        fname = fname + t.raw
+      }
+      // search include dirs
+      let include_dirs : Array[String] = Array::new()
+      include_dirs.push(dir)
+      include_dirs.push(path_join(dir, "headers"))
+      match @env.current_dir() {
+        Some(cwd) => {
+          include_dirs.push(cwd)
+          include_dirs.push(path_join(cwd, "headers"))
+        }
+        None => ()
+      }
+      match find_substring(source_file, "/mbtcc/") {
+        Some(idx) => {
+          let root = source_file.substring(start=0, end=idx + 6)
+          include_dirs.push(path_join(root, "headers"))
+        }
+        None => ()
+      }
+      let mut include_code : String? = None
+      let mut used_path = ""
+      for d in include_dirs {
+        let cand = path_join(d, fname)
+        if @fs.path_exists(cand) {
+          let code2 = @fs.read_file_to_string(cand) catch { _ => "" }
+          include_code = Some(code2)
+          used_path = cand
+          break
+        }
+      }
+      guard include_code is Some(code2) else {
+        raise InvalidIncludePath(fname)
+      }
+      if pragma_once.contains(used_path) {
+        continue rest
+      }
+      let include_ctx = @lexer.Context::new(
+        code=include_code.unwrap(),
+        source_file=used_path,
+      )
+      let _ = include_ctx.tokenize()
+      let include_ctx = preprocess(include_ctx)
+      let include_tokens = include_ctx.tokens
+      let _ = include_tokens.pop() // remove EOF
+      new_tokens.append(include_tokens)
+      continue rest
     }
     // handle undef directive
     // e.g: `#undef MACRO_NAME`
@@ -314,10 +522,66 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       pragma_once.add(source_file)
       continue skip_line(line, rest)
     }
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("pragma"), .. },
+      { kind: Identifier("push_macro"), .. },
+      { kind: Bracket('('), .. },
+      { kind: String(name), line, .. },
+      { kind: Bracket(')'), .. },
+      .. rest,
+    ] => {
+      let stack = match macro_stack.get(name) {
+        Some(s) => s
+        None => {
+          let s : Array[Macro?] = Array::new()
+          macro_stack.set(name, s)
+          s
+        }
+      }
+      stack.push(macros.get(name))
+      continue skip_line(line, rest)
+    }
+    [
+      { kind: Hash, .. },
+      { kind: Identifier("pragma"), .. },
+      { kind: Identifier("pop_macro"), .. },
+      { kind: Bracket('('), .. },
+      { kind: String(name), line, .. },
+      { kind: Bracket(')'), .. },
+      .. rest,
+    ] => {
+      match macro_stack.get(name) {
+        Some(stack) => {
+          if stack.length() > 0 {
+            let prev = stack.pop().unwrap()
+            match prev {
+              Some(m) => macros.set(name, m)
+              None => macros.remove(name)
+            }
+          }
+        }
+        None => ()
+      }
+      continue skip_line(line, rest)
+    }
     // Expand object-like macro
-    [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
-      let (new_toks, rest) = replace_identifier(code[:], name, rest)
+    [{ kind: Identifier(name), .. } as tok, .. rest] if macros.get(name)
+      is Some(_) => {
+      let (new_toks, rest) = replace_identifier(code[:], tok, name, rest)
       new_tokens.append(new_toks)
+      continue rest
+    }
+    // Builtin macros
+    [{ kind: Identifier("__LINE__"), .. } as tok, .. rest] => {
+      let line_val = tok.line + line_offset.val
+      let t = @lexer.dummy_long(line_val.to_int64(), raw="\{line_val}")
+      new_tokens.push(t)
+      continue rest
+    }
+    [{ kind: Identifier("__FILE__"), .. } as tok, .. rest] => {
+      let t = @lexer.string_token_like(tok, source_file)
+      new_tokens.push(t)
       continue rest
     }
     [tok, .. rest] => {
@@ -352,6 +616,20 @@ fn eval_const_expr(
 }
 
 ///|
+fn eval_const_expr_no_undef(
+  code : StringView,
+  line : Int,
+  tokens : ArrayView[Token],
+) -> (Int64, ArrayView[Token]) raise PreprecessError {
+  let (const_expr_tokens, rest) = collect_tokens_until_new_line(line, tokens)
+  let const_expr_tokens = expand_macro_for_tokens(code, const_expr_tokens)
+  const_expr_tokens.push(@lexer.dummy_eof())
+  let (const_expr, _) = parse_constant_expr(const_expr_tokens)
+  let val = const_expr.eval().to_int64()
+  (val, rest)
+}
+
+///|
 fn collect_tokens_until_new_line(
   line : Int,
   tokens : ArrayView[Token],
@@ -374,8 +652,9 @@ fn expand_macro_for_tokens(
 ) -> Array[Token] raise PreprecessError {
   let new_tokens : Array[Token] = Array::new()
   loop tokens[:] {
-    [{ kind: Identifier(name), .. }, .. rest] if macros.get(name) is Some(_) => {
-      let (expanded_toks, rest) = replace_identifier(code, name, rest)
+    [{ kind: Identifier(name), .. } as tok, .. rest] if macros.get(name)
+      is Some(_) => {
+      let (expanded_toks, rest) = replace_identifier(code, tok, name, rest)
       new_tokens.append(expanded_toks)
       continue rest
     }
@@ -397,6 +676,7 @@ fn collect_num_tokens_until_new_line(
 ) -> (Array[Token], ArrayView[Token]) {
   let new_tokens : Array[Token] = Array::new()
   let rest = loop tokens {
+    [tok, .. rest] as tokens if tok.line != line => break tokens
     [
       { kind: Identifier("defined"), .. },
       { kind: Bracket('('), .. },
@@ -419,7 +699,28 @@ fn collect_num_tokens_until_new_line(
       new_tokens.push(tok)
       continue rest
     }
-    [tok, .. rest] if tok.line == line => {
+    [{ kind: Identifier("__LINE__"), .. } as tok, .. rest] => {
+      let v = (tok.line + line_offset.val).to_int64()
+      new_tokens.push(@lexer.dummy_long(v, raw="\{v}"))
+      continue rest
+    }
+    [{ kind: Identifier("__FILE__"), .. } as tok, .. rest] => {
+      new_tokens.push(@lexer.string_token_like(tok, tok.source_file))
+      continue rest
+    }
+    [{ kind: Identifier(name), .. } as tok, .. rest] => {
+      // Undefined identifiers in #if are replaced with 0; defined ones are left
+      // for macro expansion.
+      match macros.get(name) {
+        Some(_) => new_tokens.push(tok)
+        None => {
+          let tok = @lexer.dummy_long(0, raw="0")
+          new_tokens.push(tok)
+        }
+      }
+      continue rest
+    }
+    [tok, .. rest] => {
       new_tokens.push(tok)
       continue rest
     }
@@ -432,9 +733,9 @@ fn collect_num_tokens_until_new_line(
 fn skip_cond_incl(tokens : ArrayView[Token]) -> ArrayView[Token] {
   loop tokens {
     [{ kind: Hash, .. }, { kind: Keyword(If), .. }, .. rest] =>
-      break skip_cond_incl2(rest)
+      continue skip_cond_incl2(rest)
     [{ kind: Hash, .. }, { kind: Identifier("ifdef" | "ifndef"), .. }, .. rest] =>
-      break skip_cond_incl2(rest)
+      continue skip_cond_incl2(rest)
     [{ kind: Hash, .. }, { kind: Identifier("elif" | "endif"), .. }, ..] as tokens =>
       break tokens
     [{ kind: Hash, .. }, { kind: Keyword(Else), .. }, ..] as tokens =>
@@ -448,9 +749,9 @@ fn skip_cond_incl(tokens : ArrayView[Token]) -> ArrayView[Token] {
 fn skip_cond_incl2(tokens : ArrayView[Token]) -> ArrayView[Token] {
   loop tokens {
     [{ kind: Hash, .. }, { kind: Keyword(If), .. }, .. rest] =>
-      break skip_cond_incl2(rest)
+      continue skip_cond_incl2(rest)
     [{ kind: Hash, .. }, { kind: Identifier("ifdef" | "ifndef"), .. }, .. rest] =>
-      break skip_cond_incl2(rest)
+      continue skip_cond_incl2(rest)
     [{ kind: Hash, .. }, { kind: Identifier("endif"), .. }, .. rest] =>
       break rest
     [_, .. rest] => continue rest
@@ -471,18 +772,28 @@ fn skip_line(line : Int, tokens : ArrayView[Token]) -> ArrayView[Token] {
 ///|
 fn replace_identifier(
   code : StringView,
+  id_tok : Token,
   id : String,
   rest_tokens : ArrayView[Token],
 ) -> (Array[Token], ArrayView[Token]) raise PreprecessError {
   let cmacro = macros.get(id).unwrap()
+  let saved = macros.get(id)
+  macros.remove(id)
   if cmacro is ObjLike(toks) {
-    return (toks, rest_tokens)
+    let rescanned = expand_macro_for_tokens(code, toks)
+    if saved is Some(m) {
+      macros.set(id, m)
+    }
+    let filtered = strip_attribute_tokens(rescanned)
+    return (filtered, rest_tokens)
   }
   guard cmacro is FuncLike(params, va_args, rep_toks)
   guard rest_tokens is [{ kind: Bracket('('), .. }, .. rest] else {
-    raise InvalidMacorInvocation(
-      "Macro \{id} requires arguments but none provided",
-    )
+    // Function-like macro not invoked; keep identifier as-is.
+    if saved is Some(m) {
+      macros.set(id, m)
+    }
+    return ([id_tok], rest_tokens)
   }
   let new_tokens : Array[Token] = Array::new()
   let mut paren_count = 0
@@ -555,32 +866,135 @@ fn replace_identifier(
   if va_args is Some(va_name) {
     args.set(va_name, va_args_tokens)
   }
-  // Expand replacement list.
-  // Prefer pattern matching over manual indexing for readability.
-  loop rep_toks[:] {
-    // Stringizing: `#param`
-    [
-      { kind: Hash, .. } as hash_tok,
-      { kind: Identifier(var_name), .. },
-      .. rest,
-    ] if args.get(var_name) is Some(arg_tokens) => {
-      let s = stringize_macro_arg(code, arg_tokens).to_string()
-      new_tokens.push(@lexer.string_token_like(hash_tok, s))
-      continue rest
+  let args_expanded : Map[String, Array[Token]] = Map::new()
+  for p in params {
+    match args.get(p) {
+      Some(v) => args_expanded.set(p, expand_macro_for_tokens(code, v))
+      None => ()
     }
-    // Normal parameter substitution.
-    [{ kind: Identifier(var_name), .. }, .. rest] if args.get(var_name)
-      is Some(arg_tokens) => {
-      new_tokens.append(arg_tokens)
-      continue rest
-    }
-    [tok, .. rest] => {
-      new_tokens.push(tok)
-      continue rest
-    }
-    [] => break
   }
-  (new_tokens, rest)
+  if va_args is Some(va_name) {
+    match args.get(va_name) {
+      Some(v) => args_expanded.set(va_name, expand_macro_for_tokens(code, v))
+      None => ()
+    }
+  }
+  if id == "__builtin_expect" {
+    match args.get("x") {
+      Some(arg_tokens) => {
+        if saved is Some(m) {
+          macros.set(id, m)
+        }
+        return (arg_tokens, rest)
+      }
+      None => {
+        if saved is Some(m) {
+          macros.set(id, m)
+        }
+        return ([], rest)
+      }
+    }
+  }
+  // Expand replacement list with # and ## handling.
+  let mut i = 0
+  while i < rep_toks.length() {
+    let tok = rep_toks[i]
+    // Stringizing: `#param` uses raw (unexpanded) tokens.
+    if tok.kind is Hash && i + 1 < rep_toks.length() {
+      let next = rep_toks[i + 1]
+      match next.kind {
+        Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => {
+          let s = stringize_macro_arg(code, arg_tokens).to_string()
+          new_tokens.push(@lexer.string_token_like(tok, s))
+          i = i + 2
+          continue
+        }
+        _ => ()
+      }
+    }
+    // Token pasting: `a ## b`
+    if i + 2 < rep_toks.length() && rep_toks[i + 1].kind is Hash2 {
+      let left_tok = rep_toks[i]
+      let right_tok = rep_toks[i + 2]
+      let left_tokens = match left_tok.kind {
+        Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => arg_tokens
+        _ => [left_tok]
+      }
+      let right_tokens = match right_tok.kind {
+        Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => arg_tokens
+        _ => [right_tok]
+      }
+      if left_tokens.length() == 0 {
+        new_tokens.append(right_tokens)
+        i = i + 3
+        continue
+      }
+      if right_tokens.length() == 0 {
+        new_tokens.append(left_tokens)
+        i = i + 3
+        continue
+      }
+      let left_keep : Array[Token] = Array::new()
+      let right_keep : Array[Token] = Array::new()
+      let mut j = 0
+      while j + 1 < left_tokens.length() {
+        left_keep.push(left_tokens[j])
+        j = j + 1
+      }
+      j = 1
+      while j < right_tokens.length() {
+        right_keep.push(right_tokens[j])
+        j = j + 1
+      }
+      let left_last = left_tokens[left_tokens.length() - 1]
+      let right_first = right_tokens[0]
+      let merged_raw = left_last.raw + right_first.raw
+      let lex_ctx = @lexer.Context::new(
+        code=merged_raw,
+        source_file=left_last.source_file,
+      )
+      let _ = lex_ctx.tokenize()
+      let merged_tok = lex_ctx.tokens[0]
+      new_tokens.append(left_keep)
+      new_tokens.push(@lexer.token_like(left_last, merged_tok.kind, raw=merged_raw))
+      new_tokens.append(right_keep)
+      i = i + 3
+      continue
+    }
+    // Normal parameter substitution (use expanded tokens).
+    match tok.kind {
+      Identifier(var_name) if args_expanded.get(var_name) is Some(arg_tokens) => {
+        new_tokens.append(arg_tokens)
+      }
+      _ => new_tokens.push(tok)
+    }
+    i = i + 1
+  }
+  let rescanned = expand_macro_for_tokens(code, new_tokens)
+  if saved is Some(m) {
+    macros.set(id, m)
+  }
+  let filtered = strip_attribute_tokens(rescanned)
+  // If a function-like macro name is produced and immediately followed by '('
+  // in the remaining tokens (e.g. CAT(A,B)(x)), expand it with the following tokens.
+  if filtered.length() > 0 && rest is [{ kind: Bracket('('), .. }, ..] {
+    let last = filtered[filtered.length() - 1]
+    match last.kind {
+      Identifier(name) if name != id && macros.get(name) is Some(FuncLike(_, _, _)) => {
+        let prefix : Array[Token] = Array::new()
+        let mut i = 0
+        while i + 1 < filtered.length() {
+          prefix.push(filtered[i])
+          i = i + 1
+        }
+        let (expanded, rest2) = replace_identifier(code, last, name, rest)
+        prefix.append(expanded)
+        return (prefix, rest2)
+      }
+      _ => ()
+    }
+  }
+  (filtered, rest)
 }
 
 ///|

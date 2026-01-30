@@ -67,7 +67,7 @@ fn main_err() -> Unit raise {
     let code = @fs.read_file_to_string(source_file)
     let lexer_ctx = @lexer.Context::new(code~, source_file~)
     let _ = lexer_ctx.tokenize()
-    let lexer_ctx = @preprocess.preprocess(lexer_ctx)
+    let lexer_ctx = @preprocess.preprocess_root(lexer_ctx)
     if expand_only.val {
       if print_tokens {
         lexer_ctx.tokens.each(t => println(t))

@@ -135,14 +135,19 @@ pub fn Context::parse_cast_expr(
         let msg = "Expected ')' after type name in cast expression"
         raise ParseError(rest[0], msg)
       }
-      let (cast_expr, rest) = self.parse_cast_expr(rest)
-      let tokens = init_toks[0:rest.start_offset() - start_offset]
-      let cast_expr = CastExpr::{
-        kind: CastTo(ctype, cast_expr),
-        ctype,
-        tokens,
+      // If followed by '{', this is a compound literal, not a cast.
+      if rest is [{ kind: Bracket('{'), .. }, ..] {
+        ()
+      } else {
+        let (cast_expr, rest) = self.parse_cast_expr(rest)
+        let tokens = init_toks[0:rest.start_offset() - start_offset]
+        let cast_expr = CastExpr::{
+          kind: CastTo(ctype, cast_expr),
+          ctype,
+          tokens,
+        }
+        return (cast_expr, rest)
       }
-      return (cast_expr, rest)
     }
     _ => ()
   }
