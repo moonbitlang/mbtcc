@@ -85,13 +85,19 @@ fn Context::const_int_for_ctype(
   let llvm_ty = self.ctype_to_llvm_type(ty)
   match llvm_ty.asTypeEnum() {
     Int1Type(_) =>
-      if val == 0 { self.llvm_ctx.getConstFalse() } else {
-        self.llvm_ctx.getConstTrue()
+      if val == 0 { (self.llvm_ctx.getConstFalse() : &@IR.Value) } else {
+        (self.llvm_ctx.getConstTrue() : &@IR.Value)
       }
-    Int8Type(_) => self.llvm_ctx.getConstInt8(val)
-    Int16Type(_) => self.llvm_ctx.getConstInt16(val)
-    Int32Type(_) => self.llvm_ctx.getConstInt32(val)
-    Int64Type(_) => self.llvm_ctx.getConstInt64(val.to_int64())
+    Int8Type(_) => (self.llvm_ctx.getConstInt8(val) : &@IR.Value)
+    Int16Type(_) => (self.llvm_ctx.getConstInt16(val) : &@IR.Value)
+    Int32Type(_) => (self.llvm_ctx.getConstInt32(val) : &@IR.Value)
+    Int64Type(_) => (self.llvm_ctx.getConstInt64(val.to_int64()) : &@IR.Value)
+    PointerType(_) =>
+      if val == 0 {
+        (self.llvm_ctx.getConstPointerNull(llvm_ty) : &@IR.Value)
+      } else {
+        raise Unimplemented("Integer constant for type '\{ty}' not supported")
+      }
     _ => raise Unimplemented("Integer constant for type '\{ty}' not supported")
   }
 }
@@ -745,7 +751,8 @@ fn Context::emit_initializer_list_to_ptr(
       let mut actual_size = size
       if actual_size == 0 {
         if inits.length() == 1 &&
-          string_literal_from_initializer(inits[0]) is Some((s, _)) {
+          string_literal_from_initializer(inits[0]) is Some((s, _)) &&
+          (elem_ty.dataKind is Char || elem_ty.dataKind is UChar) {
           actual_size = s.length() + 1
         } else {
           actual_size = inits.length()
@@ -830,13 +837,13 @@ fn Context::emit_initializer_list_to_ptr(
           }
           AssignExpr(ae) => {
             match string_literal_from_initializer(init) {
-              Some((s, wide)) => {
+              Some((s, wide)) if elem_ty.dataKind is Char || elem_ty.dataKind is UChar => {
                 self.emit_string_literal_to_array(base_ptr, ty, s, wide)
                 next_idx = actual_size
                 init_idx = init_idx + 1
                 continue
               }
-              None => ()
+              _ => ()
             }
             if next_idx >= actual_size {
               init_idx = init_idx + 1

@@ -95,6 +95,8 @@ fn strip_attribute_tokens(tokens : Array[Token]) -> Array[Token] {
       .. rest,
     ] => {
       let mut depth = 2
+      let mut ctor_tok : Token? = None
+      let mut dtor_tok : Token? = None
       let rest = loop rest {
         [{ kind: Bracket('('), .. }, .. rest2] => {
           depth = depth + 1
@@ -107,8 +109,24 @@ fn strip_attribute_tokens(tokens : Array[Token]) -> Array[Token] {
           }
           continue rest2
         }
+        [{ kind: Identifier(name), .. } as id_tok, .. rest2] => {
+          if name == "constructor" || name == "__constructor__" {
+            ctor_tok = Some(id_tok)
+          } else if name == "destructor" || name == "__destructor__" {
+            dtor_tok = Some(id_tok)
+          }
+          continue rest2
+        }
         [_, .. rest2] => continue rest2
         [] as rest2 => break rest2
+      }
+      match ctor_tok {
+        Some(tok) => out.push(tok)
+        None => ()
+      }
+      match dtor_tok {
+        Some(tok) => out.push(tok)
+        None => ()
       }
       continue rest
     }
@@ -249,6 +267,8 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       .. rest,
     ] => {
       let mut depth = 2
+      let mut ctor_tok : Token? = None
+      let mut dtor_tok : Token? = None
       let rest = loop rest {
         [{ kind: Bracket('('), .. }, .. rest2] => {
           depth = depth + 1
@@ -261,8 +281,24 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
           }
           continue rest2
         }
+        [{ kind: Identifier(name), .. } as id_tok, .. rest2] => {
+          if name == "constructor" || name == "__constructor__" {
+            ctor_tok = Some(id_tok)
+          } else if name == "destructor" || name == "__destructor__" {
+            dtor_tok = Some(id_tok)
+          }
+          continue rest2
+        }
         [_, .. rest2] => continue rest2
         [] as rest2 => break rest2
+      }
+      match ctor_tok {
+        Some(tok) => new_tokens.push(tok)
+        None => ()
+      }
+      match dtor_tok {
+        Some(tok) => new_tokens.push(tok)
+        None => ()
       }
       continue rest
     }
@@ -666,6 +702,15 @@ fn expand_macro_for_tokens(
       new_tokens.append(expanded_toks)
       continue rest
     }
+    [{ kind: Identifier("__LINE__"), .. } as tok, .. rest] => {
+      let v = (tok.line + line_offset.val).to_int64()
+      new_tokens.push(@lexer.dummy_long(v, raw="\{v}"))
+      continue rest
+    }
+    [{ kind: Identifier("__FILE__"), .. } as tok, .. rest] => {
+      new_tokens.push(@lexer.string_token_like(tok, tok.source_file))
+      continue rest
+    }
     [tok, .. rest] => {
       new_tokens.push(tok)
       continue rest
@@ -920,53 +965,59 @@ fn replace_identifier(
         _ => ()
       }
     }
-    // Token pasting: `a ## b`
+    // Token pasting: `a ## b` (supports chained pastes)
     if i + 2 < rep_toks.length() && rep_toks[i + 1].kind is Hash2 {
-      let left_tok = rep_toks[i]
-      let right_tok = rep_toks[i + 2]
-      let left_tokens = match left_tok.kind {
+      let mut j = i
+      let mut cur_tokens = match rep_toks[j].kind {
         Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => arg_tokens
-        _ => [left_tok]
+        _ => [rep_toks[j]]
       }
-      let right_tokens = match right_tok.kind {
-        Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => arg_tokens
-        _ => [right_tok]
+      while j + 1 < rep_toks.length() && rep_toks[j + 1].kind is Hash2 {
+        let right_tok = rep_toks[j + 2]
+        let right_tokens = match right_tok.kind {
+          Identifier(var_name) if args.get(var_name) is Some(arg_tokens) => arg_tokens
+          _ => [right_tok]
+        }
+        if cur_tokens.length() == 0 {
+          cur_tokens = right_tokens
+          j = j + 2
+          continue
+        }
+        if right_tokens.length() == 0 {
+          j = j + 2
+          continue
+        }
+        let left_keep : Array[Token] = Array::new()
+        let right_keep : Array[Token] = Array::new()
+        let mut k = 0
+        while k + 1 < cur_tokens.length() {
+          left_keep.push(cur_tokens[k])
+          k = k + 1
+        }
+        k = 1
+        while k < right_tokens.length() {
+          right_keep.push(right_tokens[k])
+          k = k + 1
+        }
+        let left_last = cur_tokens[cur_tokens.length() - 1]
+        let right_first = right_tokens[0]
+        let merged_raw = left_last.raw + right_first.raw
+        let lex_ctx = @lexer.Context::new(
+          code=merged_raw,
+          source_file=left_last.source_file,
+        )
+        let _ = lex_ctx.tokenize()
+        let merged_tok = lex_ctx.tokens[0]
+        let merged = @lexer.token_like(left_last, merged_tok.kind, raw=merged_raw)
+        let merged_tokens : Array[Token] = Array::new()
+        merged_tokens.append(left_keep)
+        merged_tokens.push(merged)
+        merged_tokens.append(right_keep)
+        cur_tokens = merged_tokens
+        j = j + 2
       }
-      if left_tokens.length() == 0 {
-        new_tokens.append(right_tokens)
-        i = i + 3
-        continue
-      }
-      if right_tokens.length() == 0 {
-        new_tokens.append(left_tokens)
-        i = i + 3
-        continue
-      }
-      let left_keep : Array[Token] = Array::new()
-      let right_keep : Array[Token] = Array::new()
-      let mut j = 0
-      while j + 1 < left_tokens.length() {
-        left_keep.push(left_tokens[j])
-        j = j + 1
-      }
-      j = 1
-      while j < right_tokens.length() {
-        right_keep.push(right_tokens[j])
-        j = j + 1
-      }
-      let left_last = left_tokens[left_tokens.length() - 1]
-      let right_first = right_tokens[0]
-      let merged_raw = left_last.raw + right_first.raw
-      let lex_ctx = @lexer.Context::new(
-        code=merged_raw,
-        source_file=left_last.source_file,
-      )
-      let _ = lex_ctx.tokenize()
-      let merged_tok = lex_ctx.tokens[0]
-      new_tokens.append(left_keep)
-      new_tokens.push(@lexer.token_like(left_last, merged_tok.kind, raw=merged_raw))
-      new_tokens.append(right_keep)
-      i = i + 3
+      new_tokens.append(cur_tokens)
+      i = j + 1
       continue
     }
     // Normal parameter substitution (use expanded tokens).

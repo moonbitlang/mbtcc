@@ -3,7 +3,11 @@
 #define ATTR __attribute__((__ms_struct__))
 
 // GCC only implements #pragma ms_struct on Darwin.
-#define HAVE_PRAGMA_MS_STRUCT (defined(__clang__) || defined(__MACH__))
+#if defined(__clang__) || defined(__MACH__)
+#define HAVE_PRAGMA_MS_STRUCT 1
+#else
+#define HAVE_PRAGMA_MS_STRUCT 0
+#endif
 
 struct {
                    unsigned int bf_1 : 12;
@@ -106,4 +110,3 @@ int main() {
     abort();
   return 0;
 }
-

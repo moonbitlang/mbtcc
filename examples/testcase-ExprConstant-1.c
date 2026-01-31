@@ -13,7 +13,7 @@ int main() {
   x[2] = 5;
   p = &x[5];
   printf("%" PRId32, x[2]);
-  if (&x[1] - &x[0] != -2) {
+  if (&x[1] - &x[0] != 1) {
     return 1;
   }
   return 0;

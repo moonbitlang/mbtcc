@@ -53,6 +53,10 @@ pub fn Context::from_lexer(lexer_ctx : @lexer.Context) -> Context {
   ctx.add_var("__sync_add_and_fetch", sync_fn_ty)
   ctx.add_var("__sync_val_compare_and_swap", sync_fn_ty)
   ctx.add_var("__sync_lock_test_and_set", sync_fn_ty)
+  let clzll_fn_ty = CType::default_with(
+    Function([(CType::ulonglong(), "")], CType::int(), is_variadic=false),
+  )
+  ctx.add_var("__builtin_clzll", clzll_fn_ty)
   ctx
 }
 

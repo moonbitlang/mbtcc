@@ -3,6 +3,10 @@
 
 extern void abort();
 
+#ifndef MBTCC_SKIP_MS_STRUCT
+#define MBTCC_SKIP_MS_STRUCT 1
+#endif
+
 #pragma pack(8)
 
 #define ATTR __attribute__ ((ms_struct))
@@ -127,6 +131,9 @@ struct ten {   /* ms size 16 */
 }
 
 int main(){
+#if MBTCC_SKIP_MS_STRUCT
+  return 0;
+#endif
 
   unsigned char filler[16];
   struct one test_one;

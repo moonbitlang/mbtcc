@@ -1,4 +1,7 @@
 ///|
+using @lexer {type Token}
+
+///|
 pub struct Context {
   llvm_ctx : @IR.Context
   llvm_mod : @IR.Module
@@ -8,6 +11,8 @@ pub struct Context {
   globals : Map[String, @IR.GlobalVariable]
   global_types : Map[String, @parser.CType]
   global_inits : Array[(String, @parser.CType, @parser.Initializer)]
+  constructors : Array[String]
+  destructors : Array[String]
   mut global_init_func : @IR.Function?
   mut global_init_emitted : Bool
   prog : @parser.Program
@@ -50,6 +55,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let global_types = Map::new()
   let global_inits : Array[(String, @parser.CType, @parser.Initializer)] =
     Array::new()
+  let constructors : Array[String] = Array::new()
+  let destructors : Array[String] = Array::new()
   let global_init_func = None
   let global_init_emitted = false
   let var_env = @env.Env::new()
@@ -73,6 +80,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     globals,
     global_types,
     global_inits,
+    constructors,
+    destructors,
     global_init_func,
     global_init_emitted,
     prog,
@@ -124,7 +133,9 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
     Some(f) => f
     None => {
       // No main call was inserted; skip if there are no inits.
-      if self.global_inits.length() == 0 {
+      if self.global_inits.length() == 0 &&
+        self.constructors.length() == 0 &&
+        self.destructors.length() == 0 {
         return
       }
       self.ensure_global_init_func()
@@ -182,10 +193,57 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
       None => ()
     }
   }
+  if self.constructors.length() > 0 || self.destructors.length() > 0 {
+    let void_ty = self.llvm_ctx.getVoidTy()
+    for name in self.constructors {
+      let f = self.get_or_declare_func(name, void_ty, Array::new())
+      let args : Array[&@IR.Value] = Array::new()
+      self.builder.createCall(f, args) |> ignore
+    }
+    if self.destructors.length() > 0 {
+      let int_ty = self.llvm_ctx.getInt32Ty()
+      let ptr_ty = self.llvm_ctx.getPtrTy()
+      let atexit_params : Array[&@IR.Type] = Array::new()
+      atexit_params.push(ptr_ty)
+      let atexit_fn = self.get_or_declare_func(
+        "atexit",
+        int_ty,
+        atexit_params,
+      )
+      for name in self.destructors {
+        let f = self.get_or_declare_func(name, void_ty, Array::new())
+        let fptr : &@IR.Value = f
+        let args : Array[&@IR.Value] = Array::new()
+        args.push(fptr)
+        self.builder.createCall(atexit_fn, args) |> ignore
+      }
+    }
+  }
   self.builder.createRetVoid() |> ignore
   self.exit_scope()
   self.current_func = saved_func
   self.current_ret_ty = saved_ret
+}
+
+///|
+fn Context::get_or_declare_func(
+  self : Context,
+  name : String,
+  ret_ty : &@IR.Type,
+  param_types : Array[&@IR.Type],
+  is_vararg~ : Bool = false,
+) -> @IR.Function {
+  match self.llvm_mod.getFunction(name) {
+    Some(f) => f
+    None => {
+      let fty = self.llvm_ctx.getFunctionType(
+        ret_ty,
+        param_types,
+        isVarArg=is_vararg,
+      )
+      self.llvm_mod.addFunction(fty, name)
+    }
+  }
 }
 
 ///|
@@ -339,9 +397,62 @@ pub fn Context::emit_external_decl(
   self : Context,
   ext_decl : @parser.ExternalDeclaration,
 ) -> Unit raise {
+  fn has_marker(
+    tokens : ArrayView[Token],
+    name : String,
+  ) -> Bool {
+    for tok in tokens {
+      match tok.kind {
+        Identifier(id) if id == name => return true
+        _ => ()
+      }
+    }
+    false
+  }
+  fn push_unique(list : Array[String], name : String) -> Unit {
+    for v in list {
+      if v == name {
+        return
+      }
+    }
+    list.push(name)
+  }
+  let has_ctor =
+    has_marker(ext_decl.tokens, "constructor") ||
+    has_marker(ext_decl.tokens, "__constructor__")
+  let has_dtor =
+    has_marker(ext_decl.tokens, "destructor") ||
+    has_marker(ext_decl.tokens, "__destructor__")
   match ext_decl.kind {
-    Declaration(decl) => self.emit_global_decl(decl)
-    FunctionDefinition(func_def) => self.emit_function_def(func_def)
+    Declaration(decl) => {
+      if has_ctor || has_dtor {
+        match decl.kind {
+          VariableDeclaration(
+            { dataKind: Function(_), .. },
+            is_static~,
+            is_extern~,
+            is_register~,
+            is_thread_local~,
+            name,
+            _,
+          ) => {
+            ignore(is_static)
+            ignore(is_extern)
+            ignore(is_register)
+            ignore(is_thread_local)
+            if has_ctor { push_unique(self.constructors, name) }
+            if has_dtor { push_unique(self.destructors, name) }
+          }
+          _ => ()
+        }
+      }
+      self.emit_global_decl(decl)
+    }
+    FunctionDefinition(func_def) => {
+      if has_ctor { push_unique(self.constructors, func_def.name) }
+      if has_dtor { push_unique(self.destructors, func_def.name) }
+      self.emit_function_def(func_def)
+    }
   }
 }
 

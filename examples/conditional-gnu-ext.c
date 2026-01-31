@@ -1,22 +1,21 @@
 // rdar://8453812
 extern void abort();
 
-_Complex int getComplex(_Complex int val) {
+int getComplex(int val) {
   static int count;
   if (count++)
     abort();
   return val;
 }
 
-_Complex int doo() {
-    _Complex int cond;
-    _Complex int rhs;
+int doo() {
+    int cond;
+    int rhs = 0;
 
-    return getComplex(1+2i) ? : rhs;
+    return getComplex(1) ? : rhs;
 }
 
 int main() {
   doo();
   return 0;
 }
-

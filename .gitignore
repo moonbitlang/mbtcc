@@ -11,6 +11,7 @@ Agents2.md
 _build/
 _build
 target
-
+fred.txt
 .gemini/
 gha-creds-*.json
+sqlite/

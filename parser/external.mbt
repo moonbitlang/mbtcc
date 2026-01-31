@@ -224,7 +224,14 @@ pub fn Context::parse_external_declaration(
   let start_offset = init_tokens.start_offset()
 
   // Parse declaration without consuming the semicolon
-  let (decls, rest) = self.parse_declaration(tokens, skip_semi=false)
+  let (decls, rest0) = self.parse_declaration(tokens, skip_semi=false)
+  let rest = loop rest0 {
+    [{ kind: Identifier("constructor"), .. }, .. rest2] => continue rest2
+    [{ kind: Identifier("__constructor__"), .. }, .. rest2] => continue rest2
+    [{ kind: Identifier("destructor"), .. }, .. rest2] => continue rest2
+    [{ kind: Identifier("__destructor__"), .. }, .. rest2] => continue rest2
+    rest2 => break rest2
+  }
 
   // Check if followed by '{' (function definition) or ';' (declaration)
   if rest is [{ kind: Bracket('{'), .. }, ..] {
@@ -302,9 +309,9 @@ pub fn Context::parse_external_declaration(
     return ([ext_decl], rest)
   } else if rest is [{ kind: Semi, .. }, .. rest] {
     // This is a normal declaration, consume the semicolon
+    let ext_tokens = init_tokens[0:rest.start_offset() - start_offset]
     let ext_decls = decls.map(fn(decl) {
-      let decl_tokens = decl.tokens
-      ExternalDeclaration::{ kind: Declaration(decl), tokens: decl_tokens }
+      ExternalDeclaration::{ kind: Declaration(decl), tokens: ext_tokens }
     })
     return (ext_decls, rest)
   } else {

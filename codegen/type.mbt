@@ -186,6 +186,18 @@ fn Context::cast_value_to_ctype(
   from_ctype : @parser.CType,
   to_ctype : @parser.CType,
 ) -> &@IR.Value raise {
+  // Array/function expressions decay to pointers before casting.
+  match from_ctype.dataKind {
+    Array(elem, _) => {
+      let decayed = @parser.CType::{ ..from_ctype, dataKind: Ptr(elem) }
+      return self.cast_value_to_ctype(val, decayed, to_ctype)
+    }
+    Function(_) => {
+      let decayed = @parser.CType::{ ..from_ctype, dataKind: Ptr(from_ctype) }
+      return self.cast_value_to_ctype(val, decayed, to_ctype)
+    }
+    _ => ()
+  }
   if from_ctype == to_ctype {
     return val
   }

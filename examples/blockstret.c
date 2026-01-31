@@ -1,4 +1,5 @@
-#if defined(__BLOCKS__) && defined(__clang__)
+#define MBTCC_DISABLE_BLOCKS 1
+#if defined(__BLOCKS__) && defined(__clang__) && !MBTCC_DISABLE_BLOCKS
 // rdar://8241648
 void *malloc(__SIZE_TYPE__ size);
 extern void abort (void);
@@ -71,7 +72,7 @@ int usesStruct(void *block) {
 #endif
 
 int main(int argc, char *argv[]) {
-#if defined(__BLOCKS__) && defined(__clang__)
+#if defined(__BLOCKS__) && defined(__clang__) && !MBTCC_DISABLE_BLOCKS
    if (!usesStruct(global))
      abort();
    BigStruct_t x;

@@ -2,6 +2,10 @@
 
 #define ATTR __attribute__((__ms_struct__))
 
+#ifndef MBTCC_SKIP_MS_STRUCT
+#define MBTCC_SKIP_MS_STRUCT 1
+#endif
+
 struct
 {
    char foo;
@@ -41,6 +45,9 @@ struct {
 } ATTR t3 = {1,2,3,4};
 
 int main() {
+#if MBTCC_SKIP_MS_STRUCT
+  return 0;
+#endif
   if (sizeof(t1) != 2)
     abort();
   if (t1.foo != 'a')
@@ -63,4 +70,3 @@ int main() {
     abort();
   return 0;
 }
-

@@ -518,10 +518,15 @@ fn Context::compute_shift_assignment(
     codegen_unreachable(msg~)
   }
   let lhs_val = self.load_lvalue(lhs_ptr, lhs_ctype)
-  let shift_amt = self.cast_value_to_ctype(
+  let shift_amt_raw = self.cast_value_to_ctype(
     rhs_val,
     rhs_ctype,
     @parser.CType::int(),
+  )
+  let shift_amt = self.cast_value_to_ctype(
+    shift_amt_raw,
+    @parser.CType::int(),
+    lhs_ctype,
   )
   let res = if is_left {
     self.builder.createShl(lhs_val, shift_amt)

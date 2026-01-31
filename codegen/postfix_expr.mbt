@@ -416,6 +416,39 @@ fn Context::emit_func_call(
       self.builder.createStore(src_val, dst_ptr) |> ignore
       return self.llvm_ctx.getConstInt32(0)
     }
+    PrimExpr({ kind: Ident(name), .. }) if name == "__builtin_clzll" => {
+      guard arg_exprs.length() >= 1 else {
+        raise SemanticError("__builtin_clzll requires one argument")
+      }
+      let arg_expr = arg_exprs[0]
+      let raw = self.emit_assign_expr(arg_expr)
+      let arg64 = self.cast_value_to_ctype(
+        raw,
+        arg_expr.ctype,
+        @parser.CType::ulonglong(),
+      )
+      let i64_ty = self.llvm_ctx.getInt64Ty()
+      let i1_ty = self.llvm_ctx.getInt1Ty()
+      let fty = self.llvm_ctx.getFunctionType(
+        i64_ty,
+        [i64_ty, i1_ty],
+        isVarArg=false,
+      )
+      let fname = "llvm.ctlz.i64"
+      let func = match self.llvm_mod.getFunction(fname) {
+        Some(f) => f
+        None => self.llvm_mod.addFunction(fty, fname)
+      }
+      let args : Array[&@IR.Value] = Array::new()
+      args.push(arg64)
+      args.push(self.llvm_ctx.getConstFalse())
+      let res = (self.builder.createCall(func, args) : &@IR.Value)
+      return self.cast_value_to_ctype(
+        res,
+        @parser.CType::ulonglong(),
+        @parser.CType::int(),
+      )
+    }
     _ => ()
   }
   let func_value = self.emit_postfix_expr(func_expr)

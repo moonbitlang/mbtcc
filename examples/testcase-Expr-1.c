@@ -14,7 +14,7 @@ int main() {
   printf("%" PRId32, arr[1]);
   if (0)
     return 1;
-  if (arr[1] != -5)
+  if (arr[1] != 1)
     return 2;
   if (arr[2] != 2)
     return 3;

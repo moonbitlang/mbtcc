@@ -10,6 +10,7 @@ void free(void *ptr);
 
 int atoi(const char *s);
 long atol(const char *s);
+double atof(const char *s);
 
 void exit(int status);
 int atexit(void (*func)(void));
