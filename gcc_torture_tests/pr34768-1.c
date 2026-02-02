@@ -1,0 +1,28 @@
+#include <stdlib.h>
+
+int x;
+
+void __attribute__((noinline)) foo (void)
+{
+  x = -x;
+}
+void __attribute__((const,noinline)) bar (void)
+{
+}
+
+__attribute__((noinline))
+int test (int c)
+{
+  int tmp = x;
+  (c ? foo : bar) ();
+  return tmp + x;
+}
+
+extern void abort (void);
+int main()
+{
+  x = 1;
+  if (test (1) != 0)
+    abort ();
+  return 0;
+}

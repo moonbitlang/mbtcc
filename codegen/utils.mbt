@@ -58,6 +58,34 @@ fn Context::const_zero_value(
   self.const_zero_constant(ty)
 }
 
+///| Create a global C string literal pointer (handles embedded NULs).
+fn Context::create_cstring_literal(
+  self : Context,
+  value : String,
+) -> &@IR.Value raise {
+  let len = value.length() + 1
+  let arr_ty = self.llvm_ctx.getArrayType(self.llvm_ctx.getInt8Ty(), len)
+  let name = "__mbtcc_str." + self.string_literal_counter.to_string()
+  self.string_literal_counter += 1
+  let gv = self.llvm_mod.addGlobalVariable(
+    arr_ty,
+    name,
+    linkage?=Some(InternalLinkage),
+  )
+  let const_ref = @unsafe.llvm_const_string_in_context(
+    self.llvm_ctx.0,
+    value,
+    false,
+  )
+  @unsafe.llvm_set_initializer(gv.getValueRef(), const_ref)
+  @unsafe.llvm_set_global_constant(gv.getValueRef(), true)
+  let zero = self.llvm_ctx.getConstInt32(0)
+  let indices : Array[&@IR.Value] = Array::new()
+  indices.push(zero)
+  indices.push(zero)
+  (self.builder.createGEP(gv, arr_ty, indices) : &@IR.Value)
+}
+
 ///|
 fn Context::load_value(
   self : Context,

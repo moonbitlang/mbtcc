@@ -17,6 +17,21 @@ fn Context::emit_assignment(
   assign_op : @parser.AssignOp,
   right : @parser.AssignExpr,
 ) -> &@IR.Value raise {
+  fn try_get_lvalue_ptr_from_assign(
+    self : Context,
+    expr : @parser.AssignExpr,
+  ) -> (&@IR.Value, @parser.CType)? {
+    match expr.kind {
+      Conditional(cond_expr) => {
+        let unary = unwrap_unary_from_conditional(cond_expr) catch {
+          _ => return None
+        }
+        let res = self.get_lvalue_ptr_from_unary(unary) catch { _ => return None }
+        Some(res)
+      }
+      _ => None
+    }
+  }
   fn try_get_bitfield_access(
     self : Context,
     left : @parser.UnaryExpr,
@@ -135,6 +150,21 @@ fn Context::emit_assignment(
     None => ()
   }
   let (lhs_ptr, lhs_ctype) = self.get_lvalue_ptr_from_unary(left)
+  if assign_op == Assign && is_aggregate_type(lhs_ctype) {
+    match try_get_lvalue_ptr_from_assign(self, right) {
+      Some((rhs_ptr, _)) => {
+        self.store_aggregate_value(lhs_ptr, lhs_ctype, rhs_ptr)
+        return self.load_value(lhs_ptr, lhs_ctype)
+      }
+      None => {
+        let rhs_val = self.emit_assign_expr(right)
+        let rhs_ctype = right.ctype
+        let new_val = self.cast_value_to_ctype(rhs_val, rhs_ctype, lhs_ctype)
+        self.store_aggregate_value(lhs_ptr, lhs_ctype, new_val)
+        return new_val
+      }
+    }
+  }
   let rhs_val = self.emit_assign_expr(right)
   let rhs_ctype = right.ctype
   let new_val = match assign_op {

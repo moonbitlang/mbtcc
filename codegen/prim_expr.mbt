@@ -17,7 +17,7 @@ fn Context::emit_prim_expr(
     Double(f) => llvm_ctx.getConstDouble(f)
     Strings(strs) => {
       let full_str = strs.join("")
-      self.builder.createGlobalString(full_str)
+      self.create_cstring_literal(full_str)
     }
     CompoundLiteral(ty, init) => {
       let ptr = self.emit_compound_literal_ptr(ty, init)
@@ -74,7 +74,7 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
       raise SemanticError("`__func__` used outside of a function")
     }
     let func_name = func.getName()
-    return self.builder.createGlobalString(func_name)
+    return self.create_cstring_literal(func_name)
   }
   match self.var_env.get(name) {
     Some(val) =>

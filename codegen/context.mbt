@@ -17,6 +17,7 @@ pub struct Context {
   mut global_init_emitted : Bool
   mut in_global_init : Bool
   mut compound_literal_counter : Int
+  mut string_literal_counter : Int
   prog : @parser.Program
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
@@ -49,7 +50,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let { source_file, prog, .. } = ctx
   let llvm_ctx = @IR.Context::new()
   let llvm_mod = llvm_ctx.addModule(source_file)
-  llvm_mod.setDefaultDataLayout()
+  set_module_target_layout(llvm_mod)
   let builder = llvm_ctx.createBuilder()
   let func_decls = Map::new()
   let func_defs = Map::new()
@@ -63,6 +64,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let global_init_emitted = false
   let in_global_init = false
   let compound_literal_counter = 0
+  let string_literal_counter = 0
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
   let tag_env = @env.Env::new()
@@ -90,6 +92,7 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     global_init_emitted,
     in_global_init,
     compound_literal_counter,
+    string_literal_counter,
     prog,
     var_env,
     var_types,
@@ -103,6 +106,19 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     labels,
     label_list,
     label_global,
+  }
+}
+
+fn set_module_target_layout(llvm_mod : @IR.Module) -> Unit {
+  let triple = @unsafe.llvm_get_default_target_triple()
+  if triple.length() > 0 {
+    llvm_mod.setTargetTriple(triple)
+  }
+  let layout = @unsafe.llvm_get_default_target_data_layout()
+  if layout.length() > 0 {
+    llvm_mod.setDataLayout(layout)
+  } else {
+    llvm_mod.setDefaultDataLayout()
   }
 }
 
