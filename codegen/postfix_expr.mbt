@@ -32,8 +32,7 @@ fn Context::emit_postfix_expr(
           (self.builder.createGEP(elem_ptr, arr_llvm_ty, indices) : &@IR.Value)
         }
         _ => {
-          let llvm_ty = self.ctype_to_llvm_type(elem_ty)
-          (self.builder.createLoad(llvm_ty, elem_ptr) : &@IR.Value)
+          self.load_value(elem_ptr, elem_ty)
         }
       }
     }
@@ -46,8 +45,7 @@ fn Context::emit_postfix_expr(
           match (acc.bit_width, acc.bit_offset) {
             (Some(w), Some(off)) => {
               let container_ty = acc.container_ctype.unwrap()
-              let llvm_cty = self.ctype_to_llvm_type(container_ty)
-              let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+              let raw = self.load_value(acc.ptr, container_ty)
               let shift = self.const_int_for_ctype(container_ty, off)
               let shifted = self.builder.createLShr(raw, shift)
               let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
@@ -76,8 +74,7 @@ fn Context::emit_postfix_expr(
                   (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
                 }
                 _ => {
-                  let llvm_ty = self.ctype_to_llvm_type(acc.ctype)
-                  (self.builder.createLoad(llvm_ty, acc.ptr) : &@IR.Value)
+                  self.load_value(acc.ptr, acc.ctype)
                 }
               }
           }
@@ -91,8 +88,7 @@ fn Context::emit_postfix_expr(
           match (acc.bit_width, acc.bit_offset) {
             (Some(w), Some(off)) => {
               let container_ty = acc.container_ctype.unwrap()
-              let llvm_cty = self.ctype_to_llvm_type(container_ty)
-              let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+              let raw = self.load_value(acc.ptr, container_ty)
               let shift = self.const_int_for_ctype(container_ty, off)
               let shifted = self.builder.createLShr(raw, shift)
               let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
@@ -120,8 +116,7 @@ fn Context::emit_postfix_expr(
                   (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
                 }
                 _ => {
-                  let llvm_ty = self.ctype_to_llvm_type(acc.ctype)
-                  (self.builder.createLoad(llvm_ty, acc.ptr) : &@IR.Value)
+                  self.load_value(acc.ptr, acc.ctype)
                 }
               }
           }
@@ -137,8 +132,7 @@ fn Context::emit_postfix_expr(
       match (acc.bit_width, acc.bit_offset) {
         (Some(w), Some(off)) => {
           let container_ty = acc.container_ctype.unwrap()
-          let llvm_cty = self.ctype_to_llvm_type(container_ty)
-          let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+          let raw = self.load_value(acc.ptr, container_ty)
           let shift = self.const_int_for_ctype(container_ty, off)
           let shifted = self.builder.createLShr(raw, shift)
           let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
@@ -166,7 +160,7 @@ fn Context::emit_postfix_expr(
               (self.builder.createGEP(acc.ptr, arr_llvm_ty, arr_indices) : &@IR.Value)
             }
             _ =>
-              (self.builder.createLoad(self.ctype_to_llvm_type(acc.ctype), acc.ptr) : &@IR.Value)
+              self.load_value(acc.ptr, acc.ctype)
           }
       }
     }

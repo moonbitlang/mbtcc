@@ -124,10 +124,11 @@ def _run_step(cmd: str, timeout: int, verbose: bool) -> CmdResult:
 
 
 def compile_and_run_clang_c(
-    c_file: str, std_exe: str, timeout: int, verbose: bool
+    c_file: str, std_exe: str, timeout: int, verbose: bool, include_dirs: List[str]
 ) -> Tuple[bool, str, str, str]:
     # 返回 (success, out, err, reason)
-    cmd = f'clang "{c_file}" -o "{std_exe}" -lm'
+    inc_flags = " ".join([f'-I"{d}"' for d in include_dirs])
+    cmd = f'clang "{c_file}" {inc_flags} -o "{std_exe}" -lm'
     r = _run_step(cmd, timeout=timeout, verbose=verbose)
     if r.returncode != 0:
         return False, "", r.stderr, FailureReason.CLANG_COMPILE_ERROR
@@ -138,10 +139,20 @@ def compile_and_run_clang_c(
 
 
 def compile_and_run_mbtcc_ll(
-    c_file: str, ll_file: str, mbt_exe: str, timeout: int, verbose: bool
+    c_file: str,
+    ll_file: str,
+    mbt_exe: str,
+    timeout: int,
+    verbose: bool,
+    include_dirs: List[str],
 ) -> Tuple[bool, str, str, str]:
     # 1) moon -> .ll
-    r = _run_step(f'moon run main -- "{c_file}" -o "{ll_file}"', timeout=timeout, verbose=verbose)
+    inc_flags = " ".join([f'-I"{d}"' for d in include_dirs])
+    r = _run_step(
+        f'moon run main -- "{c_file}" {inc_flags} -o "{ll_file}"',
+        timeout=timeout,
+        verbose=verbose,
+    )
     if r.returncode != 0:
         return False, r.stdout, r.stderr, FailureReason.MOON_COMPILE_ERROR
     if (not os.path.exists(ll_file)) or os.path.getsize(ll_file) == 0:
@@ -183,6 +194,7 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true", help="保留构建产物（默认会保留在 build-dir 中，不做清理）")
     ap.add_argument("--strict", action="store_true", help="严格比较输出（不做 strip，只统一换行符）")
     ap.add_argument("--verbose", action="store_true", help="输出每一步执行的命令与耗时")
+    ap.add_argument("-I", dest="include_dirs", action="append", default=[], help="额外头文件搜索目录（可重复）")
     args = ap.parse_args()
 
     check_tool_or_exit("clang")
@@ -235,7 +247,7 @@ def main() -> int:
             print(f"  mbt_exe: {mbt_exe}")
 
         ok1, out1, err1, reason1 = compile_and_run_clang_c(
-            c_file, std_exe, timeout=args.timeout, verbose=args.verbose
+            c_file, std_exe, timeout=args.timeout, verbose=args.verbose, include_dirs=args.include_dirs
         )
         if not ok1:
             failures.append((c_file, reason1, err1, ""))
@@ -243,7 +255,7 @@ def main() -> int:
             continue
 
         ok2, out2, err2, reason2 = compile_and_run_mbtcc_ll(
-            c_file, ll_file, mbt_exe, timeout=args.timeout, verbose=args.verbose
+            c_file, ll_file, mbt_exe, timeout=args.timeout, verbose=args.verbose, include_dirs=args.include_dirs
         )
         if not ok2:
             failures.append((c_file, reason2, err2, ""))
@@ -286,4 +298,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

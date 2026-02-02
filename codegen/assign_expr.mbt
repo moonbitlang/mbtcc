@@ -61,7 +61,7 @@ fn Context::emit_assignment(
   ) -> &@IR.Value raise {
     let container_ty = acc.container_ctype.unwrap()
     let llvm_cty = self.ctype_to_llvm_type(container_ty)
-    let raw = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+    let raw = self.load_value(acc.ptr, container_ty)
     let off = acc.bit_offset.unwrap()
     let w = acc.bit_width.unwrap()
     let shift = self.const_int_for_ctype(container_ty, off)
@@ -87,7 +87,7 @@ fn Context::emit_assignment(
   ) -> &@IR.Value raise {
     let container_ty = acc.container_ctype.unwrap()
     let llvm_cty = self.ctype_to_llvm_type(container_ty)
-    let old = (self.builder.createLoad(llvm_cty, acc.ptr) : &@IR.Value)
+    let old = self.load_value(acc.ptr, container_ty)
     let w = acc.bit_width.unwrap()
     let off = acc.bit_offset.unwrap()
     let mask_val = if w >= 64 { -1 } else { (1 << w) - 1 }
@@ -100,7 +100,7 @@ fn Context::emit_assignment(
     let vshift = self.builder.createShl(v2, shift)
     let cleared = self.builder.createAnd(old, self.builder.createNot(field_mask))
     let merged = self.builder.createOr(cleared, vshift)
-    self.builder.createStore(merged, acc.ptr) |> ignore
+    self.store_value(merged, acc.ptr, container_ty)
     v0
   }
   match try_get_bitfield_access(self, left) {
@@ -191,7 +191,7 @@ fn Context::emit_assignment(
         lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, '|',
       )
   }
-  self.builder.createStore(new_val, lhs_ptr) |> ignore
+  self.store_value(new_val, lhs_ptr, lhs_ctype)
   new_val
 }
 
@@ -201,8 +201,7 @@ fn Context::load_lvalue(
   ptr : &@IR.Value,
   ctype : @parser.CType,
 ) -> &@IR.Value raise {
-  let llvm_ty = self.ctype_to_llvm_type(ctype)
-  (self.builder.createLoad(llvm_ty, ptr) : &@IR.Value)
+  self.load_value(ptr, ctype)
 }
 
 ///|
@@ -463,7 +462,7 @@ fn Context::apply_inc_dec(
         }
       }
   }
-  let _ = self.builder.createStore(updated_val, lvalue_ptr)
+  self.store_value(updated_val, lvalue_ptr, ctype)
   (current_val, updated_val)
 }
 

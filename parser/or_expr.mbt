@@ -164,9 +164,17 @@ pub fn Context::parse_inclusive_or_expr(
         let msg = "Invalid right operand to '|': '\{right_xor_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
+      let common = match or_expr.ctype.common_type(right_xor_expr.ctype) {
+        Some(t) => t
+        None => {
+          let msg =
+            "Invalid operands to '|': '\{or_expr.ctype}' and '\{right_xor_expr.ctype}' are not compatible"
+          raise ParseError(op_tok, msg)
+        }
+      }
       or_expr = InclusiveOrExpr::{
         kind: InclusiveOrExpr(or_expr, right_xor_expr),
-        ctype: or_expr.ctype,
+        ctype: common,
         tokens: init_toks[0:rest.start_offset() - start_offset],
       }
       continue rest

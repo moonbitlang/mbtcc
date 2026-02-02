@@ -164,9 +164,17 @@ pub fn Context::parse_exclusive_or_expr(
         let msg = "Invalid right operand to '^': '\{right_and_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
+      let common = match xor_expr.ctype.common_type(right_and_expr.ctype) {
+        Some(t) => t
+        None => {
+          let msg =
+            "Invalid operands to '^': '\{xor_expr.ctype}' and '\{right_and_expr.ctype}' are not compatible"
+          raise ParseError(op_tok, msg)
+        }
+      }
       xor_expr = ExclusiveOrExpr::{
         kind: ExclusiveOrExpr(xor_expr, right_and_expr),
-        ctype: xor_expr.ctype,
+        ctype: common,
         tokens: init_toks[0:rest.start_offset() - start_offset],
       }
       continue rest

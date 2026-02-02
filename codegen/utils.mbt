@@ -59,6 +59,33 @@ fn Context::const_zero_value(
 }
 
 ///|
+fn Context::load_value(
+  self : Context,
+  ptr : &@IR.Value,
+  ctype : @parser.CType,
+) -> &@IR.Value raise {
+  let llvm_ty = self.ctype_to_llvm_type(ctype)
+  let inst = (self.builder.createLoad(llvm_ty, ptr) : &@IR.Value)
+  if ctype.is_volatile {
+    @unsafe.llvm_set_volatile(inst.getValueRef(), true)
+  }
+  inst
+}
+
+///|
+fn Context::store_value(
+  self : Context,
+  val : &@IR.Value,
+  ptr : &@IR.Value,
+  ctype : @parser.CType,
+) -> Unit raise {
+  let inst = self.builder.createStore(val, ptr)
+  if ctype.is_volatile {
+    @unsafe.llvm_set_volatile(inst.getValueRef(), true)
+  }
+}
+
+///|
 fn Context::materialize_if_const(
   self : Context,
   val : &@IR.Value,

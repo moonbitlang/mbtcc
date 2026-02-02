@@ -209,6 +209,10 @@ fn Context::cast_value_to_ctype(
   if from_ctype == to_ctype {
     return val
   }
+  // Ignore qualifiers when data kind is identical (e.g. union vs volatile union).
+  if from_ctype.dataKind == to_ctype.dataKind {
+    return val
+  }
   let from_kind = from_ctype.dataKind
   let to_kind = to_ctype.dataKind
   if to_kind is Bool {

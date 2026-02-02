@@ -164,9 +164,17 @@ pub fn Context::parse_and_expr(
         let msg = "Invalid right operand to '&': '\{right_equality_expr.ctype}' is not an integer type"
         raise ParseError(op_tok, msg)
       }
+      let common = match and_expr.ctype.common_type(right_equality_expr.ctype) {
+        Some(t) => t
+        None => {
+          let msg =
+            "Invalid operands to '&': '\{and_expr.ctype}' and '\{right_equality_expr.ctype}' are not compatible"
+          raise ParseError(op_tok, msg)
+        }
+      }
       and_expr = AndExpr::{
         kind: AndExpr(and_expr, right_equality_expr),
-        ctype: and_expr.ctype,
+        ctype: common,
         tokens: init_toks[0:rest.start_offset() - start_offset],
       }
       continue rest

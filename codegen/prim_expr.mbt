@@ -24,8 +24,7 @@ fn Context::emit_prim_expr(
       match ty.dataKind {
         Array(_, _) | Struct(_, _) | Union(_, _) => ptr
         _ => {
-          let llvm_ty = self.ctype_to_llvm_type(ty)
-          (self.builder.createLoad(llvm_ty, ptr) : &@IR.Value)
+          self.load_value(ptr, ty)
         }
       }
     }
@@ -93,8 +92,7 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
               (self.builder.createGEP(val, arr_llvm_ty, indices) : &@IR.Value)
             }
             _ => {
-              let llvm_ty = self.ctype_to_llvm_type(cty)
-              (self.builder.createLoad(llvm_ty, val) : &@IR.Value)
+              self.load_value(val, cty)
             }
           }
         None => val // Function parameters or other direct values
@@ -115,8 +113,7 @@ fn Context::get_value_by_name(self : Self, name : String) -> &@IR.Value raise {
                   (self.builder.createGEP(gptr, arr_llvm_ty, indices) : &@IR.Value)
                 }
                 _ => {
-                  let llvm_ty = self.ctype_to_llvm_type(cty)
-                  (self.builder.createLoad(llvm_ty, gptr) : &@IR.Value)
+                  self.load_value(gptr, cty)
                 }
               }
             None => gptr

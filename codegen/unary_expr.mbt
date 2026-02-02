@@ -57,8 +57,7 @@ fn Context::emit_unary_expr(
           (self.builder.createGEP(ptr_val, arr_llvm_ty, indices) : &@IR.Value)
         }
         _ => {
-          let llvm_ty = self.ctype_to_llvm_type(expr.ctype)
-          (self.builder.createLoad(llvm_ty, ptr_val) : &@IR.Value)
+          self.load_value(ptr_val, expr.ctype)
         }
       }
     }

@@ -174,6 +174,9 @@ let pragma_once : Set[String] = Set::new()
 let line_offset : Ref[Int] = @ref.new(0)
 
 ///|
+let include_dirs_extra : Ref[Array[String]] = @ref.new(Array::new())
+
+///|
 fn find_substring(hay : String, needle : String) -> Int? {
   if needle.length() == 0 {
     return Some(0)
@@ -249,6 +252,11 @@ pub fn preprocess_root(ctx : @lexer.Context) -> @lexer.Context raise PreprecessE
 }
 
 ///|
+pub fn set_include_dirs(dirs : Array[String]) -> Unit {
+  include_dirs_extra.val = dirs
+}
+
+///|
 pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError {
   let { code, source_file, err_toks, .. } = ctx
   let dir = path_dirname(source_file)
@@ -317,15 +325,30 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       .. rest,
     ] => {
       let fpath = path_join(dir, f)
-      if pragma_once.contains(fpath) {
+      let mut include_code : String? = None
+      let mut used_path = ""
+      if @fs.path_exists(fpath) {
+        include_code = Some(@fs.read_file_to_string(fpath) catch { _ => "" })
+        used_path = fpath
+      } else {
+        for d in include_dirs_extra.val {
+          let cand = path_join(d, f)
+          if @fs.path_exists(cand) {
+            include_code = Some(@fs.read_file_to_string(cand) catch { _ => "" })
+            used_path = cand
+            break
+          }
+        }
+      }
+      guard include_code is Some(code2) else {
+        raise InvalidIncludePath(fpath)
+      }
+      if pragma_once.contains(used_path) {
         continue skip_line(line, rest)
       }
-      let include_code = @fs.read_file_to_string(fpath) catch {
-        _ => raise InvalidIncludePath(fpath)
-      }
       let include_ctx = @lexer.Context::new(
-        code=include_code,
-        source_file=fpath,
+        code=include_code.unwrap(),
+        source_file=used_path,
       )
       let _ = include_ctx.tokenize()
       let include_ctx = preprocess(include_ctx)
@@ -357,10 +380,16 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
       // search include dirs
       let include_dirs : Array[String] = Array::new()
       include_dirs.push(dir)
+      for d in include_dirs_extra.val {
+        include_dirs.push(d)
+      }
       include_dirs.push(path_join(dir, "headers"))
       match @env.current_dir() {
         Some(cwd) => {
           include_dirs.push(cwd)
+          for d in include_dirs_extra.val {
+            include_dirs.push(d)
+          }
           include_dirs.push(path_join(cwd, "headers"))
         }
         None => ()

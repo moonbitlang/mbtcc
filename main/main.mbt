@@ -27,6 +27,7 @@ fn main_err() -> Unit raise {
     #|  --print-tokens, -toks      Stop after lexing phase and print tokens.
     #|  --print-ast, -ast          Stop after parsing phase and print AST.
     #|  --Expand, -E               Run the preprocessor only.
+    #|  -I <dir>                   Add include search path.
   let other_options : Array[String] = Array::new()
   let output : Ref[String] = @ref.new("")
   let print_tokens : Ref[Bool] = @ref.new(false)
@@ -48,8 +49,29 @@ fn main_err() -> Unit raise {
     ),
     ("--output", "-o", Set_string(output), "Specify output file name."),
   ]
-  let args = @env.args()[1:].to_array()
-  @ArgParser.parse(spec, opt => other_options.push(opt), usage, args)
+  let include_dirs : Array[String] = Array::new()
+  let raw_args = @env.args()[1:].to_array()
+  let filtered_args : Array[String] = Array::new()
+  let mut i = 0
+  while i < raw_args.length() {
+    let opt = raw_args[i]
+    if opt.has_prefix("-I") {
+      if opt.length() > 2 {
+        include_dirs.push(opt.substring(start=2, end=opt.length()))
+        i = i + 1
+      } else {
+        if i + 1 >= raw_args.length() {
+          raise InValidOption("Missing path after -I.")
+        }
+        include_dirs.push(raw_args[i + 1])
+        i = i + 2
+      }
+    } else {
+      filtered_args.push(opt)
+      i = i + 1
+    }
+  }
+  @ArgParser.parse(spec, opt => other_options.push(opt), usage, filtered_args)
   let files : Array[String] = Array::new()
   let print_tokens = print_tokens.val
   // let print_ast = print_ast.val
@@ -63,6 +85,7 @@ fn main_err() -> Unit raise {
   if files.length() == 0 {
     raise NoInputFiles("No input files specified.")
   }
+  @preprocess.set_include_dirs(include_dirs)
   for source_file in files {
     let code = @fs.read_file_to_string(source_file)
     let lexer_ctx = @lexer.Context::new(code~, source_file~)
