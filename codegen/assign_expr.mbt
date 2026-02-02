@@ -138,7 +138,18 @@ fn Context::emit_assignment(
   let rhs_val = self.emit_assign_expr(right)
   let rhs_ctype = right.ctype
   let new_val = match assign_op {
-    Assign => self.cast_value_to_ctype(rhs_val, rhs_ctype, lhs_ctype)
+    Assign => {
+      match lhs_ctype.dataKind {
+        Array(_, _) => {
+          let tok = left.tokens[0]
+          println(
+            "Array assignment at \{tok.source_file}:\{tok.line} (\{tok.raw})",
+          )
+        }
+        _ => ()
+      }
+      self.cast_value_to_ctype(rhs_val, rhs_ctype, lhs_ctype)
+    }
     AddAssign =>
       self.compute_add_sub_assignment(
         lhs_ptr, lhs_ctype, rhs_val, rhs_ctype, true,

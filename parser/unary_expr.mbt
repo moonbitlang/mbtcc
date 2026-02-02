@@ -616,7 +616,10 @@ pub fn UnaryExpr::eval_as_double(self : Self) -> Double raise ParseError {
 pub fn UnaryExpr::is_assignable(self : Self) -> Bool {
   match self.kind {
     PostfixExpr(postfix_expr) => postfix_expr.is_assignable()
-    Deref(_) => !self.ctype.is_const
+    Deref(_) =>
+      !self.ctype.is_const &&
+      !(self.ctype.dataKind is Array(_, _) || self.ctype.dataKind
+        is Function(_, _, ..))
     PreInc(_) | PreDec(_) => false
     AddrOf(_)
     | LabelAddr(_, _)

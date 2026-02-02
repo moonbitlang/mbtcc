@@ -190,6 +190,9 @@ pub fn Context::parse_assign_expr(
     e.kind is MultiExpr(e) &&
     e.kind is CastExpr(e) &&
     e.kind is UnaryExpr(unary_expr) else {
+    println(
+      "assign lhs not unary at \{rest[0].source_file}:\{rest[0].line}: \{conditional_expr.to_string(color=false)}",
+    )
     raise ParseError(
       rest[0],
       "Left-hand side of assignment must be a modifiable lvalue",
@@ -219,7 +222,7 @@ pub fn Context::parse_assign_expr(
   let (assign_expr, rest) = self.parse_assign_expr(rest)
   let assign_expr = AssignExpr::{
     kind: Assign(unary_expr, assign_op, assign_expr),
-    ctype: assign_expr.ctype, // TODO: once the left type != right type, what type it becomes?
+    ctype: unary_expr.ctype,
     tokens: tokens[0:rest.start_offset() - start_offset],
   }
   (assign_expr, rest)

@@ -200,6 +200,10 @@ fn Context::lex_char_literal(
       raw_str_builder.write_string("\\n'")
       (TokenKind::Char('\n'), rest_str)
     }
+    [.. "\\v", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\v'")
+      (TokenKind::Char('\u000b'), rest_str)
+    }
     [.. "\\r", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\r'")
       (TokenKind::Char('\r'), rest_str)
@@ -208,9 +212,25 @@ fn Context::lex_char_literal(
       raw_str_builder.write_string("\\t'")
       (TokenKind::Char('\t'), rest_str)
     }
+    [.. "\\a", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\a'")
+      (TokenKind::Char('\u0007'), rest_str)
+    }
+    [.. "\\b", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\b'")
+      (TokenKind::Char('\u0008'), rest_str)
+    }
+    [.. "\\f", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\f'")
+      (TokenKind::Char('\u000c'), rest_str)
+    }
     [.. "\\\'", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\''")
       (TokenKind::Char('\''), rest_str)
+    }
+    [.. "\\\"", '\'', .. rest_str] => {
+      raw_str_builder.write_string("\\\"'")
+      (TokenKind::Char('\"'), rest_str)
     }
     [.. "\\\\", '\'', .. rest_str] => {
       raw_str_builder.write_string("\\\\'")

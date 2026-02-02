@@ -3,6 +3,6 @@
 
 #include <stdlib.h>
 
-#define assert(x) do { if (!(x)) abort(); } while (0)
+#define assert(x) ((void)((x) ? 0 : (abort(), 0)))
 
 #endif

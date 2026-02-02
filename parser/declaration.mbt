@@ -581,6 +581,8 @@ pub fn Context::parse_init_declarator_list(
         raise ParseError(tokens[0], "redeclaration of variable: \{name}")
     }
   }
+  // Add the variable before parsing initializer so it is visible within it.
+  self.add_var(name, ctype)
   let (initializer, tokens) = if tokens
     is [{ kind: AssignOp("="), .. }, .. tokens] {
     let (initializer, tokens) = self.parse_initializer(tokens)
@@ -595,6 +597,7 @@ pub fn Context::parse_init_declarator_list(
       CType::{ ..ctype, dataKind: Array(elem, len) }
     _ => ctype
   }
+  // Update in case the initializer adjusted the type (e.g. array length).
   self.add_var(name, ctype)
   let decl_tokens = init_tokens[0:tokens.start_offset() -
     init_tokens.start_offset()]
@@ -632,33 +635,36 @@ pub fn Context::parse_init_declarator_list(
           raise ParseError(tokens[0], "redeclaration of variable: \{name}")
       }
     }
-      let (decl_kind, tokens) = if tokens
-        is [{ kind: AssignOp("="), .. }, .. tokens] {
-        let (initializer, tokens) = self.parse_initializer(tokens)
-        let ctype = match (ctype.dataKind, initializer) {
-          (Array(elem, 0), { kind: InitializerList(inits), .. }) =>
-            CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits_with_elem(elem, inits)) }
-          (Array(elem, 0), init) if string_literal_len(init) is Some(len) =>
-            CType::{ ..ctype, dataKind: Array(elem, len) }
-          _ => ctype
-        }
-        self.add_var(name, ctype)
-        let kind = VariableDeclaration(
-          ctype,
-          is_static~,
-          is_extern~,
-          is_register~,
+    // Add the variable before parsing initializer so it is visible within it.
+    self.add_var(name, ctype)
+    let (decl_kind, tokens) = if tokens
+      is [{ kind: AssignOp("="), .. }, .. tokens] {
+      let (initializer, tokens) = self.parse_initializer(tokens)
+      let ctype = match (ctype.dataKind, initializer) {
+        (Array(elem, 0), { kind: InitializerList(inits), .. }) =>
+          CType::{ ..ctype, dataKind: Array(elem, array_len_from_inits_with_elem(elem, inits)) }
+        (Array(elem, 0), init) if string_literal_len(init) is Some(len) =>
+          CType::{ ..ctype, dataKind: Array(elem, len) }
+        _ => ctype
+      }
+      // Update in case the initializer adjusted the type (e.g. array length).
+      self.add_var(name, ctype)
+      let kind = VariableDeclaration(
+        ctype,
+        is_static~,
+        is_extern~,
+        is_register~,
           is_thread_local~,
           name,
           Some(initializer),
         )
         (kind, tokens)
-      } else {
-        self.add_var(name, ctype)
-        let kind = VariableDeclaration(
-          ctype,
-          is_static~,
-          is_extern~,
+    } else {
+      // No initializer; keep the type we already recorded.
+      let kind = VariableDeclaration(
+        ctype,
+        is_static~,
+        is_extern~,
           is_register~,
           is_thread_local~,
           name,

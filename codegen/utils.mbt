@@ -59,6 +59,21 @@ fn Context::const_zero_value(
 }
 
 ///|
+fn Context::materialize_if_const(
+  self : Context,
+  val : &@IR.Value,
+) -> &@IR.Value raise {
+  if @unsafe.llvm_is_constant(val.getValueRef()) {
+    let ty = val.getType()
+    let slot = self.builder.createAlloca(ty)
+    self.builder.createStore(val, slot) |> ignore
+    (self.builder.createLoad(ty, slot) : &@IR.Value)
+  } else {
+    (val : &@IR.Value)
+  }
+}
+
+///|
 fn Context::const_one_value(
   self : Context,
   ty : &@IR.Type,
@@ -354,7 +369,21 @@ fn Context::emit_compound_literal_ptr(
   init : @parser.Initializer,
 ) -> &@IR.Value raise {
   let llvm_ty = self.ctype_to_llvm_type(ty)
-  let tmp = self.builder.createAlloca(llvm_ty)
+  let tmp : &@IR.Value = if self.in_global_init {
+    let name =
+      "__mbtcc_compound_literal." + self.compound_literal_counter.to_string()
+    self.compound_literal_counter += 1
+    let zero = self.const_zero_constant(llvm_ty)
+    let gv = self.llvm_mod.addGlobalVariable(
+      llvm_ty,
+      name,
+      initializer=zero,
+      linkage?=Some(InternalLinkage),
+    )
+    (gv : &@IR.Value)
+  } else {
+    (self.builder.createAlloca(llvm_ty) : &@IR.Value)
+  }
   match init.kind {
     AssignExpr(ae) => {
       match string_literal_from_initializer(init) {

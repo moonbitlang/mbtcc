@@ -171,9 +171,13 @@ pub fn Context::parse_equality_expr(
       // Check if operands are comparable for equality
       // Equality allows numeric types and pointers, but not structs/unions
       let left_ok = equality_expr.ctype.is_numeric() ||
-        equality_expr.ctype.dataKind is Ptr(_)
+        equality_expr.ctype.dataKind is Ptr(_) ||
+        equality_expr.ctype.dataKind is Array(_, _) ||
+        equality_expr.ctype.dataKind is Function(_, _, ..)
       let right_ok = right_relational_expr.ctype.is_numeric() ||
-        right_relational_expr.ctype.dataKind is Ptr(_)
+        right_relational_expr.ctype.dataKind is Ptr(_) ||
+        right_relational_expr.ctype.dataKind is Array(_, _) ||
+        right_relational_expr.ctype.dataKind is Function(_, _, ..)
       if !left_ok {
         let msg = "Invalid left operand to '==': '\{equality_expr.ctype}' is not a comparable type"
         raise ParseError(op_tok, msg)
@@ -195,9 +199,13 @@ pub fn Context::parse_equality_expr(
       // Check if operands are comparable for equality
       // Equality allows numeric types and pointers, but not structs/unions
       let left_ok = equality_expr.ctype.is_numeric() ||
-        equality_expr.ctype.dataKind is Ptr(_)
+        equality_expr.ctype.dataKind is Ptr(_) ||
+        equality_expr.ctype.dataKind is Array(_, _) ||
+        equality_expr.ctype.dataKind is Function(_, _, ..)
       let right_ok = right_relational_expr.ctype.is_numeric() ||
-        right_relational_expr.ctype.dataKind is Ptr(_)
+        right_relational_expr.ctype.dataKind is Ptr(_) ||
+        right_relational_expr.ctype.dataKind is Array(_, _) ||
+        right_relational_expr.ctype.dataKind is Function(_, _, ..)
       if !left_ok {
         let msg = "Invalid left operand to '!=': '\{equality_expr.ctype}' is not a comparable type"
         raise ParseError(op_tok, msg)

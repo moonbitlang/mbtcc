@@ -443,9 +443,15 @@ pub fn PostfixExpr::eval_as_double(self : Self) -> Double raise ParseError {
 pub fn PostfixExpr::is_assignable(self : Self) -> Bool {
   match self.kind {
     PrimExpr(prim_expr) => prim_expr.is_assignable()
-    ArrayAccess(_, _) => !self.ctype.is_const
+    ArrayAccess(_, _) =>
+      !self.ctype.is_const &&
+      !(self.ctype.dataKind is Array(_, _) || self.ctype.dataKind
+        is Function(_, _, ..))
     FuncCall(_) => false
-    MemberAccess(_, _) | PtrMemberAccess(_, _) => !self.ctype.is_const
+    MemberAccess(_, _) | PtrMemberAccess(_, _) =>
+      !self.ctype.is_const &&
+      !(self.ctype.dataKind is Array(_, _) || self.ctype.dataKind
+        is Function(_, _, ..))
     PostInc(_) | PostDec(_) => false
   }
 }

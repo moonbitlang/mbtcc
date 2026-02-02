@@ -198,6 +198,14 @@ fn Context::cast_value_to_ctype(
     }
     _ => ()
   }
+  // If the target is an array type (e.g. array parameter), decay it to pointer.
+  match to_ctype.dataKind {
+    Array(elem, _) => {
+      let decayed = @parser.CType::{ ..to_ctype, dataKind: Ptr(elem) }
+      return self.cast_value_to_ctype(val, from_ctype, decayed)
+    }
+    _ => ()
+  }
   if from_ctype == to_ctype {
     return val
   }

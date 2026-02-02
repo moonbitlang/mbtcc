@@ -377,6 +377,8 @@ fn parse_prim_expr(
     [{ kind: TokenKind::ULong(value), .. }, .. rest] => (ULong(value), rest)
     [{ kind: TokenKind::ULongLong(value), .. }, .. rest] =>
       (ULongLong(value), rest)
+    [{ kind: TokenKind::Char(value), .. }, .. rest] =>
+      (Int(value.to_int()), rest)
     [{ kind: TokenKind::Bracket('('), .. }, .. rest] => {
       let (expr, rest) = parse_constant_expr(rest)
       guard rest is [{ kind: Bracket(')'), .. }, .. rest] else {
@@ -387,13 +389,11 @@ fn parse_prim_expr(
       }
       (Paren(expr), rest)
     }
-    [tok, ..] => {
-      println(tok)
+    [tok, ..] =>
       raise InvalidConstExprToken(
         tok,
         "Expected constant expression, got \{tok.kind}",
       )
-    }
     [] =>
       raise InvalidConstExprToken(
         tokens[0],

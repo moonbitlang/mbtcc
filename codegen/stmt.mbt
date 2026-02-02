@@ -320,18 +320,21 @@ fn Context::to_bool(self : Context, val : &@IR.Value) -> &@IR.Value raise {
   let ty = val.getType()
   match ty.tryAsIntType() {
     Some(int_ty) => {
+      let val = self.materialize_if_const(val)
       let zero = self.const_zero_value(int_ty)
       self.builder.createICmpNE(val, zero)
     }
     None =>
       match ty.tryAsFPType() {
         Some(fp_ty) => {
+          let val = self.materialize_if_const(val)
           let zero = self.const_zero_value(fp_ty)
-          self.builder.createFCmpONE(val, zero)
+          self.builder.createFCmpUNE(val, zero)
         }
         None =>
           match ty.asTypeEnum() {
             PointerType(ptr_ty) => {
+              let val = self.materialize_if_const(val)
               let int_ty = self.llvm_ctx.getInt64Ty()
               let int_val = self.builder.createPtrToInt(val, int_ty)
               let zero = self.const_zero_value(int_ty)

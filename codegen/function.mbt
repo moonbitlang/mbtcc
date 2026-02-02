@@ -93,12 +93,6 @@ pub fn Context::emit_function_def(
     self.var_env.set(parem_name, alloca)
     self.var_types.set(parem_name, param_ty)
   }
-  // Run global initializers before main body
-  if name == "main" {
-    let init_func = self.ensure_global_init_func()
-    let args : Array[&@IR.Value] = Array::new()
-    let _ = self.builder.createCall(init_func, args)
-  }
   self.emit_compound_stmt(body)
   match self.builder.getInsertBlock() {
     Some(cur_bb) => {

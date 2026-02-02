@@ -70,16 +70,22 @@ fn has_ws_between(code : StringView, a : Token, b : Token) -> Bool {
   if code.length() == 0 {
     return false
   }
+  if a.line != b.line {
+    return true
+  }
   let start = a.idx + a.raw.length()
   let end = b.idx
-  if end <= start || start < 0 || end > code.length() {
-    return false
-  }
-  let gap = code.view(start_offset=start, end_offset=end)
-  for ch in gap {
-    if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
-      return true
+  if end > start && start >= 0 && end <= code.length() {
+    let gap = code.view(start_offset=start, end_offset=end)
+    for ch in gap {
+      if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+        return true
+      }
     }
+  }
+  // Fallback to column-based check in case idx math is off.
+  if b.col > a.col + a.raw.length() {
+    return true
   }
   false
 }
@@ -443,10 +449,14 @@ pub fn preprocess(ctx : @lexer.Context) -> @lexer.Context raise PreprecessError 
           continue rest
         }
         [] as rest => break rest
-        [_, ..] =>
-          raise InvalidMacroDefinition(
-            "Invalid function-like macro parameter list",
+        [tok, ..] => {
+          println(
+            "Invalid macro params: \{def_name} at \{tok.source_file}:\{tok.line}",
           )
+          raise InvalidMacroDefinition(
+            "Invalid function-like macro parameter list: \{def_name} at \{tok.source_file}:\{tok.line}",
+          )
+        }
       }
       let (rep_tokens, rest) = collect_tokens_until_new_line(line, rest)
       let macro_def = Macro::FuncLike(params, va_arg_name, rep_tokens)
@@ -841,7 +851,7 @@ fn replace_identifier(
     return (filtered, rest_tokens)
   }
   guard cmacro is FuncLike(params, va_args, rep_toks)
-  guard rest_tokens is [{ kind: Bracket('('), .. }, .. rest] else {
+  guard rest_tokens is [{ kind: Bracket('('), .. }, .. rest_after_paren] else {
     // Function-like macro not invoked; keep identifier as-is.
     if saved is Some(m) {
       macros.set(id, m)
@@ -856,7 +866,7 @@ fn replace_identifier(
   let args : Map[String, Array[Token]] = Map::new()
   let mut current_arg_tokens : Array[Token] = Array::new()
   let va_args_tokens : Array[Token] = Array::new()
-  let rest = loop rest {
+  let rest = loop rest_after_paren {
     [{ kind: Bracket('('), .. } as tok, .. rest] => {
       paren_count += 1
       current_arg_tokens.push(tok)

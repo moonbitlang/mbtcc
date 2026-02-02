@@ -15,6 +15,8 @@ pub struct Context {
   destructors : Array[String]
   mut global_init_func : @IR.Function?
   mut global_init_emitted : Bool
+  mut in_global_init : Bool
+  mut compound_literal_counter : Int
   prog : @parser.Program
   mut var_env : @env.Env[String, &@IR.Value]
   mut var_types : @env.Env[String, @parser.CType]
@@ -59,6 +61,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
   let destructors : Array[String] = Array::new()
   let global_init_func = None
   let global_init_emitted = false
+  let in_global_init = false
+  let compound_literal_counter = 0
   let var_env = @env.Env::new()
   let var_types = @env.Env::new()
   let tag_env = @env.Env::new()
@@ -84,6 +88,8 @@ fn Context::init_from_parse_program(ctx : @parser.Context) -> Context {
     destructors,
     global_init_func,
     global_init_emitted,
+    in_global_init,
+    compound_literal_counter,
     prog,
     var_env,
     var_types,
@@ -148,6 +154,7 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
   let saved_ret = self.current_ret_ty
   self.current_func = Some(func)
   self.current_ret_ty = Some(@parser.CType::void_())
+  self.in_global_init = true
   self.builder.setInsertPoint(entry_bb)
   self.enter_scope()
   for entry in self.global_inits {
@@ -221,8 +228,40 @@ fn Context::emit_global_init_function(self : Context) -> Unit raise {
   }
   self.builder.createRetVoid() |> ignore
   self.exit_scope()
+  self.in_global_init = false
   self.current_func = saved_func
   self.current_ret_ty = saved_ret
+  self.emit_global_ctors(func)
+}
+
+///|
+fn Context::emit_global_ctors(
+  self : Context,
+  init_func : @IR.Function,
+) -> Unit raise {
+  let i32_ty = self.llvm_ctx.getInt32Ty()
+  let ptr_ty = self.llvm_ctx.getPtrTy()
+  let struct_ty = self.llvm_ctx.getStructType([i32_ty, ptr_ty, ptr_ty])
+  let priority = (self.llvm_ctx.getConstInt32(65535) : &@IR.Value)
+  let null_ptr = (self.llvm_ctx.getConstPointerNull(ptr_ty) : &@IR.Value)
+  let vals : Array[&@IR.Value] = Array::new()
+  vals.push(priority)
+  vals.push(init_func)
+  vals.push(null_ptr)
+  let refs = vals.map(v => v.getValueRef())
+  let ctor_ref = @unsafe.llvm_const_struct_in_context(
+    self.llvm_ctx.0,
+    refs,
+    false,
+  )
+  let arr_ty = self.llvm_ctx.getArrayType(struct_ty, 1)
+  let arr_ref = @unsafe.llvm_const_array2(
+    struct_ty.getTypeRef(),
+    [ctor_ref],
+  )
+  let gv = self.llvm_mod.addGlobalVariable(arr_ty, "llvm.global_ctors")
+  gv.setLinkage(AppendingLinkage)
+  @unsafe.llvm_set_initializer(gv.getValueRef(), arr_ref)
 }
 
 ///|

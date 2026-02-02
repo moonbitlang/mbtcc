@@ -32,6 +32,8 @@ fn Context::emit_rel_compare(
     left.ctype.dataKind is Array(_, _)
   let right_is_ptr = right.ctype.dataKind is Ptr(_) ||
     right.ctype.dataKind is Array(_, _)
+  let left_is_int = left.ctype.is_integral()
+  let right_is_int = right.ctype.is_integral()
   if left_is_ptr && right_is_ptr {
     fn decay_ptr(t : @parser.CType) -> @parser.CType {
       match t.dataKind {
@@ -43,6 +45,37 @@ fn Context::emit_rel_compare(
     let ulong_ty = @parser.CType::ulong()
     let lval = self.cast_value_to_ctype(lraw, decay_ptr(left.ctype), ulong_ty)
     let rval = self.cast_value_to_ctype(rraw, decay_ptr(right.ctype), ulong_ty)
+    let lval = self.materialize_if_const(lval)
+    let rval = self.materialize_if_const(rval)
+    let res = match cmp {
+      "lt" => self.builder.createICmpULT(lval, rval)
+      "gt" => self.builder.createICmpUGT(lval, rval)
+      "le" => self.builder.createICmpULE(lval, rval)
+      "ge" => self.builder.createICmpUGE(lval, rval)
+      _ => codegen_unreachable()
+    }
+    return self.builder.createZExt(res, self.llvm_ctx.getInt32Ty())
+  }
+  if (left_is_ptr && right_is_int) || (right_is_ptr && left_is_int) {
+    fn decay_ptr(t : @parser.CType) -> @parser.CType {
+      match t.dataKind {
+        Array(elem, _) => elem.ptr_to()
+        _ => t
+      }
+    }
+    let ulong_ty = @parser.CType::ulong()
+    let lval = if left_is_ptr {
+      self.cast_value_to_ctype(lraw, decay_ptr(left.ctype), ulong_ty)
+    } else {
+      self.cast_value_to_ctype(lraw, left.ctype, ulong_ty)
+    }
+    let rval = if right_is_ptr {
+      self.cast_value_to_ctype(rraw, decay_ptr(right.ctype), ulong_ty)
+    } else {
+      self.cast_value_to_ctype(rraw, right.ctype, ulong_ty)
+    }
+    let lval = self.materialize_if_const(lval)
+    let rval = self.materialize_if_const(rval)
     let res = match cmp {
       "lt" => self.builder.createICmpULT(lval, rval)
       "gt" => self.builder.createICmpUGT(lval, rval)
@@ -55,13 +88,17 @@ fn Context::emit_rel_compare(
   let common = match left.ctype.common_type(right.ctype) {
     Some(t) => t
     None => {
-      let msg = "parser produced relational comparison with incompatible types '\{left.ctype}' and '\{right.ctype}'"
+      let tok = left.tokens[0]
+      let msg =
+        "parser produced relational comparison with incompatible types '\{left.ctype}' and '\{right.ctype}' at \{tok.source_file}:\{tok.line}"
       codegen_unreachable(msg~)
     }
   }
   let lval = self.cast_value_to_ctype(lraw, left.ctype, common)
   let rval = self.cast_value_to_ctype(rraw, right.ctype, common)
   if is_floating_kind(common.dataKind) {
+    let lval = self.materialize_if_const(lval)
+    let rval = self.materialize_if_const(rval)
     let res = match cmp {
       "lt" => self.builder.createFCmpOLT(lval, rval)
       "gt" => self.builder.createFCmpOGT(lval, rval)
@@ -74,6 +111,8 @@ fn Context::emit_rel_compare(
   } else {
     let is_unsigned = is_unsigned_kind(common.dataKind) ||
       common.dataKind is Ptr(_)
+    let lval = self.materialize_if_const(lval)
+    let rval = self.materialize_if_const(rval)
     let res = match (cmp, is_unsigned) {
       ("lt", true) => self.builder.createICmpULT(lval, rval)
       ("lt", false) => self.builder.createICmpSLT(lval, rval)

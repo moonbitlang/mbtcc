@@ -483,7 +483,23 @@ pub fn PrimExpr::is_constant(self : Self) -> Bool {
 
 ///|
 pub fn PrimExpr::is_assignable(self : Self) -> Bool {
-  self.kind is Ident(_) && !self.ctype.is_const
+  match self.kind {
+    Ident(_) =>
+      !self.ctype.is_const &&
+      !(self.ctype.dataKind is Array(_, _) || self.ctype.dataKind
+        is Function(_, _, ..))
+    Paren(expr) => {
+      if expr.assign_exprs.length() != 1 {
+        false
+      } else {
+        match expr.assign_exprs[0].kind {
+          Conditional(cond) => cond.is_assignable()
+          Assign(_, _, _) => false
+        }
+      }
+    }
+    _ => false
+  }
 }
 
 ///|
@@ -496,6 +512,7 @@ pub fn PrimExpr::eval_as_int(self : Self) -> Int raise ParseError {
     ULong(v) => v.to_int()
     ULongLong(v) => v.to_int()
     Char(c) => c.to_int()
+    Paren(expr) => expr.eval_as_int()
     _ => {
       let msg = "Cannot evaluate PrimExpr as int: not an integer literal"
       raise ParseError(self.tokens[0], msg)

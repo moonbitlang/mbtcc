@@ -359,11 +359,18 @@ pub fn Context::parse_logical_and_expr(
   let rest = loop rest {
     [{ kind: Operator("&&"), .. } as op_tok, .. rest] => {
       let (right_or_expr, rest) = self.parse_inclusive_or_expr(rest)
+      fn decay_expr_type(t : CType) -> CType {
+        match t.dataKind {
+          Array(inner, _) => inner.ptr_to()
+          Function(_, _, ..) => t.ptr_to()
+          _ => t
+        }
+      }
       // Check if operands are scalar types (can be converted to boolean)
       // Scalar types include: integers, floats, and pointers
       // Not allowed: void, struct, union, array
-      let left_ok = logical_and_expr.ctype.is_scalar()
-      let right_ok = right_or_expr.ctype.is_scalar()
+      let left_ok = decay_expr_type(logical_and_expr.ctype).is_scalar()
+      let right_ok = decay_expr_type(right_or_expr.ctype).is_scalar()
       if !left_ok {
         let msg = "Invalid left operand to '&&': '\{logical_and_expr.ctype}' is not a scalar type"
         raise ParseError(op_tok, msg)

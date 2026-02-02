@@ -43,6 +43,66 @@ pub impl Eq for ConditionalExpr with equal(self, other) {
 }
 
 ///|
+pub fn ConditionalExpr::as_unary(self : Self) -> UnaryExpr? {
+  match self.kind {
+    LogicalOrExpr(e) =>
+      match e.kind {
+        LogicalAndExpr(e) =>
+          match e.kind {
+            InclusiveOrExpr(e) =>
+              match e.kind {
+                ExclusiveOrExpr(e) =>
+                  match e.kind {
+                    AndExpr(e) =>
+                      match e.kind {
+                        EqualityExpr(e) =>
+                          match e.kind {
+                            RelationalExpr(e) =>
+                              match e.kind {
+                                ShiftExpr(e) =>
+                                  match e.kind {
+                                    AddiExpr(e) =>
+                                      match e.kind {
+                                        MultiExpr(e) =>
+                                          match e.kind {
+                                            CastExpr(e) =>
+                                              match e.kind {
+                                                UnaryExpr(u) => Some(u)
+                                                _ => None
+                                              }
+                                            _ => None
+                                          }
+                                        _ => None
+                                      }
+                                    _ => None
+                                  }
+                                _ => None
+                              }
+                            _ => None
+                          }
+                        _ => None
+                      }
+                    _ => None
+                  }
+                _ => None
+              }
+            _ => None
+          }
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+pub fn ConditionalExpr::is_assignable(self : Self) -> Bool {
+  match self.as_unary() {
+    Some(u) => u.is_assignable()
+    None => false
+  }
+}
+
+///|
 pub impl Show for ConditionalExpr with output(self, logger) {
   logger.write_string(self.to_string(color=true))
 }
@@ -224,15 +284,23 @@ pub fn Context::parse_conditional_expr(
   // Semantically `cond ? cond : else`, but `cond` is evaluated only once.
   if rest is [{ kind: Colon, .. }, .. rest] {
     let (else_expr, rest) = self.parse_conditional_expr(rest)
-    let then_ctype = logical_or_expr.ctype
+    fn decay_expr_type(t : CType) -> CType {
+      match t.dataKind {
+        Array(inner, _) => inner.ptr_to()
+        Function(_, _, ..) => t.ptr_to()
+        _ => t
+      }
+    }
+    let then_ctype = decay_expr_type(logical_or_expr.ctype)
+    let else_ctype = decay_expr_type(else_expr.ctype)
     // Type rule (permissive, aligned with existing `cond ? expr : (void)expr` handling).
-    let ctype = match (then_ctype.dataKind, else_expr.ctype.dataKind) {
+    let ctype = match (then_ctype.dataKind, else_ctype.dataKind) {
       (Void, _) | (_, Void) => CType::void_()
       _ =>
-        if then_ctype == else_expr.ctype {
+        if then_ctype == else_ctype {
           then_ctype
         } else {
-          match CType::common_type(then_ctype, else_expr.ctype) {
+          match CType::common_type(then_ctype, else_ctype) {
             Some(t) => t
             None =>
               raise ParseError(
@@ -256,26 +324,35 @@ pub fn Context::parse_conditional_expr(
     raise ParseError(rest[0], "Expected ':' in conditional expression")
   }
   let (else_expr, rest) = self.parse_conditional_expr(rest)
+  fn decay_expr_type(t : CType) -> CType {
+    match t.dataKind {
+      Array(inner, _) => inner.ptr_to()
+      Function(_, _, ..) => t.ptr_to()
+      _ => t
+    }
+  }
+  let then_ctype = decay_expr_type(then_expr.ctype)
+  let else_ctype = decay_expr_type(else_expr.ctype)
   // Type rule:
   // - Standard C requires then/else to have compatible types.
   // - But chibicc tests rely on accepting `cond ? expr : (void)expr` as an expression-statement.
   //   We treat it as `void` if either branch is void (a permissive rule).
-  let ctype = match (then_expr.ctype.dataKind, else_expr.ctype.dataKind) {
+  let ctype = match (then_ctype.dataKind, else_ctype.dataKind) {
     (Void, _) | (_, Void) => CType::void_()
     _ =>
-      match select_pointer_type(then_expr.ctype, else_expr.ctype) {
+      match select_pointer_type(then_ctype, else_ctype) {
         Some(ptr_ty) => ptr_ty
         None =>
-          if then_expr.ctype.dataKind is Ptr(_) &&
+          if then_ctype.dataKind is Ptr(_) &&
             is_null_pointer_condexpr(else_expr) {
-            then_expr.ctype
-          } else if else_expr.ctype.dataKind is Ptr(_) &&
+            then_ctype
+          } else if else_ctype.dataKind is Ptr(_) &&
             is_null_pointer_expr(then_expr) {
-            else_expr.ctype
-          } else if then_expr.ctype == else_expr.ctype {
-            then_expr.ctype
+            else_ctype
+          } else if then_ctype == else_ctype {
+            then_ctype
           } else {
-            match CType::common_type(then_expr.ctype, else_expr.ctype) {
+            match CType::common_type(then_ctype, else_ctype) {
               Some(t) => t
               None =>
                 raise ParseError(

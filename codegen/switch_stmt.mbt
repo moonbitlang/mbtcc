@@ -115,16 +115,10 @@ fn Context::emit_switch_stmt(
         // 在最后一个 label 块里发射真正的语句
         if current_bb is Some(bb) {
           if bb.getTerminator() is None {
-            // payload 不应再是 case/default，否则说明 unwind 不完整
-            match payload.kind {
-              Case(_, _) | CaseRange(_, _, _) | DefaultCase(_) =>
-                raise SemanticError("Invalid nested label in switch body")
-              _ => {
-                self.emit_statement(payload)
-                // payload 可能会创建新基本块并移动 insert point（如 Duff's device 的 do-while）
-                current_bb = self.builder.getInsertBlock()
-              }
-            }
+            // 允许嵌套 case/default（Duff's device）；交给 emit_statement 处理。
+            self.emit_statement(payload)
+            // payload 可能会创建新基本块并移动 insert point（如 Duff's device 的 do-while）
+            current_bb = self.builder.getInsertBlock()
           }
         }
       }
@@ -138,14 +132,9 @@ fn Context::emit_switch_stmt(
         top.active = true
         self.switch_ctx_stack.push(top)
         if default_bb.getTerminator() is None {
-          match payload.kind {
-            Case(_, _) | CaseRange(_, _, _) | DefaultCase(_) =>
-              raise SemanticError("Invalid nested label in switch body")
-            _ => {
-              self.emit_statement(payload)
-              current_bb = self.builder.getInsertBlock()
-            }
-          }
+          // 允许嵌套 case/default（Duff's device）
+          self.emit_statement(payload)
+          current_bb = self.builder.getInsertBlock()
         }
       }
       Left(stmt) =>
@@ -318,7 +307,10 @@ fn is_switchable_kind(kind : @parser.CTypeDataKind) -> Bool {
 ///|
 fn case_value_as_int(c : @parser.ConstantExpr) -> Int raise {
   c.eval_as_int() catch {
-    _ => raise SemanticError("Case label must be an integer constant")
+    _ =>
+      raise SemanticError(
+        "Case label must be an integer constant at \{c.tokens[0].source_file}:\{c.tokens[0].line}: \{c.to_string(color=false)}",
+      )
   }
 }
 

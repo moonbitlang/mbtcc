@@ -293,7 +293,7 @@ fn Context::parse_array_abstract_declarator(
     init_tokens,
     decay_array_to_ptr=false,
   )
-  if is_static_array || !decay_array_to_ptr {
+  if !decay_array_to_ptr {
     guard size is Some(_) || !is_static_array else {
       raise ParseError(tokens[0], "Static array must have a size")
     }
@@ -311,6 +311,9 @@ fn Context::parse_array_abstract_declarator(
     }
     (ctype, rest)
   } else {
+    guard size is Some(_) || !is_static_array else {
+      raise ParseError(tokens[0], "Static array must have a size")
+    }
     let ctype = CType::{
       dataKind: Ptr(element_ty),
       is_const,
@@ -394,6 +397,7 @@ fn Context::parse_function_declarator(
       )
       let param_ty = match param_ty.dataKind {
         Function(_, _, ..) => param_ty.ptr_to()
+        Array(elem, _) => CType::{ ..param_ty, dataKind: Ptr(elem) }
         _ => param_ty
       }
       parameter_types.push((param_ty, param_name))
